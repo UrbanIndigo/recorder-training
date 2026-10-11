@@ -2,7 +2,7 @@
 // each line where the written notes and what you played line up in time.
 // Notes are spaced in proportion to their length so the timeline matches.
 
-import { diatonicStep } from './music.js';
+import { diatonicStep } from './music.js?v=1.6';
 
 const GAP = 10; // staff line spacing
 const STAFF_TOP = 38; // within each line block

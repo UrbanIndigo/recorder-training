@@ -1,11 +1,11 @@
 // Rhythm Reading screen: show a rhythm, play it back, count in, listen to
 // the player, and show how their timing compared.
 
-import { LEVELS, generateExercise, calibrationExercise, calibrationOffset, OnsetTracker, scoreRhythm, barVerdicts, ON_TIME_MS } from './rhythm.js';
-import { RhythmSheet } from './notation.js';
-import { scheduleClick } from './audio.js';
-import { playDemo } from './rhythm-play.js';
-import { writtenMidi } from './recorders.js';
+import { LEVELS, generateExercise, calibrationExercise, calibrationOffset, OnsetTracker, scoreRhythm, barVerdicts, ON_TIME_MS } from './rhythm.js?v=1.6';
+import { RhythmSheet } from './notation.js?v=1.6';
+import { scheduleClick } from './audio.js?v=1.6';
+import { playDemo } from './rhythm-play.js?v=1.6';
+import { writtenMidi } from './recorders.js?v=1.6';
 
 // Easy left-hand notes, as semitones above the recorder's lowest note. On a
 // C recorder these are written G A B C D; on an F recorder, C D E F G — the

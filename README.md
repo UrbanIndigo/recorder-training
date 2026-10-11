@@ -76,7 +76,10 @@ For best results, turn off other noise and keep the device roughly half a metre 
 
 ```sh
 npm test
+node scripts/set-version.mjs 1.7   # before pushing a change
 ```
+
+Every file URL carries the version number, so after an update browsers fetch fresh copies instead of mixing old and new files. Run the version script whenever you change the app. If the app ever fails to start, it shows a message with a Reload button.
 
 Code layout (`js/`):
 - `pitch.js`: YIN pitch detection plus a median smoother
