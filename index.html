@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1f6f5c">
   <title>Recorder Trainer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="css/styles.css?v=1.3">
+  <link rel="stylesheet" href="css/styles.css?v=1.4">
 </head>
 <body>
   <header class="topbar">
@@ -56,7 +56,7 @@
           <small>Turn it up if your playing isn't picked up, down if background noise is. The Mic bar shows the level: it turns green when it hears you, and the line marks the cut-off.</small>
         </div>
       </details>
-      <p class="hint version">Version 1.3</p>
+      <p class="hint version">Version 1.4</p>
     </section>
 
     <!-- Long tone: choose note -->
@@ -175,6 +175,85 @@
     <!-- Rhythm reading -->
     <section class="view" id="view-rhythm" hidden>
       <h2>Rhythm Reading</h2>
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" id="tab-endless" aria-controls="rh-endless">Endless</button>
+        <button class="tab" role="tab" id="tab-practice" aria-controls="rh-practice">Practice</button>
+      </div>
+
+      <div id="rh-endless" role="tabpanel">
+        <div class="en-stage">
+          <div class="en-stage-text">
+            <div class="en-stage-label" id="en-stage-label">Stage 1 of 12</div>
+            <div class="en-stage-name" id="en-stage-name">Quarter notes</div>
+          </div>
+          <div class="en-stats">
+            <div><span id="en-bpm">70</span> bpm</div>
+            <div class="en-streak" id="en-streak"></div>
+          </div>
+        </div>
+        <div class="en-progress" title="Progress to the next unlock"><div class="en-progress-fill" id="en-progress-fill"></div></div>
+        <div class="en-progress-label" id="en-progress-label">Next unlock</div>
+
+        <div class="en-intro" id="en-intro" hidden>
+          <div class="en-intro-tag">New rhythm unlocked</div>
+          <h3 id="en-intro-title"></h3>
+          <p id="en-intro-text"></p>
+          <div class="en-intro-count">Count: <span id="en-intro-count"></span></div>
+          <div class="actions left">
+            <button class="btn primary" id="en-continue">Continue</button>
+            <button class="btn secondary" id="en-intro-hear">🔊 Hear an example</button>
+          </div>
+        </div>
+
+        <div class="en-feedback" id="en-feedback" hidden>
+          <span class="en-chip" id="en-chip"></span>
+          <span class="en-feedback-text" id="en-feedback-text"></span>
+        </div>
+
+        <div class="sheet-card">
+          <div class="sheet-meta" id="en-meta"></div>
+          <div id="en-sheet"></div>
+        </div>
+
+        <div class="beat-row" id="en-beats" aria-hidden="true"></div>
+        <p class="rh-status" id="en-status" aria-live="polite"></p>
+        <div class="level-row"><span>Mic</span><div class="level" id="en-mic" title="Microphone level"><div class="level-fill"></div><div class="level-gate"></div></div></div>
+
+        <div class="actions">
+          <button class="btn primary" id="en-start">▶ Start</button>
+          <button class="btn secondary" id="en-stop" hidden>Stop</button>
+          <button class="btn secondary" id="en-hear">🔊 Hear it</button>
+        </div>
+        <p class="error" id="en-error" hidden></p>
+
+        <div class="en-summary" id="en-summary" hidden></div>
+
+        <p class="hint">Rhythms keep coming until you press Stop. After each one you get a beat to see your score, then a bar of clicks to read the next. New rhythms unlock as you get good, and any you find hard come back. Tongue every note ("tu").</p>
+
+        <details class="settings">
+          <summary>Endless options</summary>
+          <div class="setting">
+            <label for="en-notes">Notes to play</label>
+            <select id="en-notes">
+              <option value="1">One note</option>
+              <option value="3">3 notes</option>
+              <option value="5">5 notes</option>
+            </select>
+          </div>
+          <label class="toggle setting-row"><input type="checkbox" id="en-click"> Click while playing</label>
+          <label class="toggle setting-row"><input type="checkbox" id="en-count"> Always show counting</label>
+          <div class="setting">
+            <label for="en-jump">Jump to stage</label>
+            <select id="en-jump"></select>
+            <small>Already know the basics? Skip ahead. Your scores so far are kept.</small>
+          </div>
+          <div class="actions left">
+            <button class="btn secondary small" id="en-reset">Start over from stage 1</button>
+          </div>
+        </details>
+      </div>
+
+      <div id="rh-practice" role="tabpanel" hidden>
       <div class="rh-controls">
         <label class="rh-field">Level
           <select id="rh-level"></select>
@@ -259,6 +338,8 @@
         </div>
       </div>
 
+      </div>
+
       <details class="settings">
         <summary>Timing calibration</summary>
         <p class="hint">Phones and Bluetooth headphones add a small delay between the click and the mic. If the app keeps saying you're late when you feel on time, calibrate: press the button and play a short note exactly on each of the 8 clicks after the count-in. Don't use Bluetooth headphones for this.</p>
@@ -289,6 +370,6 @@
     </section>
   </main>
 
-  <script type="module" src="js/app.js?v=1.3"></script>
+  <script type="module" src="js/app.js?v=1.4"></script>
 </body>
 </html>

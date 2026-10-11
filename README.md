@@ -24,8 +24,16 @@ When you finish you get a score out of 100 and a breakdown:
 
 You also get tips based on the result. Your best score on each note is saved in the browser and shown as a coloured dot in the note picker.
 
-### Rhythm Reading
-Practise reading rhythms. You get a random 4-bar rhythm in sheet music, at one of five levels:
+### Rhythm Reading — Endless
+Rhythm training that keeps going until you stop. A metronome runs the whole time. After each 2-bar rhythm you get a beat to see your score, then a bar of clicks to read the next one.
+
+- **Levels up on its own.** You start with quarter notes. Twelve stages unlock one at a time once you're consistently scoring well: half notes, whole notes, rests, dotted halves, 3/4, eighths, off-beat eighths, dotted quarter + eighth, 2/4, then syncopation. Each new rhythm gets a short explanation card with how to count it, and you can hear an example. Once everything is unlocked, the tempo creeps up instead.
+- **Repeats what you get wrong.** Score under 70 and the same rhythm comes straight back, with the counting shown, your last attempt coloured on the notes, and the tricky pattern named. Miss it again and it goes into a review list that comes back a few rhythms later.
+- **Targets your weak spots.** It tracks how well you do on each rhythm pattern and gives you the hard ones more often. If you're struggling, it slows down.
+- Progress is saved. Options let you jump ahead a stage, always show counting, or start over.
+
+### Rhythm Reading — Practice
+Pick a level and practise reading rhythms. You get a random 4-bar rhythm in sheet music, at one of five levels:
 1. Whole, half & quarter notes
 2. Rests & 3/4 time
 3. Eighth notes
@@ -72,7 +80,10 @@ Code layout (`js/`):
 - `longtone.js`: long-tone session state machine, scoring and tips (no DOM code, unit tested)
 - `rhythm.js`: rhythm generation by level, note start/stop tracking, and timing scoring (no DOM code, unit tested)
 - `notation.js`: draws rhythm exercises as sheet music with a timeline
-- `rhythm-view.js`: the Rhythm Reading screen
+- `progression.js`: endless-mode curriculum, skill tracking, retries, review and tempo changes (no DOM code, unit tested)
+- `endless-view.js`: the Endless screen (continuous metronome loop)
+- `rhythm-view.js`: the Practice screen
+- `rhythm-play.js`: plays a rhythm back so you can hear it
 - `recorders.js`: instrument ranges and transpositions
 - `music.js`: note names and pitch maths
 - `audio.js`: microphone input and the reference tone

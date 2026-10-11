@@ -9,6 +9,7 @@ import { staffSvg } from './staff.js';
 import { drawPitchChart } from './chart.js';
 import { loadState, saveState, recordAttempt, noteHistory } from './storage.js';
 import { initRhythmView } from './rhythm-view.js';
+import { initEndlessView } from './endless-view.js';
 
 const $ = (id) => document.getElementById(id);
 const state = loadState();
@@ -30,14 +31,17 @@ let currentView = 'home';
 function show(view) {
   if (currentView === 'run') stopExercise();
   if (currentView === 'tuner') stopTuner();
-  if (currentView === 'rhythm') rhythmView.leave();
+  if (currentView === 'rhythm') {
+    rhythmView.leave();
+    endlessView.leave();
+  }
   for (const el of document.querySelectorAll('.view')) el.hidden = el.id !== `view-${view}`;
   currentView = view;
   $('back-btn').hidden = !PARENT[view];
   window.scrollTo(0, 0);
   if (view === 'pick') renderNoteGrid();
   if (view === 'tuner') startTuner();
-  if (view === 'rhythm') rhythmView.enter();
+  if (view === 'rhythm') showRhythmTab(state.rhythmTab);
 }
 
 $('back-btn').addEventListener('click', () => show(PARENT[currentView] || 'home'));
@@ -59,6 +63,7 @@ recorderSelect.addEventListener('change', () => {
   if (currentView === 'run' || currentView === 'results') show('pick');
   else if (currentView === 'pick') renderNoteGrid();
   rhythmView.recorderChanged();
+  endlessView.recorderChanged();
 });
 
 $('a4-select').value = String(state.a4);
@@ -228,6 +233,7 @@ document.addEventListener('visibilitychange', () => {
     resetRunUi();
   }
   if (document.hidden && rhythmView.busy) rhythmView.stopIfRunning();
+  if (document.hidden && endlessView.busy) endlessView.stopIfRunning();
 });
 
 function setTimer(elapsed, duration) {
@@ -473,5 +479,40 @@ const rhythmView = initRhythmView({
   requestWakeLock,
   releaseWakeLock,
 });
+
+const endlessView = initEndlessView({
+  $,
+  state,
+  save: () => saveState(state),
+  listener,
+  startMic,
+  showMicError,
+  recorder,
+  pitchToMidi,
+  setLevel,
+  scoreColor,
+  requestWakeLock,
+  releaseWakeLock,
+});
+
+// Rhythm Reading has two tabs: Endless (adaptive) and Practice (pick a level).
+function showRhythmTab(tab) {
+  state.rhythmTab = tab;
+  saveState(state);
+  const endless = tab === 'endless';
+  $('rh-endless').hidden = !endless;
+  $('rh-practice').hidden = endless;
+  $('tab-endless').setAttribute('aria-selected', String(endless));
+  $('tab-practice').setAttribute('aria-selected', String(!endless));
+  if (endless) {
+    rhythmView.leave();
+    endlessView.enter();
+  } else {
+    endlessView.leave();
+    rhythmView.enter();
+  }
+}
+$('tab-endless').addEventListener('click', () => showRhythmTab('endless'));
+$('tab-practice').addEventListener('click', () => showRhythmTab('practice'));
 
 show('home');

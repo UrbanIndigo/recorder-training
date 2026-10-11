@@ -53,6 +53,7 @@ export class RhythmSheet {
     const parts = [];
     this.lines.forEach((line, i) => parts.push(this.drawLine(line, i === 0)));
     parts.push(this.drawNotes());
+    if (this.counting) parts.push(this.drawCounting());
     parts.push('<g class="played-layer"></g>');
     parts.push('<line class="cursor" x1="0" x2="0" y1="0" y2="0" visibility="hidden"/>');
     this.container.innerHTML = `<svg xmlns="${svgNs}" viewBox="0 0 ${width} ${this.height}" width="100%" class="sheet" role="img" aria-label="Rhythm in ${bpb}/4, ${ex.bars} bars">${parts.join('')}</svg>`;
@@ -146,6 +147,37 @@ export class RhythmSheet {
       p.push(`<g class="note" data-idx="${idx}">${noteGlyph(e, x, y, step, bottom)}</g>`);
     });
     return `<g class="expected-layer">${expected.join('')}</g>${p.join('')}`;
+  }
+
+  /**
+   * Counting under the staff: beat numbers, with "+" for notes on the
+   * off-beat. Beats you hold through are shown in brackets, rests faded.
+   */
+  drawCounting() {
+    const ex = this.exercise;
+    const bpb = ex.beatsPerBar;
+    const out = [];
+    const label = (beat, text, cls) => {
+      const line = this.lineFor(beat);
+      const y = line.top + STAFF_TOP + 4 * GAP + 30;
+      out.push(`<text class="count ${cls}" x="${this.x(line, beat)}" y="${y}">${text}</text>`);
+    };
+    for (const e of ex.events) {
+      const beatInBar = e.beat - e.bar * bpb;
+      const whole = Number.isInteger(beatInBar);
+      label(e.beat, whole ? String(beatInBar + 1) : '+', e.rest ? 'rest' : 'start');
+      // Beats held or rested through.
+      for (let b = Math.floor(e.beat) + 1; b < e.beat + e.beats - 1e-9; b++) {
+        label(b, e.rest ? String(b - e.bar * bpb + 1) : `(${b - e.bar * bpb + 1})`, e.rest ? 'rest' : 'hold');
+      }
+    }
+    return `<g class="counting">${out.join('')}</g>`;
+  }
+
+  setCounting(on) {
+    if (this.counting === on) return;
+    this.counting = on;
+    this.render();
   }
 
   drawBeamGroup(group, line, bottom) {

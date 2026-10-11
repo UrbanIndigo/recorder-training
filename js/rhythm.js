@@ -66,6 +66,26 @@ export const LEVELS = [
 export function generateExercise({ level, pitches, bars = 4, random = Math.random }) {
   const lvl = LEVELS.find((l) => l.id === level) || LEVELS[0];
   const bpb = lvl.timeSigs[Math.floor(random() * lvl.timeSigs.length)];
+  return { ...generateFromCells({ cells: lvl.cells, beatsPerBar: bpb, pitches, bars, random }), level: lvl.id };
+}
+
+/** The rhythm patterns ("cells") exercises are built from. */
+export const CELL_NAMES = Object.keys(CELLS);
+
+/** Can these cells fill a bar of this length? */
+export function canFill(cells, bpb) {
+  return Object.keys(cells).some((c) => CELLS[c].len === 1) || (bpb === 4 && 'whole' in cells);
+}
+
+/**
+ * Make an exercise from weighted rhythm cells.
+ * @param {object} o
+ * @param {Object<string, number>} o.cells cell name -> weight
+ * @param {number} o.beatsPerBar
+ * @param {number[]} o.pitches sounding MIDI notes to use (stepwise order)
+ */
+export function generateFromCells({ cells, beatsPerBar: bpb, pitches, bars = 4, random = Math.random }) {
+  const lvl = { cells };
 
   const barCells = [];
   for (let b = 0; b < bars; b++) {
@@ -94,7 +114,7 @@ export function generateExercise({ level, pitches, bars = 4, random = Math.rando
     for (const name of cells) {
       group++;
       for (const e of CELLS[name].events) {
-        const ev = { beat, beats: e.beats, rest: !!e.rest, dotted: !!e.dotted, bar: barIndex };
+        const ev = { beat, beats: e.beats, rest: !!e.rest, dotted: !!e.dotted, bar: barIndex, cell: name, cellId: group };
         if (e.beam) ev.beamGroup = group;
         if (!ev.rest) {
           if (pitches.length > 1 && events.some((x) => !x.rest)) {
@@ -109,7 +129,7 @@ export function generateExercise({ level, pitches, bars = 4, random = Math.rando
     }
   });
 
-  return { level: lvl.id, beatsPerBar: bpb, bars, totalBeats: bars * bpb, events };
+  return { beatsPerBar: bpb, bars, totalBeats: bars * bpb, events };
 }
 
 function fillBar(lvl, bpb, random) {

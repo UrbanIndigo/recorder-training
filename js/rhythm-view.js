@@ -3,8 +3,8 @@
 
 import { LEVELS, generateExercise, calibrationExercise, calibrationOffset, OnsetTracker, scoreRhythm, ON_TIME_MS } from './rhythm.js';
 import { RhythmSheet } from './notation.js';
-import { scheduleClick, scheduleTone, createPlaybackContext } from './audio.js';
-import { midiToFreq } from './music.js';
+import { scheduleClick } from './audio.js';
+import { playDemo } from './rhythm-play.js';
 import { writtenMidi } from './recorders.js';
 
 // Easy left-hand notes, as semitones above the recorder's lowest note. On a
@@ -122,35 +122,17 @@ export function initRhythmView(d) {
 
   function hearIt() {
     stop();
-    const ctx = createPlaybackContext();
-    const beat = 60 / state.bpm;
-    const bpb = exercise.beatsPerBar;
-    const t0 = ctx.currentTime + 0.2;
-    const start = t0 + bpb * beat;
-    for (let i = 0; i < bpb; i++) scheduleClick(ctx, t0 + i * beat, i === 0);
-    for (let b = 0; b < exercise.totalBeats; b++) scheduleClick(ctx, start + b * beat, b % bpb === 0, 0.5);
-    for (const e of exercise.events) {
-      if (!e.rest) scheduleTone(ctx, midiToFreq(e.midi, state.a4), start + e.beat * beat, e.beats * beat - Math.min(0.07, beat * 0.15));
-    }
     sheet.clearResults();
     $('rh-results').hidden = true;
     setBusy(true);
     setStatus('Listen and follow the music…');
-
-    const run = { kind: 'demo', ctx, cancelled: false };
+    const run = { kind: 'demo', cancelled: false };
     active = run;
-    const tick = () => {
+    run.cancel = playDemo(exercise, state.bpm, state.a4, followBeat, () => {
       if (run.cancelled) return;
-      const pos = (ctx.currentTime - (ctx.outputLatency || 0) - start) / beat;
-      followBeat(pos);
-      if (pos > exercise.totalBeats + 0.3) {
-        stop();
-        setStatus('Your turn — press Play when ready.');
-        return;
-      }
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
+      stop();
+      setStatus('Your turn — press Play when ready.');
+    });
   }
 
   /** Move the playhead and beat counter to a position in beats (negative = count-in). */
@@ -222,7 +204,7 @@ export function initRhythmView(d) {
     const played = run.tracker
       .finish(now)
       .map((n) => ({ start: n.start - run.latency - run.start, end: n.end - run.latency - run.start, midi: n.midi }))
-      .filter((n) => n.end > -0.5 * run.beat); // ignore warm-up toots during the count-in
+      .filter((n) => n.start >= -0.5 * run.beat); // ignore warm-up toots during the count-in
     const ex = exercise;
     stop();
     if (run.kind === 'calibration') return finishCalibration(ex, played);
@@ -325,13 +307,14 @@ export function initRhythmView(d) {
     if (!run) return;
     run.cancelled = true;
     run.unsub?.();
-    if (run.ctx) run.ctx.close().catch(() => {});
+    run.cancel?.();
     if (run.kind !== 'demo') {
       // Silence any clicks still scheduled by restarting the mic context.
       d.listener.stop();
       d.releaseWakeLock();
     }
     setBusy(false);
+    d.setLevel($('rh-mic'), { rms: 0, gate: 0 });
     sheet?.setCursor(null);
     renderBeats(null);
     if (run.kind === 'calibration' && byUser) {

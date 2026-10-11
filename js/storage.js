@@ -14,6 +14,9 @@ const DEFAULTS = {
   clickWhilePlaying: true,
   latencyMs: null, // measured device delay for rhythm timing; null = automatic estimate
   rhythmBest: {}, // { [level]: best score }
+  rhythmTab: 'endless',
+  alwaysCount: false,
+  endless: null, // endless-mode progress (see progression.js)
   history: {}, // { [recorderId]: { [midi]: { best, attempts: [{ score, meanCents, date }] } } }
 };
 
