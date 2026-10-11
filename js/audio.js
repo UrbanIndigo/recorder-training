@@ -2,11 +2,7 @@
 
 import { detectPitch } from './pitch.js';
 
-let sharedCtx = null;
-function audioContext() {
-  if (!sharedCtx) sharedCtx = new (window.AudioContext || window.webkitAudioContext)();
-  return sharedCtx;
-}
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
 
 export class PitchListener {
   constructor() {
@@ -21,7 +17,11 @@ export class PitchListener {
     this.stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
     });
-    const ctx = audioContext();
+    // A fresh context, created only once the mic is open. Some phones (notably
+    // iPhones) switch the hardware sample rate when recording starts; a context
+    // created earlier keeps reporting the old rate, which throws every pitch
+    // reading off by about a semitone.
+    const ctx = (this.ctx = new AudioCtx());
     await ctx.resume();
     this.source = ctx.createMediaStreamSource(this.stream);
     this.analyser = ctx.createAnalyser();
@@ -37,7 +37,15 @@ export class PitchListener {
     cancelAnimationFrame(this.raf);
     this.source?.disconnect();
     this.stream?.getTracks().forEach((t) => t.stop());
-    this.source = this.stream = this.analyser = null;
+    this.ctx?.close().catch(() => {});
+    this.source = this.stream = this.analyser = this.ctx = null;
+  }
+
+  /** Sample rates in use, for the diagnostics line. */
+  info() {
+    if (!this.running) return null;
+    const track = this.stream.getAudioTracks()[0];
+    return { contextRate: this.ctx.sampleRate, micRate: track?.getSettings?.().sampleRate ?? null };
   }
 
   setOptions(options) {
@@ -53,7 +61,7 @@ export class PitchListener {
   tick = () => {
     if (!this.running) return;
     this.analyser.getFloatTimeDomainData(this.buf);
-    const reading = detectPitch(this.buf, audioContext().sampleRate, this.options);
+    const reading = detectPitch(this.buf, this.ctx.sampleRate, this.options);
     const now = performance.now() / 1000;
     for (const fn of this.listeners) fn(reading, now);
     this.raf = requestAnimationFrame(this.tick);
@@ -62,7 +70,8 @@ export class PitchListener {
 
 /** Play a soft, recorder-like reference tone. Resolves when it finishes. */
 export function playReferenceTone(freq, seconds = 2) {
-  const ctx = audioContext();
+  // Own short-lived context, so it can't be left at a stale sample rate.
+  const ctx = new AudioCtx();
   ctx.resume();
   const t0 = ctx.currentTime + 0.02;
   const out = ctx.createGain();
@@ -91,6 +100,7 @@ export function playReferenceTone(freq, seconds = 2) {
   return new Promise((resolve) => {
     oscs[0].onended = () => {
       out.disconnect();
+      ctx.close().catch(() => {});
       resolve();
     };
   });

@@ -241,3 +241,4 @@ h3 { margin: 28px 0 8px; font-size: 1.05rem; }
   .score-ring { width: 96px; height: 96px; }
   .score-ring span { width: 74px; height: 74px; font-size: 1.8rem; }
 }
+.diag { text-align: center; margin-top: 32px; }

@@ -385,6 +385,10 @@ async function startTuner() {
     return;
   }
   if (currentView !== 'tuner') return;
+  const info = listener.info();
+  $('tuner-diag').textContent = info
+    ? `Mic ${info.micRate ? `${info.micRate} Hz` : 'rate unknown'} · analysing at ${info.contextRate} Hz · A = ${state.a4} Hz`
+    : '';
   smoother.reset();
   tunerUnsub = listener.onPitch((reading) => {
     const midi = smoother.push(reading.freq ? pitchToMidi(reading.freq) : null);
