@@ -1,5 +1,7 @@
 # Recorder Trainer
 
+**Use it here: https://urbanindigo.github.io/recorder-training/** (works on phones too — allow the microphone when asked).
+
 A practice app for recorder players that runs in the browser. It listens through your microphone, works out which note you're playing and how in tune it is, and scores you.
 
 Supports **sopranino, soprano (descant), alto (treble), tenor and bass** recorders. Note names are shown as written in your music. For example, soprano low C is shown as written C4, though it sounds as C5.
