@@ -2,7 +2,7 @@
 // the player gets them right, retries and reviews of rhythms they found
 // hard, and tempo that rises once everything is unlocked. No DOM code.
 
-import { generateFromCells } from './rhythm.js?v=1.7';
+import { generateFromCells, cellFitsMeter } from './rhythm.js?v=1.8';
 
 /** Each step unlocks one new rhythm pattern or time signature, in teaching order. */
 export const CURRICULUM = [
@@ -13,11 +13,11 @@ export const CURRICULUM = [
   { cell: 'halfRest', title: 'Half rests', text: 'A half rest is a small block sitting on the middle line: 2 beats of silence.', count: '1 2 (rest rest)' },
   { cell: 'barRest', title: 'Whole-bar rests', text: 'A block hanging from the fourth line fills a whole bar with silence, in any time signature. Keep counting through it so you come in on time.', count: '(1 2 3 4) | 1' },
   { cell: 'dottedHalf', title: 'Dotted half notes', text: 'A dot adds half the note’s value again, so a dotted half note lasts 3 beats.', count: '1 (2 3) 4' },
-  { timeSig: 3, title: '3/4 time', text: 'The top number says how many beats are in each bar. In 3/4 there are 3, so count "1 2 3". Beat 1 is the loud click.', count: '1 2 3 | 1 2 3' },
+  { timeSig: '3/4', title: '3/4 time', text: 'The top number says how many beats are in each bar. In 3/4 there are 3, so count "1 2 3". Beat 1 is the loud click.', count: '1 2 3 | 1 2 3' },
   { cell: 'eighths', title: 'Eighth notes', text: 'Two eighth notes joined by a beam fit into one beat. Count "1 + 2 +" and tongue on every number and every "+".', count: '1 + 2 + ' },
   { cell: 'restEighth', title: 'Off-beat eighths', text: 'An eighth rest then an eighth note: stay silent on the beat and play on the "+".', count: '(1) + (2) +' },
   { cell: 'dottedQuarterEighth', title: 'Dotted quarter + eighth', text: 'The dotted quarter lasts 1½ beats, then the eighth fills the last half. Hold through beat 2 and play again on its "+".', count: '1 (2) + 3' },
-  { timeSig: 2, title: '2/4 time', text: 'Two beats in each bar: count "1 2 | 1 2". It feels like a march.', count: '1 2 | 1 2' },
+  { timeSig: '2/4', title: '2/4 time', text: 'Two beats in each bar: count "1 2 | 1 2". It feels like a march.', count: '1 2 | 1 2' },
   { cell: 'syncopation', title: 'Syncopation', text: 'Eighth, quarter, eighth: short–long–short. The quarter note starts on the "+" of the beat, between the clicks.', count: '1 + (2) +' },
   { cell: 'eighthRest', title: 'Eighth rests', text: 'An eighth note then an eighth rest: play on the beat and stop the air on the "+". Short and clean.', count: '1 (+) 2 (+)' },
   { cell: 'tiedQuarterEighth', title: 'Ties', text: 'A curved line joining two notes of the same pitch is a tie. Play the first note and keep blowing through the second — don’t tongue it again.', count: '1 (2) +' },
@@ -26,9 +26,23 @@ export const CURRICULUM = [
   { cell: 'twoSixteenthsEighth', title: 'Two sixteenths + eighth', text: 'Short–short–long in one beat: two quick sixteenths, then an eighth on the "+": "1 e +".', count: '1 e +' },
   { cell: 'dottedEighthSixteenth', title: 'Dotted eighth + sixteenth', text: 'A skipping rhythm. The dotted eighth takes three quarters of the beat and the sixteenth slips in just before the next click, on the "a".', count: '1 (e +) a' },
   { cell: 'triplet', title: 'Triplets', text: 'Three notes squeezed evenly into one beat, marked with a 3. Count "1 trip let" and keep them even, not long–short.', count: '1 trip let' },
+  { cell: 'quarterHalfQuarter', title: 'Syncopated half note', text: 'Quarter, half, quarter: the half note starts on beat 2 and holds through beat 3. Feel the accent on 2 instead of 3.', count: '1 2 (3) 4' },
+  { cell: 'eighthDottedQuarter', title: 'Eighth + dotted quarter', text: 'Short then long: the dotted quarter starts on the "+" and lasts 1½ beats, right up to the next beat after it.', count: '1 + (2 +)' },
+  { cell: 'tiedSyncopation', title: 'Tied syncopation', text: 'Four eighths with the middle two tied: play 1, play on the "+", hold through 2, play on its "+". Don’t tongue the tied note.', count: '1 + (2) +' },
+  { cell: 'offbeatQuarters', title: 'Off-beat quarters', text: 'Eighth, quarter, quarter, eighth: the quarters start on the "+" each time, so they sit between the clicks. Keep counting the "+"s.', count: '1 + (2) + (3) +' },
+  { cell: 'sixteenthEighthSixteenth', title: 'Sixteenth–eighth–sixteenth', text: 'Short–long–short inside one beat: "1 e (+) a". The eighth starts on the "e".', count: '1 e (+) a' },
+  { cell: 'scotchSnap', title: 'Scotch snap', text: 'A quick sixteenth right on the beat, then a long dotted eighth: a snappy short–long. The opposite of the dotted eighth + sixteenth.', count: '1 e (+ a)' },
+  { cell: 'eighthRestTwoSixteenths', title: 'Eighth rest + two sixteenths', text: 'Silent on the beat, then two quick notes on "+ a". Count the rest so you don’t come in early.', count: '(1 e) + a' },
+  { cell: 'sixteenthRestThree', title: 'Sixteenth rests', text: 'A sixteenth rest on the beat, then three sixteenths: "(1) e + a". Breathe in on the beat, play just after it.', count: '(1) e + a' },
+  { cell: 'quarterTriplet', title: 'Quarter-note triplets', text: 'Three even notes spread across two beats. Only the first lands on a click; the other two fall between. Count "1 trip let 2 trip let": play on 1, on the "let" of 1, and on the "trip" of 2.', count: '1 (trip) let (2) trip (let)' },
+  { timeSig: '6/8', cells: ['c_dottedQuarter', 'c_threeEighths', 'c_quarterEighth', 'c_dottedHalf'], title: '6/8 time', text: 'Six eighth notes in a bar, felt as two big beats of three. The click is on beats 1 and 4. Count "1 2 3 4 5 6" with the clicks on 1 and 4.', count: '1 2 3 4 5 6' },
+  { cell: 'c_eighthQuarter', title: '6/8: eighth + quarter', text: 'In 6/8 a quarter note lasts two eighths. Eighth then quarter is short–long: play on 1 and 2 (or 4 and 5).', count: '1 2 (3)' },
+  { cell: 'c_dottedQuarterRest', title: '6/8: dotted quarter rests', text: 'A dotted quarter rest is a whole beat of silence in 6/8: three eighths’ worth.', count: '(1 2 3) 4 5 6' },
+  { cell: 'c_sixteenths', title: '6/8: sixteenths', text: 'Two sixteenths then two eighths in one beat: "1 + 2 3". Keep the sixteenths light and quick.', count: '1 + 2 3' },
+  { cell: 'c_siciliano', title: '6/8: siciliano rhythm', text: 'Dotted eighth, sixteenth, eighth: a lilting, rocking rhythm found in lots of baroque recorder music.', count: '1 (+) 2 3' },
 ];
 
-const CURRICULUM_VERSION = 2;
+const CURRICULUM_VERSION = 3;
 
 /** Bring saved progress up to date with the current curriculum. */
 export function migrateProgress(progress) {
@@ -37,6 +51,7 @@ export function migrateProgress(progress) {
     if (progress.stage >= 5) progress.stage++;
     progress.version = 2;
   }
+  // Version 3 only added stages at the end.
   progress.version = CURRICULUM_VERSION;
   return progress;
 }
@@ -67,8 +82,8 @@ export function newProgress(bpm = 70) {
 export function unlocked(progress) {
   const steps = CURRICULUM.slice(0, progress.stage + 1);
   return {
-    cells: steps.filter((s) => s.cell).map((s) => s.cell),
-    timeSigs: [4, ...steps.filter((s) => s.timeSig).map((s) => s.timeSig)],
+    cells: steps.flatMap((s) => [...(s.cell ? [s.cell] : []), ...(s.cells || [])]),
+    timeSigs: ['4/4', ...steps.filter((s) => s.timeSig).map((s) => s.timeSig)],
   };
 }
 
@@ -98,20 +113,24 @@ export function chooseNext(progress, last, pitches, random = Math.random) {
   for (const c of cells) {
     const sk = progress.skill[c];
     weights[c] = 1 + 3 * (1 - (sk ? sk.ema : 0.5)) + 3 * (severity[c] || 0);
-    if (newest.cell === c && sinceUnlock < 6) weights[c] += 4;
+    if ((newest.cell === c || newest.cells?.includes(c)) && sinceUnlock < 6) weights[c] += 10;
   }
-  // A newly unlocked time signature is used straight away for a few phrases.
-  let bpb;
-  if (newest.timeSig && sinceUnlock < 4) bpb = newest.timeSig;
-  else bpb = random() < 0.5 ? 4 : timeSigs[Math.floor(random() * timeSigs.length)];
-  // Only use cells that can sit in this time signature.
-  if (bpb !== 4) delete weights.whole;
+  // Pick the time signature. A newly unlocked one, or one a newly unlocked
+  // pattern needs, is used straight away for a few rhythms.
+  const fresh = sinceUnlock < 4;
+  let meter;
+  if (newest.timeSig && fresh) meter = newest.timeSig;
+  else if (newest.cell && fresh) {
+    const fit = timeSigs.filter((m) => cellFitsMeter(newest.cell, m));
+    meter = fit.includes('4/4') && random() < 0.5 ? '4/4' : fit[Math.floor(random() * fit.length)];
+  } else meter = random() < 0.4 ? '4/4' : timeSigs[Math.floor(random() * timeSigs.length)];
+  meter ||= '4/4';
 
   // Make sure a just-unlocked pattern actually appears in its first rhythms.
-  const mustInclude = newest.cell && cells.includes(newest.cell) && sinceUnlock < 4 && !(newest.cell === 'whole' && bpb !== 4) ? newest.cell : null;
+  const mustInclude = fresh && newest.cell && cellFitsMeter(newest.cell, meter) ? newest.cell : null;
   let exercise;
-  for (let attempt = 0; attempt < 12; attempt++) {
-    exercise = generateFromCells({ cells: weights, beatsPerBar: bpb, pitches, bars: PHRASE_BARS, random });
+  for (let attempt = 0; attempt < 40; attempt++) {
+    exercise = generateFromCells({ cells: weights, meter, pitches, bars: PHRASE_BARS, random });
     if (!mustInclude || exercise.events.some((e) => e.cell === mustInclude)) break;
   }
   const hint = newest.cell != null && sinceUnlock < 2 && exercise.events.some((e) => e.cell === newest.cell);
@@ -147,7 +166,7 @@ export function recordResult(progress, exercise, result) {
   const avg3 = recent3.reduce((a, b) => a + b, 0) / recent3.length;
   const sinceUnlock = progress.phrases - progress.stageStartedAt;
 
-  if (recent3.length === 3 && avg3 >= 80 && sinceUnlock >= 4 && allMastered(progress)) {
+  if (recent3.length === 3 && avg3 >= 80 && sinceUnlock >= 3 && allMastered(progress)) {
     if (progress.stage < CURRICULUM.length - 1) {
       progress.stage++;
       progress.stageStartedAt = progress.phrases;
@@ -175,7 +194,7 @@ export function unlockProgress(progress) {
   const { cells } = unlocked(progress);
   const skills = cells.map((c) => Math.min(1, (progress.skill[c]?.ema ?? 0.5) / MASTERED));
   const skillPart = skills.reduce((a, b) => a + b, 0) / skills.length;
-  const phrasePart = Math.min(1, (progress.phrases - progress.stageStartedAt) / 4);
+  const phrasePart = Math.min(1, (progress.phrases - progress.stageStartedAt) / 3);
   const recent = progress.recent.slice(-3);
   const scorePart = recent.length ? Math.min(1, recent.reduce((a, b) => a + b, 0) / recent.length / 80) : 0;
   return Math.min(skillPart, phrasePart, scorePart);

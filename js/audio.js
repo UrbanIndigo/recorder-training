@@ -1,6 +1,6 @@
 // Microphone input and reference-tone playback.
 
-import { detectPitch, NoiseGate } from './pitch.js?v=1.7';
+import { detectPitch, NoiseGate } from './pitch.js?v=1.8';
 
 const AudioCtx = window.AudioContext || window.webkitAudioContext;
 
@@ -164,6 +164,7 @@ export function scheduleClick(ctx, time, accent = false, volume = 1) {
   g.gain.value = (accent ? 1.4 : 0.9) * volume;
   src.connect(filter).connect(g).connect(ctx.destination);
   src.start(time);
+  return src;
 }
 
 /** Schedule a soft recorder-like note. */

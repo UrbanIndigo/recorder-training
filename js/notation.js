@@ -2,11 +2,11 @@
 // printed music (short notes closer together, long notes with more room),
 // so the layout doesn't give the timing away.
 
-import { diatonicStep } from './music.js?v=1.7';
+import { diatonicStep } from './music.js?v=1.8';
+import { meterOf, soundingNotes } from './rhythm.js?v=1.8';
 
 const GAP = 10; // staff line spacing
 const STAFF_TOP = 34; // within each line block (room above for bar badges)
-const LINE_HEIGHT = 124;
 const STEM = 3.3 * GAP;
 const MIDDLE_STEP = 34; // B4, the middle line of the treble staff
 const PREFIX_FIRST = 62; // clef + time signature
@@ -64,8 +64,10 @@ export class RhythmSheet {
 
     // Place everything, stretching each line to the full width.
     this.positions = new Map(); // event index -> { x, line }
+    // Extra room under the staff for counting and for the "what you played" strip.
+    this.lineHeight = 112 + (this.counting ? 18 : 0) + (this.played ? 26 : 0);
     lines.forEach((line, li) => {
-      line.top = li * LINE_HEIGHT;
+      line.top = li * this.lineHeight;
       const scale = (width - line.prefix - RIGHT) / line.natural;
       let x = line.prefix;
       line.anchors = []; // [beat, x] for the playhead and bar badges
@@ -87,7 +89,7 @@ export class RhythmSheet {
     });
     this.lines = lines;
     this.bars = bars;
-    this.height = lines.length * LINE_HEIGHT;
+    this.height = lines.length * this.lineHeight;
   }
 
   render() {
@@ -98,7 +100,7 @@ export class RhythmSheet {
     this.lines.forEach((line, i) => parts.push(this.drawLine(line, i === 0)));
     parts.push(this.drawNotes());
     if (this.counting) parts.push(this.drawCounting());
-    parts.push('<g class="markers"></g><g class="bar-labels"></g>');
+    parts.push('<g class="markers"></g><g class="bar-labels"></g><g class="played-strip"></g>');
     parts.push('<line class="cursor" x1="0" x2="0" y1="0" y2="0" visibility="hidden"/>');
     const ex = this.exercise;
     this.container.innerHTML = `<svg xmlns="${svgNs}" viewBox="0 0 ${width} ${this.height}" width="100%" class="sheet" role="img" aria-label="Rhythm in ${ex.beatsPerBar}/4, ${ex.bars} bars">${parts.join('')}</svg>`;
@@ -108,6 +110,7 @@ export class RhythmSheet {
     this.cursor = this.svg.querySelector('.cursor');
     if (this.statuses) this.setResults(this.statuses, this.offsets);
     if (this.barLabels) this.setBarLabels(this.barLabels);
+    this.drawPlayed();
   }
 
   drawLine(line, first) {
@@ -119,8 +122,9 @@ export class RhythmSheet {
     }
     p.push(`<text class="clef clef-treble" x="6" y="${top + GAP * 3.35}" style="font-size:52px">𝄞</text>`);
     if (first) {
-      p.push(`<text class="timesig" x="46" y="${top + GAP * 1.85}">${this.exercise.beatsPerBar}</text>`);
-      p.push(`<text class="timesig" x="46" y="${top + GAP * 3.85}">4</text>`);
+      const m = meterOf(this.exercise);
+      p.push(`<text class="timesig" x="46" y="${top + GAP * 1.85}">${m.num}</text>`);
+      p.push(`<text class="timesig" x="46" y="${top + GAP * 3.85}">${m.den}</text>`);
     }
     for (const bar of line.bars) {
       const x = bar.endX;
@@ -157,7 +161,8 @@ export class RhythmSheet {
           const cx = (bar.startX + bar.endX) / 2;
           p.push(`<g class="rest" data-idx="${idx}"><rect class="rest-fill" x="${cx - 6}" y="${top + GAP}" width="12" height="${GAP / 2}"/></g>`);
         } else {
-          p.push(`<g class="rest" data-idx="${idx}">${restGlyph(e.beats, pos.x, mid)}</g>`);
+          const dot = e.dotted ? `<circle class="dot" cx="${pos.x + 9}" cy="${mid - GAP / 2}" r="1.9"/>` : '';
+          p.push(`<g class="rest" data-idx="${idx}">${restGlyph(e.dotted ? e.beats / 1.5 : e.beats, pos.x, mid)}${dot}</g>`);
         }
         return;
       }
@@ -171,6 +176,7 @@ export class RhythmSheet {
       p.push(`<g class="note" data-idx="${idx}">${noteGlyph(e, pos.x, this.headY(idx), step, top + 4 * GAP)}</g>`);
     });
     p.push(this.drawTies());
+    p.push(this.drawTupletBrackets());
     return p.join('');
   }
 
@@ -231,6 +237,75 @@ export class RhythmSheet {
     return out.join('');
   }
 
+  /** "3" with a bracket over triplets that aren't joined by a beam. */
+  drawTupletBrackets() {
+    const out = [];
+    const groups = new Map();
+    this.exercise.events.forEach((e, i) => {
+      if (!e.tuplet || e.beamGroup != null) return;
+      if (!groups.has(e.cellId)) groups.set(e.cellId, []);
+      groups.get(e.cellId).push(i);
+    });
+    for (const idxs of groups.values()) {
+      const first = this.positions.get(idxs[0]);
+      const last = this.positions.get(idxs.at(-1));
+      if (first.line !== last.line) continue;
+      const line = this.lines[first.line];
+      const y = line.top + STAFF_TOP - 8;
+      const x1 = first.x - 6, x2 = last.x + 8, mx = (x1 + x2) / 2;
+      out.push(`<path class="bracket" d="M${x1} ${y + 5} V${y} H${mx - 7} M${mx + 7} ${y} H${x2} V${y + 5}"/><text class="tuplet" x="${mx}" y="${y + 4}">3</text>`);
+    }
+    return out.join('');
+  }
+
+  /**
+   * After a bar has been played: a strip under it showing the written note
+   * lengths (outlines) and what was actually played (filled), against the beat.
+   * @param {{start: number, end: number, status?: string}[]|null} notes in beats
+   */
+  setPlayed(notes) {
+    const had = !!this.played;
+    this.played = notes && notes.length ? notes : notes ? [] : null;
+    if (had !== !!this.played) {
+      this.render();
+      return;
+    }
+    this.drawPlayed();
+  }
+
+  drawPlayed() {
+    const layer = this.svg.querySelector('.played-strip');
+    if (!layer) return;
+    if (!this.played) {
+      layer.innerHTML = '';
+      return;
+    }
+    const ex = this.exercise;
+    const m = meterOf(ex);
+    const out = [];
+    const upTo = this.played.upToBar ?? ex.bars - 1;
+    for (const bar of this.bars) {
+      if (bar.index > upTo) continue;
+      const line = this.lines.find((ln) => ln.bars.includes(bar));
+      const y = line.top + STAFF_TOP + 4 * GAP + (this.counting ? 50 : 30);
+      const b0 = bar.index * m.bpb;
+      const x0 = bar.startX + 6, x1 = bar.endX - 4;
+      const x = (beat) => x0 + ((beat - b0) / m.bpb) * (x1 - x0);
+      out.push(`<rect class="strip-bg" x="${x0}" y="${y}" width="${x1 - x0}" height="12" rx="3"/>`);
+      for (let c = 0; c <= m.bpb + 1e-9; c += m.click) out.push(`<line class="strip-tick" x1="${x(b0 + c)}" x2="${x(b0 + c)}" y1="${y - 3}" y2="${y}"/>`);
+      for (const n of soundingNotes(ex)) {
+        if (n.event.bar !== bar.index) continue;
+        out.push(`<rect class="strip-written" x="${x(n.beat)}" y="${y + 1}" width="${Math.max(2, (n.beats / m.bpb) * (x1 - x0) - 2)}" height="10" rx="2"/>`);
+      }
+      for (const p of this.played) {
+        const s0 = Math.max(p.start, b0 - 0.25), e0 = Math.min(p.end, b0 + m.bpb);
+        if (e0 <= s0) continue;
+        out.push(`<rect class="strip-played ${p.status ? `s-${p.status}` : ''}" x="${x(s0)}" y="${y + 3.5}" width="${Math.max(2, x(e0) - x(s0))}" height="5" rx="2"/>`);
+      }
+    }
+    layer.innerHTML = out.join('');
+  }
+
   /**
    * Counting under the staff: "1 e + a" for sixteenths, "1 trip let" for
    * triplets. Beats you hold through are shown in brackets, rests faded.
@@ -246,15 +321,28 @@ export class RhythmSheet {
     ex.events.forEach((e, i) => {
       const pos = this.positions.get(i);
       const beatInBar = e.beat - e.bar * bpb;
-      const text = countSyllable(beatInBar);
+      const text = meterOf(ex).compound ? compoundSyllable(beatInBar) : countSyllable(beatInBar);
       const x = pos.x ?? pos.slotX + pos.slotW / 2;
       if (e.tied) label(e.beat, x, pos.line, `(${text})`, 'hold');
       else label(e.beat, x, pos.line, e.barRest ? `(${Array.from({ length: bpb }, (_, k) => k + 1).join(' ')})` : text, e.rest ? 'rest' : 'start');
-      // Whole beats held through by long notes.
-      if (e.barRest || e.beats <= 1) return;
-      for (let b = Math.floor(e.beat + 1e-9) + 1; b < e.beat + e.beats - 1e-9; b++) {
-        const frac = (b - e.beat) / e.beats;
-        label(b, pos.slotX + 7 + frac * pos.slotW, pos.line, e.rest ? String(b - e.bar * bpb + 1) : `(${b - e.bar * bpb + 1})`, e.rest ? 'rest' : 'hold');
+      // Counts held through by long notes (beats; eighths in 6/8).
+      const unit = meterOf(ex).compound ? 0.5 : 1;
+      if (e.barRest || e.beats < 1 - 1e-9 || e.beats <= unit + 1e-9) return;
+      const holds = [];
+      for (let b = (Math.floor(e.beat / unit + 1e-9) + 1) * unit; b < e.beat + e.beats - 1e-9; b += unit) {
+        holds.push({ b, n: Math.round((b - e.bar * bpb) / unit) + 1 });
+      }
+      if (!holds.length) return;
+      const cls = e.rest ? 'rest' : 'hold';
+      if (pos.slotW / (holds.length + 1) < 20) {
+        // Not enough room for each count: show them together, e.g. "(5 6)".
+        const text = holds.map((h) => h.n).join(' ');
+        label(holds[0].b, pos.slotX + 7 + pos.slotW * 0.55, pos.line, e.rest ? text : `(${text})`, cls);
+      } else {
+        for (const h of holds) {
+          const frac = (h.b - e.beat) / e.beats;
+          label(h.b, pos.slotX + 7 + frac * pos.slotW, pos.line, e.rest ? String(h.n) : `(${h.n})`, cls);
+        }
       }
     });
     return `<g class="counting">${out.join('')}</g>`;
@@ -296,7 +384,7 @@ export class RhythmSheet {
         if (s !== 'close' && s !== 'off') continue;
         const pos = this.positions.get(idx);
         const line = this.lines[pos.line];
-        const y = line.top + STAFF_TOP + 4 * GAP + (this.counting ? 44 : 22);
+        const y = line.top + STAFF_TOP + 4 * GAP + (this.counting ? 42 : 22);
         marks.push(`<text class="marker s-${s}" x="${pos.x}" y="${y}">${ms < 0 ? '◂' : '▸'}</text>`);
       }
     }
@@ -312,6 +400,7 @@ export class RhythmSheet {
     }
     this.markerLayer.innerHTML = '';
     this.labelLayer.innerHTML = '';
+    if (this.played) this.setPlayed(null);
   }
 
   /**
@@ -357,6 +446,14 @@ export class RhythmSheet {
     this.cursor.setAttribute('y2', line.top + STAFF_TOP + 4 * GAP + 12);
     this.cursor.setAttribute('visibility', 'visible');
   }
+}
+
+/** 6/8 is counted in eighths, "1 2 3 4 5 6", with "+" for sixteenths. */
+function compoundSyllable(beatInBar) {
+  const eighths = beatInBar * 2;
+  const whole = Math.round(eighths);
+  if (Math.abs(eighths - whole) < 0.02) return String(whole + 1);
+  return '+';
 }
 
 /** "1", "e", "+", "a" for sixteenths; "trip", "let" for triplets. */
@@ -415,6 +512,10 @@ function noteGlyph(e, x, y, step, bottom) {
 }
 
 function restGlyph(beats, x, mid) {
+  if (beats <= 0.25 + 1e-9) {
+    // Sixteenth rest: an eighth rest with a second hook.
+    return `<circle class="rest-fill" cx="${x - 1.5}" cy="${mid - 5}" r="2.2"/><circle class="rest-fill" cx="${x - 3.5}" cy="${mid + 1}" r="2.2"/><path class="rest-stroke thin" d="M${x - 1.5} ${mid - 3.3} Q${x + 2} ${mid - 2.5} ${x + 5} ${mid - 7} L${x - 1.5} ${mid + 13} M${x - 3.5} ${mid + 2.7} Q${x} ${mid + 3.5} ${x + 3.2} ${mid - 0.5}"/>`;
+  }
   if (beats >= 2) {
     // Half rest: a block sitting on the middle line.
     return `<rect class="rest-fill" x="${x - 6}" y="${mid - GAP / 2}" width="12" height="${GAP / 2}"/>`;

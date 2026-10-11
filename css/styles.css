@@ -373,3 +373,11 @@ h3 { margin: 28px 0 8px; font-size: 1.05rem; }
 .sheet .marker.s-off { fill: var(--bad); }
 .beat-row.small { justify-content: flex-start; margin-top: 10px; }
 .beat-row.small span { width: 32px; height: 32px; font-size: 0.85rem; }
+.sheet .bracket { fill: none; stroke: var(--text); stroke-width: 1; }
+.sheet .strip-bg { fill: var(--surface-2); }
+.sheet .strip-tick { stroke: var(--text-muted); stroke-width: 1; }
+.sheet .strip-written { fill: none; stroke: var(--text-muted); stroke-width: 1; }
+.sheet .strip-played { fill: var(--trace); }
+.sheet .strip-played.s-good { fill: var(--good); }
+.sheet .strip-played.s-close { fill: var(--warn); }
+.sheet .strip-played.s-off, .sheet .strip-played.s-wrong { fill: var(--bad); }

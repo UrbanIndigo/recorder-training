@@ -21,12 +21,12 @@ test('a perfect player unlocks every pattern, then the tempo rises', () => {
   const unlocks = [];
   let last = null;
   let tempoUps = 0;
-  for (let i = 0; i < 400; i++) {
+  for (let i = 0; i < 700; i++) {
     const next = chooseNext(p, last, [83], rand);
     assert.equal(next.kind, 'new');
     const { cells, timeSigs } = unlocked(p);
     for (const e of next.exercise.events) assert.ok(cells.includes(e.cell), `${e.cell} not unlocked`);
-    assert.ok(timeSigs.includes(next.exercise.beatsPerBar));
+    assert.ok(timeSigs.includes(next.exercise.meter));
     const result = play(next.exercise, p.bpm);
     const ev = recordResult(p, next.exercise, result);
     if (ev?.type === 'unlock') unlocks.push(ev.step.title);
@@ -94,7 +94,7 @@ test('pattern scores and unlock progress', () => {
     assert.ok(s > 0.95);
   }
   assert.equal(unlockProgress(p), 0);
-  for (let i = 0; i < 3; i++) recordResult(p, n.exercise, r);
+  for (let i = 0; i < 2; i++) recordResult(p, n.exercise, r);
   assert.ok(unlockProgress(p) > 0.5);
 });
 

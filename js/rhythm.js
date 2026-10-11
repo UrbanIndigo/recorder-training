@@ -1,13 +1,32 @@
 // Rhythm reading: exercise generation, note-onset tracking from the mic,
 // and scoring of a performance against the written rhythm. No DOM code.
 
-import { gradeFor } from './longtone.js?v=1.7';
+import { gradeFor } from './longtone.js?v=1.8';
 
 // ------------------------------------------------------------------ levels
 
-// A "cell" is a beat-aligned rhythm fragment. `len` is in beats (quarter
-// notes); `fits(pos, bpb)` says where in the bar it may start.
+/**
+ * Time signatures. Positions and lengths everywhere are in quarter notes;
+ * `bpb` is the bar length in quarters and `click` how many quarters each
+ * metronome click is worth (6/8 clicks on the dotted quarter).
+ */
+export const METERS = {
+  '4/4': { id: '4/4', num: 4, den: 4, bpb: 4, click: 1, compound: false },
+  '3/4': { id: '3/4', num: 3, den: 4, bpb: 3, click: 1, compound: false },
+  '2/4': { id: '2/4', num: 2, den: 4, bpb: 2, click: 1, compound: false },
+  '6/8': { id: '6/8', num: 6, den: 8, bpb: 3, click: 1.5, compound: true },
+};
+
+/** The time signature of an exercise. */
+export function meterOf(exercise) {
+  return METERS[exercise.meter] || METERS[`${exercise.beatsPerBar}/4`] || METERS['4/4'];
+}
+
+// A "cell" is a beat-aligned rhythm fragment. `len` is in quarter notes;
+// `fits(pos, bpb)` says where in the bar it may start. Compound cells are
+// for 6/8, simple ones for 2/4, 3/4 and 4/4.
 const anyBeat = () => true;
+const dottedBeat = (pos) => Math.abs(pos % 1.5) < 1e-9;
 const strongBeat = (pos, bpb) => (bpb === 4 ? pos % 2 === 0 : true);
 const CELLS = {
   whole: { len: 4, fits: (pos, bpb) => bpb === 4 && pos === 0, events: [{ beats: 4 }] },
@@ -34,6 +53,31 @@ const CELLS = {
   twoSixteenthsEighth: { len: 1, fits: anyBeat, events: [{ beats: 0.25, beam: true }, { beats: 0.25, beam: true }, { beats: 0.5, beam: true }] },
   dottedEighthSixteenth: { len: 1, fits: anyBeat, events: [{ beats: 0.75, dotted: true, beam: true }, { beats: 0.25, beam: true }] },
   triplet: { len: 1, fits: anyBeat, events: [0, 1, 2].map(() => ({ beats: 1 / 3, beam: true, tuplet: 3 })) },
+  // Harder syncopations.
+  quarterHalfQuarter: { len: 4, fits: (pos, bpb) => bpb === 4 && pos === 0, events: [{ beats: 1 }, { beats: 2 }, { beats: 1 }] },
+  eighthDottedQuarter: { len: 2, fits: strongBeat, events: [{ beats: 0.5 }, { beats: 1.5, dotted: true }] },
+  tiedSyncopation: {
+    len: 2,
+    fits: strongBeat,
+    events: [{ beats: 0.5, beam: true }, { beats: 0.5, beam: true, tieNext: true }, { beats: 0.5, beam: true, tied: true }, { beats: 0.5, beam: true }],
+  },
+  offbeatQuarters: { len: 3, fits: (pos, bpb) => pos + 3 <= bpb, events: [{ beats: 0.5 }, { beats: 1 }, { beats: 1 }, { beats: 0.5 }] },
+  // Sixteenth variations.
+  sixteenthEighthSixteenth: { len: 1, fits: anyBeat, events: [{ beats: 0.25, beam: true }, { beats: 0.5, beam: true }, { beats: 0.25, beam: true }] },
+  scotchSnap: { len: 1, fits: anyBeat, events: [{ beats: 0.25, beam: true }, { beats: 0.75, dotted: true, beam: true }] },
+  eighthRestTwoSixteenths: { len: 1, fits: anyBeat, events: [{ beats: 0.5, rest: true }, { beats: 0.25, beam: true }, { beats: 0.25, beam: true }] },
+  sixteenthRestThree: { len: 1, fits: anyBeat, events: [{ beats: 0.25, rest: true }, { beats: 0.25, beam: true }, { beats: 0.25, beam: true }, { beats: 0.25, beam: true }] },
+  quarterTriplet: { len: 2, fits: strongBeat, events: [0, 1, 2].map(() => ({ beats: 2 / 3, tuplet: 3 })) },
+
+  // 6/8 (compound time): two dotted-quarter beats per bar.
+  c_dottedQuarter: { compound: true, len: 1.5, fits: dottedBeat, events: [{ beats: 1.5, dotted: true }] },
+  c_threeEighths: { compound: true, len: 1.5, fits: dottedBeat, events: [0, 1, 2].map(() => ({ beats: 0.5, beam: true })) },
+  c_quarterEighth: { compound: true, len: 1.5, fits: dottedBeat, events: [{ beats: 1 }, { beats: 0.5 }] },
+  c_dottedHalf: { compound: true, len: 3, fits: (pos) => pos === 0, events: [{ beats: 3, dotted: true }] },
+  c_eighthQuarter: { compound: true, len: 1.5, fits: dottedBeat, events: [{ beats: 0.5 }, { beats: 1 }] },
+  c_dottedQuarterRest: { compound: true, len: 1.5, fits: dottedBeat, events: [{ beats: 1.5, rest: true, dotted: true }] },
+  c_sixteenths: { compound: true, len: 1.5, fits: dottedBeat, events: [{ beats: 0.25, beam: true }, { beats: 0.25, beam: true }, { beats: 0.5, beam: true }, { beats: 0.5, beam: true }] },
+  c_siciliano: { compound: true, len: 1.5, fits: dottedBeat, events: [{ beats: 0.75, dotted: true, beam: true }, { beats: 0.25, beam: true }, { beats: 0.5, beam: true }] },
 };
 
 const cellLen = (name, bpb) => (CELLS[name].len === 'bar' ? bpb : CELLS[name].len);
@@ -42,44 +86,62 @@ export const LEVELS = [
   {
     id: 1,
     name: 'Whole, half & quarter notes',
-    timeSigs: [4],
+    timeSigs: ['4/4'],
     cells: { whole: 1, half: 3, quarter: 4 },
   },
   {
     id: 2,
     name: 'Rests & 3/4 time',
-    timeSigs: [4, 3],
+    timeSigs: ['4/4', '3/4'],
     cells: { whole: 0.5, dottedHalf: 1.5, half: 2, halfRest: 1, quarter: 4, quarterRest: 2 },
   },
   {
     id: 3,
     name: 'Eighth notes',
-    timeSigs: [4, 3],
+    timeSigs: ['4/4', '3/4'],
     cells: { dottedHalf: 1, half: 1.5, halfRest: 0.5, quarter: 3, quarterRest: 1.5, eighths: 4 },
   },
   {
     id: 4,
     name: 'Dotted rhythms',
-    timeSigs: [4, 3, 2],
+    timeSigs: ['4/4', '3/4', '2/4'],
     cells: { half: 1, quarter: 2.5, quarterRest: 1, eighths: 2.5, restEighth: 1.5, dottedQuarterEighth: 3 },
   },
   {
     id: 5,
     name: 'Syncopation',
-    timeSigs: [4, 3, 2],
+    timeSigs: ['4/4', '3/4', '2/4'],
     cells: { half: 1, quarter: 2, quarterRest: 1, eighths: 2, restEighth: 1.5, dottedQuarterEighth: 2, syncopation: 3 },
   },
   {
     id: 6,
     name: 'Sixteenth notes',
-    timeSigs: [4, 3, 2],
+    timeSigs: ['4/4', '3/4', '2/4'],
     cells: { half: 0.5, quarter: 2, quarterRest: 1, eighths: 2, sixteenths: 2.5, eighthTwoSixteenths: 2, twoSixteenthsEighth: 2 },
   },
   {
     id: 7,
     name: 'Ties, dotted eighths & triplets',
-    timeSigs: [4, 3, 2],
+    timeSigs: ['4/4', '3/4', '2/4'],
     cells: { quarter: 2, eighths: 1.5, eighthRest: 1, tiedQuarterEighth: 2, dottedEighthSixteenth: 2.5, triplet: 2.5, sixteenths: 1, barRest: 0.3 },
+  },
+  {
+    id: 8,
+    name: 'Advanced syncopation',
+    timeSigs: ['4/4', '3/4'],
+    cells: { quarter: 1, eighths: 1, quarterHalfQuarter: 1, eighthDottedQuarter: 2, tiedSyncopation: 2, offbeatQuarters: 2, syncopation: 1.5, quarterTriplet: 1.5 },
+  },
+  {
+    id: 9,
+    name: 'Tricky sixteenths',
+    timeSigs: ['4/4', '3/4', '2/4'],
+    cells: { quarter: 1, eighths: 1, sixteenths: 1, sixteenthEighthSixteenth: 2, scotchSnap: 2, eighthRestTwoSixteenths: 2, sixteenthRestThree: 2, dottedEighthSixteenth: 1.5 },
+  },
+  {
+    id: 10,
+    name: '6/8 time',
+    timeSigs: ['6/8'],
+    cells: { c_dottedQuarter: 2, c_threeEighths: 3, c_quarterEighth: 3, c_eighthQuarter: 2, c_dottedHalf: 0.7, c_dottedQuarterRest: 1, c_sixteenths: 1.5, c_siciliano: 1.5 },
   },
 ];
 
@@ -93,17 +155,12 @@ export const LEVELS = [
  */
 export function generateExercise({ level, pitches, bars = 4, random = Math.random }) {
   const lvl = LEVELS.find((l) => l.id === level) || LEVELS[0];
-  const bpb = lvl.timeSigs[Math.floor(random() * lvl.timeSigs.length)];
-  return { ...generateFromCells({ cells: lvl.cells, beatsPerBar: bpb, pitches, bars, random }), level: lvl.id };
+  const meter = lvl.timeSigs[Math.floor(random() * lvl.timeSigs.length)];
+  return { ...generateFromCells({ cells: lvl.cells, meter, pitches, bars, random }), level: lvl.id };
 }
 
 /** The rhythm patterns ("cells") exercises are built from. */
 export const CELL_NAMES = Object.keys(CELLS);
-
-/** Can these cells fill a bar of this length? */
-export function canFill(cells, bpb) {
-  return Object.keys(cells).some((c) => CELLS[c].len === 1) || (bpb === 4 && 'whole' in cells);
-}
 
 /**
  * Make an exercise from weighted rhythm cells.
@@ -112,8 +169,11 @@ export function canFill(cells, bpb) {
  * @param {number} o.beatsPerBar
  * @param {number[]} o.pitches sounding MIDI notes to use (stepwise order)
  */
-export function generateFromCells({ cells, beatsPerBar: bpb, pitches, bars = 4, random = Math.random }) {
-  const lvl = { cells };
+export function generateFromCells({ cells, meter: meterId = '4/4', pitches, bars = 4, random = Math.random }) {
+  const meter = METERS[meterId];
+  const bpb = meter.bpb;
+  // Only cells that belong to this kind of time signature.
+  const lvl = { cells: Object.fromEntries(Object.entries(cells).filter(([c]) => !!CELLS[c].compound === meter.compound)) };
 
   const barCells = [];
   for (let b = 0; b < bars; b++) {
@@ -132,7 +192,11 @@ export function generateFromCells({ cells, beatsPerBar: bpb, pitches, bars = 4, 
         (b < bars - 1 || (!events.at(-1).rest && !events.at(-1).tied && lastBeats >= 1));
     }
     // Busy levels rarely end on a long note by chance: finish on a quarter.
-    if (!ok && b === bars - 1) cells = [...fillBar(lvl, bpb, random, bpb - 1), 'quarter'];
+    if (!ok && b === bars - 1) {
+      cells = meter.compound
+        ? [...fillBar(lvl, bpb, random, bpb - 1.5), 'c_dottedQuarter']
+        : [...fillBar(lvl, bpb, random, bpb - 1), 'quarter'];
+    }
     barCells.push(cells);
   }
 
@@ -169,7 +233,17 @@ export function generateFromCells({ cells, beatsPerBar: bpb, pitches, bars = 4, 
     }
   });
 
-  return { beatsPerBar: bpb, bars, totalBeats: bars * bpb, events };
+  return { meter: meter.id, beatsPerBar: bpb, bars, totalBeats: bars * bpb, events };
+}
+
+/** Can this rhythm pattern be used in this time signature? */
+export function cellFitsMeter(cell, meterId) {
+  const c = CELLS[cell];
+  const m = METERS[meterId];
+  if (!c || !m || !!c.compound !== m.compound) return false;
+  const len = cellLen(cell, m.bpb);
+  for (let pos = 0; pos + len <= m.bpb + 1e-9; pos += 0.5) if (c.fits(pos, m.bpb)) return true;
+  return false;
 }
 
 /** Fill `length` beats of a bar of `bpb` beats (normally the whole bar). */
@@ -177,9 +251,9 @@ function fillBar(lvl, bpb, random, length = bpb) {
   for (let attempt = 0; attempt < 50; attempt++) {
     const cells = [];
     let pos = 0;
-    while (pos < length) {
+    while (pos < length - 1e-9) {
       const options = Object.entries(lvl.cells).filter(
-        ([name]) => pos + cellLen(name, bpb) <= length && CELLS[name].fits(pos, bpb),
+        ([name]) => pos + cellLen(name, bpb) <= length + 1e-9 && CELLS[name].fits(pos, bpb),
       );
       if (!options.length) break;
       const total = options.reduce((s, [, w]) => s + w, 0);
@@ -195,8 +269,9 @@ function fillBar(lvl, bpb, random, length = bpb) {
       cells.push(pick);
       pos += cellLen(pick, bpb);
     }
-    if (pos === length) return cells;
+    if (Math.abs(pos - length) < 1e-9) return cells;
   }
+  if (CELLS.c_dottedQuarter && Object.keys(lvl.cells).some((c) => CELLS[c].compound)) return Array(Math.round(length / 1.5)).fill('c_dottedQuarter');
   return Array(length).fill('quarter');
 }
 
@@ -204,7 +279,7 @@ function fillBar(lvl, bpb, random, length = bpb) {
 export function calibrationExercise(midi) {
   const events = [];
   for (let i = 0; i < 8; i++) events.push({ beat: i, beats: 1, rest: false, dotted: false, bar: i >> 2, midi });
-  return { level: 0, beatsPerBar: 4, bars: 2, totalBeats: 8, events };
+  return { level: 0, meter: '4/4', beatsPerBar: 4, bars: 2, totalBeats: 8, events };
 }
 
 /**
@@ -529,6 +604,18 @@ export function resultMarks(exercise, result) {
   }
   for (const r of result.restHits) statuses.set(exercise.events.indexOf(r), 'hit');
   return { statuses, offsets };
+}
+
+/**
+ * What was played, in beats, each with the status of the written note it
+ * matched ('off' for extra notes). For the strip under each bar.
+ */
+export function playedBeats(result, played, beatSec) {
+  const status = new Map();
+  for (const n of result.notes) {
+    if (n.played) status.set(n.played, n.wrongPitch ? 'wrong' : n.status);
+  }
+  return played.map((p) => ({ start: p.start / beatSec, end: p.end / beatSec, status: status.get(p) || 'off' }));
 }
 
 /**

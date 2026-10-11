@@ -1,11 +1,10 @@
 // Rhythm Reading screen: show a rhythm, play it back, count in, listen to
 // the player, and show how their timing compared.
 
-import { LEVELS, generateExercise, OnsetTracker, scoreRhythm, barVerdicts, resultMarks, ON_TIME_MS } from './rhythm.js?v=1.7';
-import { RhythmSheet } from './notation.js?v=1.7';
-import { scheduleClick } from './audio.js?v=1.7';
-import { playDemo } from './rhythm-play.js?v=1.7';
-import { writtenMidi } from './recorders.js?v=1.7';
+import { LEVELS, generateExercise, OnsetTracker, meterOf, scoreRhythm, barVerdicts, resultMarks, playedBeats, ON_TIME_MS } from './rhythm.js?v=1.8';
+import { RhythmSheet } from './notation.js?v=1.8';
+import { playDemo, scheduleBarClicks, clicksPerBar, clickIndex } from './rhythm-play.js?v=1.8';
+import { writtenMidi } from './recorders.js?v=1.8';
 
 // Easy left-hand notes, as semitones above the recorder's lowest note. On a
 // C recorder these are written G A B C D; on an F recorder, C D E F G — the
@@ -86,17 +85,17 @@ export function initRhythmView(d) {
     sheet = new RhythmSheet($('rh-sheet'), exercise, (m) => writtenMidi(d.recorder(), m));
     const names = [...new Set(pitches().map((m) => d.writtenInfo(m).name))].join(' ');
     const best = state.rhythmBest[state.rhythmLevel];
-    $('rh-meta').textContent = `${exercise.bars} bars of ${exercise.beatsPerBar}/4 · notes: ${names}${best != null ? ` · best on this level: ${best}` : ''}`;
+    $('rh-meta').textContent = `${exercise.bars} bars of ${meterOf(exercise).id} · notes: ${names}${best != null ? ` · best on this level: ${best}` : ''}`;
     $('rh-results').hidden = true;
     renderBeats(null);
-    setStatus(`Press Play when ready. You'll hear ${exercise.beatsPerBar} clicks to count you in.`);
+    setStatus(`Press Play when ready. You'll hear a bar of clicks (${clicksPerBar(meterOf(exercise))}) to count you in.`);
   }
 
   function renderBeats(current, counting = false) {
-    const bpb = exercise.beatsPerBar;
+    const n = clicksPerBar(meterOf(exercise));
     const el = $('rh-beats');
-    if (el.childElementCount !== bpb) {
-      el.replaceChildren(...Array.from({ length: bpb }, (_, i) => Object.assign(document.createElement('span'), { textContent: String(i + 1) })));
+    if (el.childElementCount !== n) {
+      el.replaceChildren(...Array.from({ length: n }, (_, i) => Object.assign(document.createElement('span'), { textContent: String(i + 1) })));
     }
     [...el.children].forEach((c, i) => {
       c.classList.toggle('on', i === current);
@@ -135,14 +134,14 @@ export function initRhythmView(d) {
 
   /** Move the playhead and beat counter to a position in beats (negative = count-in). */
   function followBeat(pos) {
-    const bpb = exercise.beatsPerBar;
+    const m = meterOf(exercise);
     if (pos < 0) {
-      const count = Math.floor(pos + bpb);
+      const count = pos < -m.bpb ? -1 : clickIndex(pos, m);
       renderBeats(count, true);
       sheet.setCursor(null);
-      if (active?.kind !== 'demo') setStatus(count >= bpb - 1 ? 'Breathe in… play!' : `Count-in: ${count + 1}`);
+      if (active?.kind !== 'demo') setStatus(count >= clicksPerBar(m) - 1 ? 'Breathe in… play!' : `Count-in: ${count + 1}`);
     } else {
-      renderBeats(Math.floor(pos) % bpb);
+      renderBeats(clickIndex(pos, m));
       // While the player is reading, the moving line is optional (it gives the timing away).
       if (active?.kind === 'demo' || state.showPlayhead) sheet.setCursor(Math.min(pos, exercise.totalBeats));
     }
@@ -164,13 +163,13 @@ export function initRhythmView(d) {
 
     const ctx = d.listener.ctx;
     const beat = 60 / state.bpm;
-    const bpb = exercise.beatsPerBar;
+    const m = meterOf(exercise);
     const t0 = ctx.currentTime + 0.3;
-    const start = t0 + bpb * beat;
+    const start = t0 + m.bpb * beat;
     const end = start + exercise.totalBeats * beat;
-    for (let i = 0; i < bpb; i++) scheduleClick(ctx, t0 + i * beat, i === 0);
+    scheduleBarClicks(ctx, m, t0, beat, 1);
     if (state.clickWhilePlaying) {
-      for (let b = 0; b < exercise.totalBeats; b++) scheduleClick(ctx, start + b * beat, b % bpb === 0, 0.7);
+      scheduleBarClicks(ctx, m, start, beat, exercise.bars, 0.7);
     }
     const latency = state.latencyMs != null ? state.latencyMs / 1000 : d.listener.estimatedLatency();
 
@@ -206,6 +205,7 @@ export function initRhythmView(d) {
     const { statuses, offsets } = resultMarks(ex, result);
     sheet.setResults(statuses, offsets);
     sheet.setBarLabels(barVerdicts(ex, result));
+    sheet.setPlayed(playedBeats(result, played, run.beat));
 
     const prev = state.rhythmBest[ex.level];
     state.rhythmBest[ex.level] = Math.max(prev ?? 0, result.overall);
@@ -252,7 +252,7 @@ export function initRhythmView(d) {
 
     $('rh-tips').replaceChildren(...r.tips.map((t) => Object.assign(document.createElement('li'), { textContent: t })));
     $('rh-results').hidden = false;
-    setStatus('Here’s how you did. The coloured bars under each line show when you played.');
+    setStatus('Here’s how you did. The strip under each bar shows when you played.');
     $('rh-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 

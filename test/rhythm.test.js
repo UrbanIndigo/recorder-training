@@ -10,7 +10,7 @@ test('generated bars always add up and follow the level rules', () => {
   for (const lvl of LEVELS) {
     for (let s = 1; s <= 40; s++) {
       const ex = generateExercise({ level: lvl.id, pitches: [79, 81, 83], random: seeded(s) });
-      assert.ok(lvl.timeSigs.includes(ex.beatsPerBar));
+      assert.ok(lvl.timeSigs.includes(ex.meter));
       const near = (a, b) => Math.abs(a - b) < 1e-9;
       const sum = ex.events.reduce((a, e) => a + e.beats, 0);
       assert.ok(near(sum, ex.totalBeats));
@@ -27,6 +27,19 @@ test('generated bars always add up and follow the level rules', () => {
       // Tied notes continue the same pitch.
       ex.events.forEach((e, i) => { if (e.tied) assert.equal(e.midi, ex.events[i - 1].midi); });
       if (lvl.id === 1) assert.ok(ex.events.every((e) => !e.rest && e.beats >= 1));
+      // Every note starts on the subdivision grid of its time signature.
+      for (const e of ex.events) {
+        const grid = [0.25, 1 / 3].some((g) => Math.abs(e.beat / g - Math.round(e.beat / g)) < 1e-6);
+        assert.ok(grid, `odd position ${e.beat}`);
+      }
+      if (ex.meter === '6/8') {
+        // 6/8 groups in dotted quarters: no cell straddles a dotted-quarter beat.
+        for (const id of new Set(ex.events.map((e) => e.cellId))) {
+          const evs = ex.events.filter((e) => e.cellId === id);
+          const start = evs[0].beat % 3, end = start + evs.reduce((a, e) => a + e.beats, 0);
+          assert.ok(Math.abs(start % 1.5) < 1e-9 && Math.abs(end % 1.5) < 1e-9, `cell crosses a beat at ${start}`);
+        }
+      }
       for (const e of ex.events) if (!e.rest) assert.ok([79, 81, 83].includes(e.midi));
     }
   }
