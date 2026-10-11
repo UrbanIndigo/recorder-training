@@ -24,6 +24,24 @@ When you finish you get a score out of 100 and a breakdown:
 
 You also get tips based on the result. Your best score on each note is saved in the browser and shown as a coloured dot in the note picker.
 
+### Rhythm Reading
+Practise reading rhythms. You get a random 4-bar rhythm in sheet music, at one of five levels:
+1. Whole, half & quarter notes
+2. Rests & 3/4 time
+3. Eighth notes
+4. Dotted rhythms
+5. Syncopation
+
+Press **Hear it** to hear how it goes. Press **Play it** to hear a one-bar count-in and then play along with the metronome. Afterwards each note is coloured by timing: green is within ±60 ms, yellow is a bit off, red is off the beat, and grey means missed. A timeline under each line shows when you actually played against the written notes. You also get:
+- how many notes were on time
+- whether you tend to **rush** or **drag**, and by how much
+- whether notes were held for their full length
+- missed and extra notes, including playing through a rest
+
+You can play on one note (B) or use 3 or 5 easy left-hand notes. With more than one note, wrong pitches are marked too. Tempo goes from 40 to 140 bpm.
+
+**Timing calibration:** phones and Bluetooth headphones add a delay between the click and the mic. If you keep being told you're late, open *Timing calibration* and play 8 short notes on the clicks. The app measures the delay and allows for it.
+
 ### Tuner
 Play anything and see the note, frequency and cents offset.
 
@@ -52,6 +70,9 @@ npm test
 Code layout (`js/`):
 - `pitch.js`: YIN pitch detection plus a median smoother
 - `longtone.js`: long-tone session state machine, scoring and tips (no DOM code, unit tested)
+- `rhythm.js`: rhythm generation by level, note start/stop tracking, and timing scoring (no DOM code, unit tested)
+- `notation.js`: draws rhythm exercises as sheet music with a timeline
+- `rhythm-view.js`: the Rhythm Reading screen
 - `recorders.js`: instrument ranges and transpositions
 - `music.js`: note names and pitch maths
 - `audio.js`: microphone input and the reference tone

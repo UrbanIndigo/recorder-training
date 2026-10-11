@@ -5,12 +5,16 @@ import { freqToMidi, midiToFreq } from '../js/music.js';
 
 const SR = 48000;
 
+// Repeatable noise, so results don't vary run to run.
+let seed = 12345;
+const rand = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296);
+
 function tone(freq, { n = 2048, amp = 0.3, harmonics = [[1, 1], [2, 0.15], [3, 0.05]], noise = 0 } = {}) {
   const buf = new Float32Array(n);
   for (let i = 0; i < n; i++) {
     let v = 0;
     for (const [h, a] of harmonics) v += a * Math.sin((2 * Math.PI * freq * h * i) / SR);
-    buf[i] = amp * v + noise * (Math.random() * 2 - 1);
+    buf[i] = amp * v + noise * (rand() * 2 - 1);
   }
   return buf;
 }
@@ -39,7 +43,7 @@ test('reports silence below the loudness gate', () => {
 });
 
 test('reports no pitch for noise', () => {
-  const buf = new Float32Array(2048).map(() => Math.random() * 0.6 - 0.3);
+  const buf = new Float32Array(2048).map(() => rand() * 0.6 - 0.3);
   assert.equal(detectPitch(buf, SR).freq, null);
 });
 

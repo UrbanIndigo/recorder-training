@@ -8,13 +8,19 @@ const DEFAULTS = {
   sensitivity: 0.5, // 0 = only loud sounds, 1 = picks up quiet sounds
   duration: 10,
   naturalsOnly: true,
+  rhythmLevel: 1,
+  rhythmNotes: 1,
+  bpm: 70,
+  clickWhilePlaying: true,
+  latencyMs: null, // measured device delay for rhythm timing; null = automatic estimate
+  rhythmBest: {}, // { [level]: best score }
   history: {}, // { [recorderId]: { [midi]: { best, attempts: [{ score, meanCents, date }] } } }
 };
 
 export function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(KEY));
-    return { ...DEFAULTS, ...saved, history: saved?.history || {} };
+    return { ...DEFAULTS, ...saved, history: saved?.history || {}, rhythmBest: saved?.rhythmBest || {} };
   } catch {
     return { ...DEFAULTS };
   }

@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1f6f5c">
   <title>Recorder Trainer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="css/styles.css?v=1.2">
+  <link rel="stylesheet" href="css/styles.css?v=1.3">
 </head>
 <body>
   <header class="topbar">
@@ -27,6 +27,11 @@
           <span class="mode-icon" aria-hidden="true">⏱</span>
           <span class="mode-title">Long Tone</span>
           <span class="mode-desc">Hold a note steady for 10 seconds. You'll get a score for hitting the right note, being in tune, and keeping it steady.</span>
+        </button>
+        <button class="mode-card" data-goto="rhythm">
+          <span class="mode-icon" aria-hidden="true">🥁</span>
+          <span class="mode-title">Rhythm Reading</span>
+          <span class="mode-desc">Read a rhythm from sheet music and play it with a count-in. See which notes were early, late or on time, and whether you rush or drag.</span>
         </button>
         <button class="mode-card" data-goto="tuner">
           <span class="mode-icon" aria-hidden="true">🎯</span>
@@ -51,7 +56,7 @@
           <small>Turn it up if your playing isn't picked up, down if background noise is. The Mic bar shows the level: it turns green when it hears you, and the line marks the cut-off.</small>
         </div>
       </details>
-      <p class="hint version">Version 1.2</p>
+      <p class="hint version">Version 1.3</p>
     </section>
 
     <!-- Long tone: choose note -->
@@ -167,6 +172,104 @@
       </div>
     </section>
 
+    <!-- Rhythm reading -->
+    <section class="view" id="view-rhythm" hidden>
+      <h2>Rhythm Reading</h2>
+      <div class="rh-controls">
+        <label class="rh-field">Level
+          <select id="rh-level"></select>
+        </label>
+        <label class="rh-field">Notes
+          <select id="rh-notes">
+            <option value="1">One note</option>
+            <option value="3">3 notes</option>
+            <option value="5">5 notes</option>
+          </select>
+        </label>
+        <div class="rh-field">Tempo
+          <div class="stepper">
+            <button class="icon-btn" id="rh-slower" aria-label="Slower">−</button>
+            <span><span id="rh-bpm">70</span> bpm</span>
+            <button class="icon-btn" id="rh-faster" aria-label="Faster">+</button>
+          </div>
+        </div>
+        <label class="toggle"><input type="checkbox" id="rh-click"> Click while playing</label>
+      </div>
+
+      <div class="sheet-card">
+        <div class="sheet-meta" id="rh-meta"></div>
+        <div id="rh-sheet"></div>
+        <div class="legend">
+          <span><i class="sw expected"></i>written</span>
+          <span><i class="sw s-good"></i>on time</span>
+          <span><i class="sw s-close"></i>a bit off</span>
+          <span><i class="sw s-off"></i>off the beat</span>
+          <span><i class="sw s-missed"></i>missed</span>
+        </div>
+      </div>
+
+      <div class="beat-row" id="rh-beats" aria-hidden="true"></div>
+      <p class="rh-status" id="rh-status" aria-live="polite"></p>
+      <div class="level-row"><span>Mic</span><div class="level" id="rh-mic" title="Microphone level"><div class="level-fill"></div><div class="level-gate"></div></div></div>
+
+      <div class="actions">
+        <button class="btn primary" id="rh-play">🎙 Play it</button>
+        <button class="btn secondary" id="rh-hear">🔊 Hear it</button>
+        <button class="btn secondary" id="rh-new">New rhythm</button>
+        <button class="btn secondary" id="rh-stop" hidden>Stop</button>
+      </div>
+      <p class="error" id="rh-error" hidden></p>
+
+      <div id="rh-results" hidden>
+        <div class="score-hero">
+          <div class="score-ring" id="rh-score-ring"><span id="rh-score-value">0</span></div>
+          <div>
+            <div class="score-grade" id="rh-grade"></div>
+            <div class="stars" id="rh-stars"></div>
+            <div class="score-note" id="rh-score-note"></div>
+          </div>
+        </div>
+        <div class="result-cards">
+          <div class="result-card" id="rh-card-ontime">
+            <div class="card-title">On time</div>
+            <div class="card-value" id="rh-ontime"></div>
+            <div class="card-sub" id="rh-ontime-sub"></div>
+          </div>
+          <div class="result-card" id="rh-card-tendency">
+            <div class="card-title">Tendency</div>
+            <div class="card-value" id="rh-tendency"></div>
+            <div class="card-sub" id="rh-tendency-sub"></div>
+          </div>
+          <div class="result-card" id="rh-card-lengths">
+            <div class="card-title">Note lengths</div>
+            <div class="card-value" id="rh-lengths"></div>
+            <div class="card-sub" id="rh-lengths-sub"></div>
+          </div>
+          <div class="result-card" id="rh-card-missed">
+            <div class="card-title">Missed / extra</div>
+            <div class="card-value" id="rh-missed"></div>
+            <div class="card-sub" id="rh-missed-sub"></div>
+          </div>
+        </div>
+        <h3>Tips</h3>
+        <ul class="tips" id="rh-tips"></ul>
+        <div class="actions">
+          <button class="btn primary" id="rh-again">Try again</button>
+          <button class="btn secondary" id="rh-next">New rhythm →</button>
+        </div>
+      </div>
+
+      <details class="settings">
+        <summary>Timing calibration</summary>
+        <p class="hint">Phones and Bluetooth headphones add a small delay between the click and the mic. If the app keeps saying you're late when you feel on time, calibrate: press the button and play a short note exactly on each of the 8 clicks after the count-in. Don't use Bluetooth headphones for this.</p>
+        <p id="rh-cal-result"></p>
+        <div class="actions left">
+          <button class="btn secondary small" id="rh-calibrate">Calibrate timing</button>
+          <button class="btn secondary small" id="rh-cal-reset" hidden>Use automatic</button>
+        </div>
+      </details>
+    </section>
+
     <!-- Tuner -->
     <section class="view" id="view-tuner" hidden>
       <h2>Tuner</h2>
@@ -186,6 +289,6 @@
     </section>
   </main>
 
-  <script type="module" src="js/app.js?v=1.2"></script>
+  <script type="module" src="js/app.js?v=1.3"></script>
 </body>
 </html>

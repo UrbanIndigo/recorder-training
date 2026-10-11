@@ -8,6 +8,7 @@ import { LongToneSession, IN_TUNE_CENTS } from './longtone.js';
 import { staffSvg } from './staff.js';
 import { drawPitchChart } from './chart.js';
 import { loadState, saveState, recordAttempt, noteHistory } from './storage.js';
+import { initRhythmView } from './rhythm-view.js';
 
 const $ = (id) => document.getElementById(id);
 const state = loadState();
@@ -23,18 +24,20 @@ const pitchToMidi = (freq) => freqToMidi(freq, state.a4);
 
 // ---------------------------------------------------------------- navigation
 
-const PARENT = { home: null, pick: 'home', run: 'pick', results: 'pick', tuner: 'home' };
+const PARENT = { home: null, pick: 'home', run: 'pick', results: 'pick', tuner: 'home', rhythm: 'home' };
 let currentView = 'home';
 
 function show(view) {
   if (currentView === 'run') stopExercise();
   if (currentView === 'tuner') stopTuner();
+  if (currentView === 'rhythm') rhythmView.leave();
   for (const el of document.querySelectorAll('.view')) el.hidden = el.id !== `view-${view}`;
   currentView = view;
   $('back-btn').hidden = !PARENT[view];
   window.scrollTo(0, 0);
   if (view === 'pick') renderNoteGrid();
   if (view === 'tuner') startTuner();
+  if (view === 'rhythm') rhythmView.enter();
 }
 
 $('back-btn').addEventListener('click', () => show(PARENT[currentView] || 'home'));
@@ -55,6 +58,7 @@ recorderSelect.addEventListener('change', () => {
   applyDetectorOptions();
   if (currentView === 'run' || currentView === 'results') show('pick');
   else if (currentView === 'pick') renderNoteGrid();
+  rhythmView.recorderChanged();
 });
 
 $('a4-select').value = String(state.a4);
@@ -223,6 +227,7 @@ document.addEventListener('visibilitychange', () => {
     stopExercise();
     resetRunUi();
   }
+  if (document.hidden && rhythmView.busy) rhythmView.stopIfRunning();
 });
 
 function setTimer(elapsed, duration) {
@@ -452,5 +457,21 @@ function releaseWakeLock() {
   wakeLock?.release().catch(() => {});
   wakeLock = null;
 }
+
+const rhythmView = initRhythmView({
+  $,
+  state,
+  save: () => saveState(state),
+  listener,
+  startMic,
+  showMicError,
+  recorder,
+  writtenInfo,
+  pitchToMidi,
+  setLevel,
+  scoreColor,
+  requestWakeLock,
+  releaseWakeLock,
+});
 
 show('home');
