@@ -98,3 +98,25 @@ test('pattern scores and unlock progress', () => {
   for (let i = 0; i < 3; i++) recordResult(p, n.exercise, r);
   assert.ok(unlockProgress(p) > 0.5);
 });
+
+test('recurring problems are spotted per rhythm pattern', async () => {
+  const { topIssues } = await import('../js/progression.js');
+  const p = newProgress(70);
+  p.stage = 7; // eighth notes unlocked
+  const rand = seeded(11);
+  for (let i = 0; i < 8; i++) {
+    const n = chooseNext(p, null, [83], rand);
+    // Rush only the eighth notes by 90 ms.
+    const beat = 60 / 70;
+    const played = n.exercise.events.filter((e) => !e.rest).map((e) => {
+      const off = e.cell === 'eighths' ? -0.09 : 0;
+      return { start: e.beat * beat + off, end: (e.beat + e.beats) * beat - 0.04 + off, midi: e.midi };
+    });
+    recordResult(p, n.exercise, scoreRhythm(n.exercise, played, 70));
+  }
+  const issues = topIssues(p);
+  assert.ok(issues.length >= 1);
+  assert.equal(issues[0].cell, 'eighths');
+  assert.equal(issues[0].kind, 'rush');
+  assert.match(issues[0].text, /Rushing eighth notes/);
+});

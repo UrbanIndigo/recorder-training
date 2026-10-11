@@ -3,8 +3,8 @@
 // to read the next. Hard rhythms are repeated with counting shown, new
 // patterns unlock as the player improves, and the tempo adapts.
 
-import { CURRICULUM, newProgress, chooseNext, recordResult, unlockProgress, cellTitle } from './progression.js';
-import { OnsetTracker, scoreRhythm, generateFromCells } from './rhythm.js';
+import { CURRICULUM, newProgress, chooseNext, recordResult, unlockProgress, cellTitle, topIssues } from './progression.js';
+import { OnsetTracker, scoreRhythm, generateFromCells, barVerdict, barVerdicts } from './rhythm.js';
 import { RhythmSheet } from './notation.js';
 import { scheduleClick } from './audio.js';
 import { playDemo } from './rhythm-play.js';
@@ -35,6 +35,11 @@ export function initEndlessView(d) {
   $('en-click').checked = state.clickWhilePlaying;
   $('en-click').addEventListener('change', (e) => {
     state.clickWhilePlaying = e.target.checked;
+    d.save();
+  });
+  $('en-playhead').checked = !!state.showPlayhead;
+  $('en-playhead').addEventListener('change', (e) => {
+    state.showPlayhead = e.target.checked;
     d.save();
   });
   $('en-count').checked = !!state.alwaysCount;
@@ -115,6 +120,7 @@ export function initEndlessView(d) {
     if (next.kind === 'retry' && last) {
       sheet.setResults(last.statuses);
       sheet.setPlayed(last.playedBeats);
+      sheet.setBarLabels(barVerdicts(last.exercise, last.result));
     }
     const label = {
       new: 'Next rhythm',
@@ -154,19 +160,37 @@ export function initEndlessView(d) {
     $('en-jump').disabled = busy;
   }
 
-  function showFeedback(result, event, kind) {
+  function showFeedback(result, event, kind, verdicts) {
     const chip = $('en-chip');
     chip.textContent = String(result.overall);
     chip.style.background = d.scoreColor(result.overall);
     const bits = [`${result.grade.label} — ${result.onTime}/${result.total} on time`];
     const m = result.meanErrorMs;
     if (m != null && Math.abs(m) > 40) bits.push(m < 0 ? `rushing ${Math.round(-m)} ms` : `dragging ${Math.round(m)} ms`);
-    if (result.missed) bits.push(`${result.missed} missed`);
-    if (result.restHits.length) bits.push('played in a rest');
     if (kind === 'retry' && result.overall >= 70) bits.push('nailed it this time!');
     if (event?.type === 'tempo') bits.push(event.faster ? `speeding up to ${event.bpm} bpm` : `slowing to ${event.bpm} bpm`);
     $('en-feedback-text').textContent = bits.join(' · ');
+    $('en-bars').replaceChildren(
+      ...verdicts.map((v, i) => Object.assign(document.createElement('span'), {
+        className: `en-bar ${v.level}`,
+        textContent: `Bar ${i + 1}: ${v.text}`,
+      })),
+    );
     $('en-feedback').hidden = false;
+  }
+
+  /** The player's recurring problems, with a tip for each. */
+  function renderIssues() {
+    const issues = topIssues(progress());
+    $('en-issues').hidden = !issues.length;
+    $('en-issues-list').replaceChildren(
+      ...issues.map((i) => {
+        const li = document.createElement('li');
+        li.append(i.text);
+        li.append(Object.assign(document.createElement('span'), { className: 'tip', textContent: i.tip }));
+        return li;
+      }),
+    );
   }
 
   // ------------------------------------------------------------- running
@@ -208,13 +232,16 @@ export function initEndlessView(d) {
 
   function onFrame(reading) {
     if (!run) return;
-    const { cycle, tracker, latency } = run;
+    const { cycle, tracker } = run;
     d.setLevel($('en-mic'), reading);
     const midi = reading.freq ? d.pitchToMidi(reading.freq) : null;
-    for (const b of reading.blocks) tracker.push(b.t, b.rms, reading.gate, midi);
+    const tonal = midi != null || (reading.clarity >= 0.4 && reading.rms >= reading.gate);
+    for (const b of reading.blocks) tracker.push(b.t, b.rms, reading.gate, midi, tonal);
+    $('en-heard').textContent = midi != null ? `♪ ${d.writtenInfo(Math.round(midi)).name}` : tonal ? '♪' : '—';
     const now = reading.audioTime;
     const pos = (now - (run.ctx.outputLatency || 0) - cycle.start) / cycle.beat;
-    const bpb = cycle.exercise.beatsPerBar;
+    const ex = cycle.exercise;
+    const bpb = ex.beatsPerBar;
 
     if (pos < 0) {
       const beatNo = Math.floor(pos + bpb);
@@ -230,23 +257,39 @@ export function initEndlessView(d) {
       if (!run.cleared) {
         sheet.clearResults();
         run.cleared = true;
+        run.labels = Array(ex.bars).fill(null);
       }
       renderBeats(Math.floor(pos) % bpb);
-      sheet.setCursor(Math.min(pos, cycle.exercise.totalBeats));
-      setStatus(pos < cycle.exercise.totalBeats ? 'Play!' : 'How did that go…');
-      const rel = (t) => (t - latency - cycle.start) / cycle.beat;
-      sheet.setPlayed(
-        tracker
-          .snapshot(now)
-          .filter((n) => n.end - latency > cycle.start - 0.5 * cycle.beat)
-          .map((n) => ({ start: rel(n.start), end: rel(n.end) })),
-      );
+      setStatus(pos < ex.totalBeats ? 'Play!' : 'How did that go…');
+      if (state.showPlayhead) {
+        sheet.setCursor(Math.min(pos, ex.totalBeats));
+        const rel = (t) => (t - run.latency - cycle.start) / cycle.beat;
+        sheet.setPlayed(
+          tracker
+            .snapshot(now)
+            .filter((n) => n.end - run.latency > cycle.start - 0.5 * cycle.beat)
+            .map((n) => ({ start: rel(n.start), end: rel(n.end) })),
+        );
+      }
+      // Judge each bar as soon as it's over, while the player carries on.
+      for (let b = 0; b < ex.bars - 1; b++) {
+        if (run.labels[b]) continue;
+        if (now < cycle.start + (b + 1) * bpb * cycle.beat + 0.25 + run.latency) break;
+        const ev = evaluate(now);
+        run.labels[b] = barVerdict(ex, ev.result, b);
+        sheet.setBarLabels(run.labels);
+        // Colour that bar's notes and what was played in it.
+        const upTo = (b + 1) * bpb;
+        sheet.setResults(new Map([...ev.statuses].filter(([idx]) => ex.events[idx].bar <= b)));
+        sheet.setPlayed(ev.playedBeats.filter((p) => p.start < upTo));
+      }
     }
 
     if (now >= cycle.decideAt) decide(now);
   }
 
-  function decide(now) {
+  /** Score what has been played in the current rhythm so far. */
+  function evaluate(now) {
     const { cycle, tracker, latency } = run;
     const ex = cycle.exercise;
     const relS = (t) => t - latency - cycle.start;
@@ -254,27 +297,34 @@ export function initEndlessView(d) {
       .snapshot(now)
       .map((n) => ({ start: relS(n.start), end: Math.min(relS(n.end), ex.totalBeats * cycle.beat + 0.2), midi: n.midi }))
       .filter((n) => n.start >= -0.5 * cycle.beat && n.start < ex.totalBeats * cycle.beat);
-    // Forget old notes so the tracker doesn't grow forever.
-    tracker.notes = tracker.notes.filter((n) => n.end > now - 2);
-
     const result = scoreRhythm(ex, played, 60 / cycle.beat, { checkPitch: state.rhythmNotes > 1 });
     const statuses = new Map();
     const playedStatus = new Map();
     for (const n of result.notes) {
-      const s = n.status === 'missed' ? 'missed' : n.wrongPitch ? 'wrong' : n.status;
-      statuses.set(ex.events.indexOf(n.event), s);
-      if (n.played) playedStatus.set(n.played, s);
+      const st = n.status === 'missed' ? 'missed' : n.wrongPitch ? 'wrong' : n.status;
+      statuses.set(ex.events.indexOf(n.event), st);
+      if (n.played) playedStatus.set(n.played, st);
     }
     for (const r of result.restHits) statuses.set(ex.events.indexOf(r), 'hit');
     const playedBeats = played.map((p) => ({ start: p.start / cycle.beat, end: p.end / cycle.beat, status: playedStatus.get(p) || 'off' }));
+    return { result, statuses, playedBeats };
+  }
+
+  function decide(now) {
+    const { cycle, tracker } = run;
+    const ex = cycle.exercise;
+    const { result, statuses, playedBeats } = evaluate(now);
+    // Forget old notes so the tracker doesn't grow forever.
+    tracker.notes = tracker.notes.filter((n) => n.end > now - 2);
 
     const event = recordResult(progress(), ex, result);
     d.save();
     session.count++;
     session.total += result.overall;
     last = { exercise: ex, result, statuses, playedBeats };
-    showFeedback(result, event, cycle.kind);
+    showFeedback(result, event, cycle.kind, barVerdicts(ex, result));
     renderStage();
+    renderIssues();
 
     if (event?.type === 'unlock') {
       session.unlocked.push(event.step.title);
@@ -312,6 +362,7 @@ export function initEndlessView(d) {
     sheet?.setCursor(null);
     renderBeats(null);
     d.setLevel($('en-mic'), { rms: 0, gate: 0 });
+    $('en-heard').textContent = '—';
   }
 
   function stop(byUser = false) {
@@ -372,7 +423,9 @@ export function initEndlessView(d) {
 
   return {
     enter() {
+      $('en-playhead').checked = !!state.showPlayhead;
       renderStage();
+      renderIssues();
       if (!current) newRhythm();
       else sheet.render();
       if (!run) setStatus(`Press Start. You'll hear a bar of clicks, then play what you see. Tempo ${progress().bpm} bpm.`);

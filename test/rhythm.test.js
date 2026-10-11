@@ -33,7 +33,7 @@ test('generated bars always add up and follow the level rules', () => {
  * Simulate a recorder player: 5 ms level readings, tongued gaps that dip but
  * don't fall silent, a reverb tail, and per-note timing errors.
  */
-function perform(exercise, bpm, { offsets = () => 0, gapMs = 45, lengthFactor = 1 } = {}) {
+function perform(exercise, bpm, { offsets = () => 0, gapMs = 45, lengthFactor = 1, decay = 0.85 } = {}) {
   const beatSec = 60 / bpm;
   const notes = exercise.events
     .filter((e) => !e.rest)
@@ -44,7 +44,7 @@ function perform(exercise, bpm, { offsets = () => 0, gapMs = 45, lengthFactor = 
   const end = exercise.totalBeats * beatSec + 0.5;
   for (let t = -0.5; t < end; t += 0.005) {
     const playing = notes.find((n) => t >= n.start && t < n.end);
-    level = playing ? 0.02 : Math.max(0.0003, level * 0.85); // fast attack, decaying tail
+    level = playing ? 0.02 : Math.max(0.0003, level * decay); // fast attack, decaying tail
     const voiced = playing || level > 0.004 ? (playing?.midi ?? notes[0].midi) + 0.05 : null;
     tracker.push(t, level, gate, voiced);
   }
@@ -56,6 +56,14 @@ test('tracker separates tongued repeated notes', () => {
   const { played, intended } = perform(ex, 80);
   assert.equal(played.length, intended.length);
   played.forEach((p, i) => assert.ok(Math.abs(p.start - intended[i].start) < 0.012));
+});
+
+test('tongued notes are separated even in an echoey room', () => {
+  // Level only dips to about 60% in the tongue gap.
+  const ex = generateExercise({ level: 3, pitches: [83], random: seeded(7) });
+  const { played, intended } = perform(ex, 80, { decay: 0.94 });
+  assert.equal(played.length, intended.length);
+  played.forEach((p, i) => assert.ok(Math.abs(p.start - intended[i].start) < 0.05, `note ${i} at ${p.start} vs ${intended[i].start}`));
 });
 
 test('an accurate performance scores highly', () => {
@@ -116,4 +124,88 @@ test('calibration finds a constant device delay', () => {
   const { played } = perform(ex, 80, { offsets: (i) => 0.11 + (i % 2 ? 0.01 : -0.01) });
   const off = calibrationOffset(ex, played, 80);
   assert.ok(Math.abs(off - 0.11) < 0.015, `offset ${off}`);
+});
+
+/** Feed a hand-made level/pitch timeline (5 ms steps) to a tracker. */
+function track(segments, gate = 0.0016) {
+  const tr = new OnsetTracker();
+  let t = 0;
+  for (const seg of segments) {
+    for (const end = t + seg.dur; t < end; t += 0.005) {
+      const lvl = typeof seg.level === 'function' ? seg.level(t) : seg.level;
+      tr.push(t, lvl, gate, seg.midi ?? null, seg.tonal ?? seg.midi != null);
+    }
+  }
+  return tr.finish(t);
+}
+
+test('a loud tonguing burst does not cut the note short', () => {
+  const notes = track([
+    { dur: 0.2, level: 0.0003 },
+    { dur: 0.03, level: 0.08, midi: 83 }, // "t" burst 4x louder than the tone
+    { dur: 0.8, level: 0.02, midi: 83 },
+    { dur: 0.2, level: 0.0003 },
+  ]);
+  assert.equal(notes.length, 1);
+  assert.ok(notes[0].end - notes[0].start > 0.8);
+});
+
+test('a breathy tone with no clear pitch still counts as a note', () => {
+  const notes = track([
+    { dur: 0.2, level: 0.0003 },
+    { dur: 0.6, level: 0.01, midi: null, tonal: true },
+    { dur: 0.2, level: 0.0003 },
+  ]);
+  assert.equal(notes.length, 1);
+});
+
+test('a slur to a new pitch starts a new note', () => {
+  const notes = track([
+    { dur: 0.2, level: 0.0003 },
+    { dur: 0.5, level: 0.02, midi: 83 },
+    { dur: 0.5, level: 0.02, midi: 81 },
+    { dur: 0.2, level: 0.0003 },
+  ]);
+  assert.equal(notes.length, 2);
+  assert.ok(Math.abs(notes[1].start - 0.7) < 0.02);
+  assert.equal(Math.round(notes[0].midi), 83);
+  assert.equal(Math.round(notes[1].midi), 81);
+});
+
+test('an out-of-tune note wavering between names is not split', () => {
+  const notes = track([
+    { dur: 0.2, level: 0.0003 },
+    { dur: 1, level: 0.02, midi: 82.5 },
+    { dur: 1, level: 0.02, midi: 82.45 },
+    { dur: 0.2, level: 0.0003 },
+  ]);
+  assert.equal(notes.length, 1);
+});
+
+test('a breath noise without tone is ignored', () => {
+  const notes = track([
+    { dur: 0.2, level: 0.0003 },
+    { dur: 0.5, level: 0.01, midi: null, tonal: false },
+    { dur: 0.2, level: 0.0003 },
+  ]);
+  assert.equal(notes.length, 0);
+});
+
+test('breath vibrato does not split a held note', () => {
+  const notes = track([
+    { dur: 0.2, level: 0.0003 },
+    { dur: 2, level: (t) => 0.02 * (1 + 0.2 * Math.sin(2 * Math.PI * 5 * t)), midi: 83 },
+    { dur: 0.2, level: 0.0003 },
+  ]);
+  assert.equal(notes.length, 1);
+});
+
+test('bar verdicts name what went wrong in each bar', async () => {
+  const { barVerdicts } = await import('../js/rhythm.js');
+  const ex = { beatsPerBar: 4, bars: 3, totalBeats: 12, events: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((b) => ({ beat: b, beats: 1, rest: false, midi: 83, bar: Math.floor(b / 4) })) };
+  const played = ex.events
+    .filter((e) => e.beat !== 10) // bar 3 misses a note
+    .map((e) => ({ start: e.beat + (e.bar === 1 ? -0.09 : 0), end: e.beat + 0.9 + (e.bar === 1 ? -0.09 : 0), midi: 83 }));
+  const v = barVerdicts(ex, scoreRhythm(ex, played, 60));
+  assert.deepEqual(v.map((x) => x.text), ['Great', 'Early', 'Missed a note']);
 });

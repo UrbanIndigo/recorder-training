@@ -8,7 +8,7 @@
  * @returns {{freq: number|null, clarity: number, rms: number}}
  */
 export function detectPitch(buf, sampleRate, opts = {}) {
-  const { minFreq = 150, maxFreq = 4000, threshold = 0.15, maxAperiodicity = 0.4, minRms = 0 } = opts;
+  const { minFreq = 150, maxFreq = 4000, threshold = 0.15, maxAperiodicity = 0.5, minRms = 0 } = opts;
   const n = buf.length;
 
   let sumSq = 0;

@@ -168,16 +168,21 @@ export function calibrationExercise(midi) {
 
 // ----------------------------------------------------------- onset tracking
 
-const CONFIRM_SECONDS = 0.12; // pitch must appear this soon after a rise in level
-const UNVOICED_END_SECONDS = 0.15; // lose the pitch this long and the note has ended
-const RELEASE_RATIO = 0.3; // level falling below this fraction of the note's peak ends it
+const CONFIRM_SECONDS = 0.15; // a tone must be heard this soon after a rise in level
+const UNVOICED_END_SECONDS = 0.4; // no tone at all for this long and the note has ended
+const RELEASE_RATIO = 0.25; // level falling below this fraction of the note's level ends it
+const ATTACK_SECONDS = 0.05; // ignore the tonguing burst when judging a note's level
+const PITCH_CHANGE_SECONDS = 0.05; // a new pitch held this long starts a new note (slurs)
+const DIP_RATIO = 0.72; // a dip below this fraction of the note's level...
+const REATTACK_RISE = 1.45; // ...followed by a rise of this much is a new tongued note
 const MIN_NOTE_SECONDS = 0.05;
 
 /**
  * Turns a stream of short level readings into notes with start and end
  * times. A note starts when the level rises above the noise gate and a
- * pitch is heard; it ends when the level drops well below the note's peak
- * (tonguing between notes, or stopping), or the pitch is lost.
+ * tone is heard; it ends when the level drops well below the note's
+ * steady level (tonguing between notes, or stopping). Moving to a new
+ * pitch without tonguing also starts a new note.
  */
 export class OnsetTracker {
   constructor() {
@@ -185,6 +190,7 @@ export class OnsetTracker {
     this.current = null;
     this.candidate = null;
     this.belowSince = null;
+    this.env = 0; // smoothed level
     this.rearm = 0; // after a tongued release, the level must climb back past this
   }
 
@@ -192,28 +198,58 @@ export class OnsetTracker {
    * @param {number} t time in seconds
    * @param {number} rms short-window level
    * @param {number} gate level counted as sound
-   * @param {number|null} midi detected pitch (null if none)
+   * @param {number|null} midi detected pitch, if one could be read
+   * @param {boolean} [tonal] a tone is present even if no exact pitch was read
    */
-  push(t, rms, gate, midi) {
+  push(t, rms, gate, midi, tonal = midi != null) {
+    this.env += (rms - this.env) * 0.35;
     const cur = this.current;
     if (cur) {
-      cur.peak = Math.max(cur.peak * 0.9995, rms);
+      const age = t - cur.start;
+      if (tonal) cur.lastVoiced = t;
       if (midi != null) {
         cur.pitches.push(midi);
-        cur.lastVoiced = t;
+        if (age > ATTACK_SECONDS) this.checkPitchChange(t, midi);
+        if (this.current !== cur) return;
       }
-      const releaseLevel = Math.max(gate, cur.peak * RELEASE_RATIO);
-      if (rms < releaseLevel) {
-        if (this.belowSince == null) this.belowSince = t;
-        // Two readings in a row, so one noisy reading doesn't split a note.
-        else if (t - this.belowSince > 0.004) {
-          this.close(this.belowSince);
-          this.rearm = releaseLevel * 1.5;
+      // The tonguing burst at the start can be far louder than the note
+      // itself, so the note's level is only measured after it.
+      if (age > ATTACK_SECONDS) cur.level = cur.level == null ? this.env : Math.max(cur.level * 0.9995, this.env);
+      if (cur.level != null) {
+        // Re-attack: in a room with echo the level may never fall far
+        // between tongued notes, but it dips and then jumps back up.
+        if (this.env < cur.level * DIP_RATIO) {
+          if (!cur.dip) cur.dip = { start: t, min: this.env, minT: t };
+          else if (this.env < cur.dip.min) Object.assign(cur.dip, { min: this.env, minT: t });
+        } else if (cur.dip) {
+          const dip = cur.dip;
+          // Tongued attacks rise fast; breath vibrato swells slowly.
+          if (this.env > dip.min * REATTACK_RISE && t - dip.minT <= 0.06) {
+            this.close(dip.start);
+            this.open(dip.minT, midi);
+            this.current.level = this.env;
+            return;
+          }
+          // A slow swell back up, not a new attack.
+          if (t - dip.start > 0.3 || t - dip.minT > 0.06 || this.env >= cur.level * 0.97) cur.dip = null;
         }
-      } else {
-        this.belowSince = null;
+        const releaseLevel = Math.max(gate, cur.level * RELEASE_RATIO);
+        if (rms < releaseLevel) {
+          if (this.belowSince == null) this.belowSince = t;
+          // Two readings in a row, so one noisy reading doesn't split a note.
+          else if (t - this.belowSince > 0.004) {
+            this.close(this.belowSince);
+            this.rearm = releaseLevel * 1.5;
+            return;
+          }
+        } else {
+          this.belowSince = null;
+        }
+      } else if (rms < gate) {
+        this.close(t);
+        return;
       }
-      if (this.current && t - cur.lastVoiced > UNVOICED_END_SECONDS) this.close(cur.lastVoiced);
+      if (t - cur.lastVoiced > UNVOICED_END_SECONDS) this.close(cur.lastVoiced);
       return;
     }
 
@@ -221,17 +257,42 @@ export class OnsetTracker {
     this.rearm *= 0.985;
     if (rms < gate) this.rearm = 0;
     if (rms >= Math.max(gate, this.rearm)) {
-      if (!this.candidate) this.candidate = { start: t, peak: rms };
-      this.candidate.peak = Math.max(this.candidate.peak, rms);
-      if (midi != null) {
-        this.current = { start: this.candidate.start, peak: this.candidate.peak, pitches: [midi], lastVoiced: t };
+      if (!this.candidate) this.candidate = { start: t };
+      if (tonal) {
+        this.open(this.candidate.start, midi);
         this.candidate = null;
-        this.belowSince = null;
       } else if (t - this.candidate.start > CONFIRM_SECONDS) {
         this.candidate = null; // a click or breath noise, not a note
       }
     } else {
       this.candidate = null;
+    }
+  }
+
+  open(start, midi) {
+    this.current = { start, level: null, pitches: midi != null ? [midi] : [], lastVoiced: start, ref: null, change: null, dip: null };
+    this.belowSince = null;
+  }
+
+  checkPitchChange(t, midi) {
+    const cur = this.current;
+    if (cur.ref == null) {
+      cur.ref = Math.round(midi);
+      return;
+    }
+    // Needs a clear move (not an out-of-tune note wavering between two names).
+    if (Math.abs(midi - cur.ref) < 0.75) {
+      cur.change = null;
+      return;
+    }
+    if (!cur.change || cur.change.midi !== Math.round(midi)) cur.change = { t, midi: Math.round(midi) };
+    else if (t - cur.change.t >= PITCH_CHANGE_SECONDS) {
+      const at = cur.change.t;
+      cur.pitches = cur.pitches.filter((m) => Math.abs(m - cur.ref) < 0.75);
+      this.close(at);
+      this.open(at, midi);
+      this.current.ref = Math.round(midi);
+      this.current.level = this.env;
     }
   }
 
@@ -396,6 +457,36 @@ function rhythmTips(r, shortNotes) {
     tips.push(r.bpm < 100 ? 'Rock solid! Try a faster tempo or the next level.' : 'Rock solid! Try the next level.');
   }
   return tips;
+}
+
+/**
+ * A short verdict for each bar ("Great", "Early", "Missed a note"...).
+ * @returns {{text: string, level: 'good'|'close'|'far'}[]}
+ */
+export function barVerdicts(exercise, result) {
+  const out = [];
+  for (let b = 0; b < exercise.bars; b++) out.push(barVerdict(exercise, result, b));
+  return out;
+}
+
+export function barVerdict(exercise, result, b) {
+  const notes = result.notes.filter((n) => n.event.bar === b);
+  const restHit = result.restHits.some((r) => r.bar === b);
+  if (!notes.length) return restHit ? { text: 'Played in the rest', level: 'far' } : { text: 'Good rest', level: 'good' };
+  const missed = notes.filter((n) => n.status === 'missed').length;
+  if (missed === notes.length) return { text: 'Missed', level: 'far' };
+  if (missed) return { text: missed === 1 ? 'Missed a note' : `Missed ${missed} notes`, level: missed / notes.length > 0.34 ? 'far' : 'close' };
+  if (restHit) return { text: 'Played in a rest', level: 'far' };
+  if (notes.some((n) => n.wrongPitch)) return { text: 'Wrong note', level: 'close' };
+  const errs = notes.map((n) => n.errorMs);
+  const mean = errs.reduce((a, c) => a + c, 0) / errs.length;
+  const spread = Math.max(...errs) - Math.min(...errs);
+  if (mean < -50) return { text: 'Early', level: mean < -100 ? 'far' : 'close' };
+  if (mean > 50) return { text: 'Late', level: mean > 100 ? 'far' : 'close' };
+  if (spread > 160) return { text: 'Uneven', level: 'close' };
+  if (notes.some((n) => n.short && n.event.beats >= 1)) return { text: 'Too short', level: 'close' };
+  if (notes.every((n) => n.status === 'good')) return { text: 'Great', level: 'good' };
+  return { text: 'Good', level: notes.every((n) => n.status !== 'off') ? 'good' : 'close' };
 }
 
 /** Median timing error (seconds) from a calibration run, or null if unreliable. */

@@ -72,9 +72,10 @@ export function chooseNext(progress, last, pitches, random = Math.random) {
 
   // Weak patterns come up more often; a just-unlocked one dominates at first.
   const weights = {};
+  const severity = issueSeverityByCell(progress);
   for (const c of cells) {
     const sk = progress.skill[c];
-    weights[c] = 1 + 3 * (1 - (sk ? sk.ema : 0.5));
+    weights[c] = 1 + 3 * (1 - (sk ? sk.ema : 0.5)) + 3 * (severity[c] || 0);
     if (newest.cell === c && sinceUnlock < 6) weights[c] += 4;
   }
   // A newly unlocked time signature is used straight away for a few phrases.
@@ -105,6 +106,7 @@ export function recordResult(progress, exercise, result) {
     sk.ema = sk.ema * 0.65 + score * 0.35;
     sk.n++;
   }
+  updateIssues(progress, exercise, result);
 
   // Failed a retry too: come back to it a few rhythms later.
   if (exercise.retry && result.overall < PASS_SCORE) {
@@ -180,4 +182,84 @@ function weakestCell(exercise, result) {
 /** A friendly name for a pattern, for messages. */
 export function cellTitle(cell) {
   return CURRICULUM.find((s) => s.cell === cell)?.title.toLowerCase() ?? cell;
+}
+
+// ----------------------------------------------------------------- issues
+
+const CELL_TIPS = {
+  quarter: 'Tongue right on each click.',
+  half: 'Keep blowing through the second click.',
+  whole: 'Keep blowing through all four clicks.',
+  quarterRest: 'Stop the air on the rest’s click and wait for the next.',
+  halfRest: 'Stay silent for two whole clicks.',
+  dottedHalf: 'Hold it for three clicks.',
+  eighths: 'Say “1 + 2 +” and tongue on every syllable.',
+  restEighth: 'Silent on the number, play on the “+”.',
+  dottedQuarterEighth: 'Hold through the next click, then play on its “+”.',
+  syncopation: 'The long note starts between the clicks — count the “+”.',
+};
+
+/**
+ * Track recurring problems per rhythm pattern: rushing or dragging,
+ * cutting notes short, missing notes, and playing through rests.
+ */
+function updateIssues(progress, exercise, result) {
+  progress.issues ||= {};
+  const groups = new Map();
+  const group = (cell) => {
+    if (!groups.has(cell)) groups.set(cell, { errors: [], short: 0, long: 0, missed: 0, notes: 0, rests: 0, restHits: 0 });
+    return groups.get(cell);
+  };
+  for (const n of result.notes) {
+    const g = group(n.event.cell);
+    g.notes++;
+    if (n.status === 'missed') g.missed++;
+    else {
+      g.errors.push(n.errorMs);
+      if (n.event.beats >= 1) {
+        g.long++;
+        if (n.short) g.short++;
+      }
+    }
+  }
+  const hits = new Set(result.restHits);
+  for (const e of exercise.events) {
+    if (!e.rest) continue;
+    const g = group(e.cell);
+    g.rests++;
+    if (hits.has(e)) g.restHits++;
+  }
+  const a = 0.3;
+  for (const [cell, g] of groups) {
+    const is = (progress.issues[cell] ||= { timing: 0, short: 0, missed: 0, restHit: 0, n: 0 });
+    is.n++;
+    if (g.errors.length) is.timing = is.timing * (1 - a) + a * (g.errors.reduce((x, y) => x + y, 0) / g.errors.length);
+    if (g.long) is.short = is.short * (1 - a) + a * (g.short / g.long);
+    if (g.notes) is.missed = is.missed * (1 - a) + a * (g.missed / g.notes);
+    if (g.rests) is.restHit = is.restHit * (1 - a) + a * (g.restHits / g.rests);
+  }
+}
+
+/**
+ * The player's biggest recurring problems, worst first.
+ * @returns {{cell: string, kind: string, severity: number, text: string, tip: string}[]}
+ */
+export function topIssues(progress, max = 3) {
+  const out = [];
+  for (const [cell, is] of Object.entries(progress.issues || {})) {
+    if (is.n < 2) continue;
+    const name = cellTitle(cell);
+    if (is.missed > 0.25) out.push({ cell, kind: 'missed', severity: is.missed, text: `Missing notes in ${name}`, tip: CELL_TIPS[cell] });
+    if (is.restHit > 0.3) out.push({ cell, kind: 'rest', severity: is.restHit, text: `Playing through ${name}`, tip: 'A rest means silence: stop the air on the beat and count through it.' });
+    if (is.timing < -45) out.push({ cell, kind: 'rush', severity: Math.min(1, -is.timing / 150), text: `Rushing ${name} (about ${Math.round(-is.timing)} ms early)`, tip: `Let the click land before you play. ${CELL_TIPS[cell] || ''}`.trim() });
+    if (is.timing > 45) out.push({ cell, kind: 'drag', severity: Math.min(1, is.timing / 150), text: `Late on ${name} (about ${Math.round(is.timing)} ms)`, tip: `Breathe in early so you’re ready on the beat. ${CELL_TIPS[cell] || ''}`.trim() });
+    if (is.short > 0.3) out.push({ cell, kind: 'short', severity: is.short * 0.8, text: `Cutting ${name} short`, tip: CELL_TIPS[cell] || 'Hold each note right up to the next one.' });
+  }
+  return out.sort((x, y) => y.severity - x.severity).slice(0, max);
+}
+
+function issueSeverityByCell(progress) {
+  const out = {};
+  for (const i of topIssues(progress, 10)) out[i.cell] = Math.max(out[i.cell] || 0, i.severity);
+  return out;
 }

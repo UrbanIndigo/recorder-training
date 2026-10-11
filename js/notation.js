@@ -55,10 +55,13 @@ export class RhythmSheet {
     parts.push(this.drawNotes());
     if (this.counting) parts.push(this.drawCounting());
     parts.push('<g class="played-layer"></g>');
+    parts.push('<g class="bar-labels"></g>');
     parts.push('<line class="cursor" x1="0" x2="0" y1="0" y2="0" visibility="hidden"/>');
     this.container.innerHTML = `<svg xmlns="${svgNs}" viewBox="0 0 ${width} ${this.height}" width="100%" class="sheet" role="img" aria-label="Rhythm in ${bpb}/4, ${ex.bars} bars">${parts.join('')}</svg>`;
     this.svg = this.container.firstElementChild;
     this.playedLayer = this.svg.querySelector('.played-layer');
+    this.labelLayer = this.svg.querySelector('.bar-labels');
+    if (this.barLabels) this.setBarLabels(this.barLabels);
     this.cursor = this.svg.querySelector('.cursor');
     if (this.statuses) this.setResults(this.statuses);
     if (this.lastPlayed) this.setPlayed(this.lastPlayed);
@@ -212,6 +215,8 @@ export class RhythmSheet {
   clearResults() {
     this.statuses = null;
     this.lastPlayed = null;
+    this.barLabels = null;
+    this.labelLayer.innerHTML = '';
     for (const el of this.svg.querySelectorAll('[data-idx]')) {
       el.classList.remove('s-good', 's-close', 's-off', 's-missed', 's-wrong', 's-hit');
     }
@@ -237,6 +242,28 @@ export class RhythmSheet {
       }
     }
     this.playedLayer.innerHTML = parts.join('');
+  }
+
+  /**
+   * Show a verdict badge above bars, e.g. "Great" or "Early".
+   * @param {({text: string, level: string}|null)[]} labels one per bar
+   */
+  setBarLabels(labels) {
+    this.barLabels = labels;
+    const bpb = this.exercise.beatsPerBar;
+    const parts = [];
+    labels.forEach((l, bar) => {
+      if (!l) return;
+      const beat = bar * bpb;
+      const line = this.lineFor(beat);
+      const x = line.x0 + (beat - line.startBeat) * line.ppb + 4;
+      const y = line.top + 6;
+      const icon = l.level === 'good' ? '✓ ' : l.level === 'far' ? '✗ ' : '';
+      const text = icon + l.text;
+      const w = text.length * 6.4 + 14;
+      parts.push(`<g class="bar-label ${l.level}"><rect x="${x}" y="${y}" width="${w}" height="18" rx="9"/><text x="${x + 7}" y="${y + 13}">${text}</text></g>`);
+    });
+    this.labelLayer.innerHTML = parts.join('');
   }
 
   /** Move the playhead to a beat (or hide it with null). */

@@ -1,7 +1,7 @@
 // Rhythm Reading screen: show a rhythm, play it back, count in, listen to
 // the player, and show how their timing compared.
 
-import { LEVELS, generateExercise, calibrationExercise, calibrationOffset, OnsetTracker, scoreRhythm, ON_TIME_MS } from './rhythm.js';
+import { LEVELS, generateExercise, calibrationExercise, calibrationOffset, OnsetTracker, scoreRhythm, barVerdicts, ON_TIME_MS } from './rhythm.js';
 import { RhythmSheet } from './notation.js';
 import { scheduleClick } from './audio.js';
 import { playDemo } from './rhythm-play.js';
@@ -46,6 +46,11 @@ export function initRhythmView(d) {
   setBpm(state.bpm);
   $('rh-slower').addEventListener('click', () => setBpm(state.bpm - 5));
   $('rh-faster').addEventListener('click', () => setBpm(state.bpm + 5));
+
+  $('rh-playhead').addEventListener('change', (e) => {
+    state.showPlayhead = e.target.checked;
+    d.save();
+  });
 
   $('rh-click').checked = state.clickWhilePlaying;
   $('rh-click').addEventListener('change', (e) => {
@@ -145,7 +150,8 @@ export function initRhythmView(d) {
       if (active?.kind !== 'demo') setStatus(count >= bpb - 1 ? 'Breathe in… play!' : `Count-in: ${count + 1}`);
     } else {
       renderBeats(Math.floor(pos) % bpb);
-      sheet.setCursor(Math.min(pos, exercise.totalBeats));
+      // While the player is reading, the moving line is optional (it gives the timing away).
+      if (active?.kind === 'demo' || state.showPlayhead) sheet.setCursor(Math.min(pos, exercise.totalBeats));
     }
   }
 
@@ -190,12 +196,14 @@ export function initRhythmView(d) {
       if (run.cancelled) return;
       d.setLevel($('rh-mic'), reading);
       const midi = reading.freq ? d.pitchToMidi(reading.freq) : null;
-      for (const b of reading.blocks) run.tracker.push(b.t, b.rms, reading.gate, midi);
+      const tonal = midi != null || (reading.clarity >= 0.4 && reading.rms >= reading.gate);
+      for (const b of reading.blocks) run.tracker.push(b.t, b.rms, reading.gate, midi, tonal);
       const now = reading.audioTime;
       const pos = (now - (ctx.outputLatency || 0) - start) / beat;
       followBeat(pos);
       if (pos >= 0) setStatus(calibrating ? 'Play a short note on every click' : 'Playing…');
-      sheet.setPlayed(run.tracker.snapshot(now).filter((n) => n.end - latency > t0).map(toBeats));
+      $('rh-heard').textContent = midi != null ? `♪ ${d.writtenInfo(Math.round(midi)).name}` : tonal ? '♪' : '—';
+      if (state.showPlayhead || calibrating) sheet.setPlayed(run.tracker.snapshot(now).filter((n) => n.end - latency > t0).map(toBeats));
       if (now > end + latency + 0.35) finish(run, now);
     });
   }
@@ -220,6 +228,7 @@ export function initRhythmView(d) {
     }
     for (const r of result.restHits) statuses.set(ex.events.indexOf(r), 'hit');
     sheet.setResults(statuses);
+    sheet.setBarLabels(barVerdicts(ex, result));
     sheet.setPlayed(played.map((p) => ({ start: p.start / run.beat, end: p.end / run.beat, status: playedStatus.get(p) || 'off' })));
 
     const prev = state.rhythmBest[ex.level];
@@ -315,6 +324,7 @@ export function initRhythmView(d) {
     }
     setBusy(false);
     d.setLevel($('rh-mic'), { rms: 0, gate: 0 });
+    $('rh-heard').textContent = '—';
     sheet?.setCursor(null);
     renderBeats(null);
     if (run.kind === 'calibration' && byUser) {
@@ -327,6 +337,7 @@ export function initRhythmView(d) {
 
   return {
     enter() {
+      $('rh-playhead').checked = !!state.showPlayhead;
       if (!exercise) newExercise();
       else sheet.render();
       showCalibration();

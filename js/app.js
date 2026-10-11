@@ -488,6 +488,7 @@ const endlessView = initEndlessView({
   startMic,
   showMicError,
   recorder,
+  writtenInfo,
   pitchToMidi,
   setLevel,
   scoreColor,

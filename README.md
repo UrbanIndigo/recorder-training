@@ -30,6 +30,9 @@ Rhythm training that keeps going until you stop. A metronome runs the whole time
 - **Levels up on its own.** You start with quarter notes. Twelve stages unlock one at a time once you're consistently scoring well: half notes, whole notes, rests, dotted halves, 3/4, eighths, off-beat eighths, dotted quarter + eighth, 2/4, then syncopation. Each new rhythm gets a short explanation card with how to count it, and you can hear an example. Once everything is unlocked, the tempo creeps up instead.
 - **Repeats what you get wrong.** Score under 70 and the same rhythm comes straight back, with the counting shown, your last attempt coloured on the notes, and the tricky pattern named. Miss it again and it goes into a review list that comes back a few rhythms later.
 - **Targets your weak spots.** It tracks how well you do on each rhythm pattern and gives you the hard ones more often. If you're struggling, it slows down.
+- **A verdict for every bar.** As each bar finishes you get "Great", "Early", "Late", "Too short", "Missed a note" or "Played in a rest" above it while you carry on, plus a bar-by-bar summary after each rhythm.
+- **What to work on.** It tracks recurring problems for each rhythm pattern (rushing eighths, cutting half notes short, playing through rests…). It lists your top ones with a tip, and gives you more of those patterns.
+- **No playhead by default.** The moving line and live note bars make reading too easy, so they're off unless you turn them on in the options.
 - Progress is saved. Options let you jump ahead a stage, always show counting, or start over.
 
 ### Rhythm Reading — Practice

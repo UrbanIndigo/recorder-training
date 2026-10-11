@@ -16,6 +16,7 @@ const DEFAULTS = {
   rhythmBest: {}, // { [level]: best score }
   rhythmTab: 'endless',
   alwaysCount: false,
+  showPlayhead: false, // moving line and live note bars while playing rhythms
   endless: null, // endless-mode progress (see progression.js)
   history: {}, // { [recorderId]: { [midi]: { best, attempts: [{ score, meanCents, date }] } } }
 };
