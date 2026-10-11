@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1f6f5c">
+  <title>Recorder Trainer</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <button class="icon-btn" id="back-btn" hidden aria-label="Back">←</button>
+    <h1 class="brand">Recorder Trainer</h1>
+    <label class="recorder-picker">
+      <span class="visually-hidden">Recorder</span>
+      <select id="recorder-select"></select>
+    </label>
+  </header>
+
+  <main>
+    <!-- Home: choose a training mode -->
+    <section class="view" id="view-home">
+      <p class="lede">Pick a training exercise. Your recorder is set in the top corner.</p>
+      <div class="mode-grid">
+        <button class="mode-card" data-goto="pick">
+          <span class="mode-icon" aria-hidden="true">⏱</span>
+          <span class="mode-title">Long Tone</span>
+          <span class="mode-desc">Hold a note steady for 10 seconds. You'll get a score for hitting the right note, being in tune, and keeping it steady.</span>
+        </button>
+        <button class="mode-card" data-goto="tuner">
+          <span class="mode-icon" aria-hidden="true">🎯</span>
+          <span class="mode-title">Tuner</span>
+          <span class="mode-desc">Play anything and see which note you're on and how many cents sharp or flat you are.</span>
+        </button>
+      </div>
+
+      <details class="settings">
+        <summary>Settings</summary>
+        <div class="setting">
+          <label for="a4-select">Tuning reference (A)</label>
+          <select id="a4-select">
+            <option value="440">A = 440 Hz (modern)</option>
+            <option value="442">A = 442 Hz</option>
+            <option value="415">A = 415 Hz (baroque)</option>
+          </select>
+        </div>
+        <div class="setting">
+          <label for="sensitivity">Microphone sensitivity</label>
+          <input type="range" id="sensitivity" min="0" max="1" step="0.05">
+          <small>Turn it down if background noise is picked up, up if your playing isn't detected.</small>
+        </div>
+      </details>
+    </section>
+
+    <!-- Long tone: choose note -->
+    <section class="view" id="view-pick" hidden>
+      <h2>Long Tone</h2>
+      <p class="lede">Choose a note to hold.</p>
+      <div class="row-controls">
+        <label class="toggle"><input type="checkbox" id="naturals-only"> Naturals only</label>
+        <label>Hold for
+          <select id="duration-select">
+            <option value="5">5 s</option>
+            <option value="10">10 s</option>
+            <option value="15">15 s</option>
+            <option value="20">20 s</option>
+          </select>
+        </label>
+        <button class="btn secondary" id="random-note">🎲 Random note</button>
+      </div>
+      <div class="note-grid" id="note-grid"></div>
+      <p class="hint">Note names are as written in your music. The dot shows your best score on that note.</p>
+    </section>
+
+    <!-- Long tone: exercise -->
+    <section class="view" id="view-run" hidden>
+      <div class="target">
+        <div class="target-staff" id="target-staff"></div>
+        <div class="target-text">
+          <div class="target-label">Hold this note</div>
+          <div class="target-name" id="target-name">C</div>
+          <div class="target-detail" id="target-detail"></div>
+          <button class="btn secondary small" id="play-ref">🔊 Hear it</button>
+        </div>
+      </div>
+
+      <div class="timer-wrap">
+        <svg class="timer" viewBox="0 0 120 120" aria-hidden="true">
+          <circle cx="60" cy="60" r="52" class="timer-track"/>
+          <circle cx="60" cy="60" r="52" class="timer-fill" id="timer-fill"/>
+        </svg>
+        <div class="timer-text">
+          <div class="timer-seconds" id="timer-seconds">10</div>
+          <div class="timer-status" id="run-status">Press start</div>
+        </div>
+      </div>
+
+      <div class="live" id="live">
+        <div class="live-note" id="live-note">—</div>
+        <div class="meter" aria-hidden="true">
+          <div class="meter-zone"></div>
+          <div class="meter-center"></div>
+          <div class="meter-needle" id="meter-needle"></div>
+          <span class="meter-label left">flat</span>
+          <span class="meter-label right">sharp</span>
+        </div>
+        <div class="live-cents" id="live-cents">&nbsp;</div>
+      </div>
+
+      <canvas class="chart" id="run-chart"></canvas>
+
+      <div class="actions">
+        <button class="btn primary" id="start-btn">Start</button>
+        <button class="btn secondary" id="cancel-btn" hidden>Stop</button>
+      </div>
+      <p class="error" id="mic-error" hidden></p>
+    </section>
+
+    <!-- Long tone: results -->
+    <section class="view" id="view-results" hidden>
+      <div class="score-hero">
+        <div class="score-ring" id="score-ring"><span id="score-value">0</span></div>
+        <div>
+          <div class="score-grade" id="score-grade"></div>
+          <div class="stars" id="score-stars"></div>
+          <div class="score-note" id="score-note"></div>
+        </div>
+      </div>
+
+      <div class="result-cards">
+        <div class="result-card" id="card-note">
+          <div class="card-title">Right note?</div>
+          <div class="card-value" id="res-note"></div>
+          <div class="card-sub" id="res-note-sub"></div>
+        </div>
+        <div class="result-card" id="card-tune">
+          <div class="card-title">How in tune?</div>
+          <div class="card-value" id="res-tune"></div>
+          <div class="card-sub" id="res-tune-sub"></div>
+        </div>
+        <div class="result-card" id="card-steady">
+          <div class="card-title">Steadiness</div>
+          <div class="card-value" id="res-steady"></div>
+          <div class="card-sub" id="res-steady-sub"></div>
+        </div>
+        <div class="result-card" id="card-sustain">
+          <div class="card-title">Held for</div>
+          <div class="card-value" id="res-sustain"></div>
+          <div class="card-sub" id="res-sustain-sub"></div>
+        </div>
+      </div>
+
+      <h3>Your pitch over time</h3>
+      <canvas class="chart" id="result-chart"></canvas>
+      <p class="hint">Dashed line = the exact note. Green band = in tune (±10 cents), yellow = close (±25). Red marks = a different note.</p>
+
+      <h3>Tips</h3>
+      <ul class="tips" id="tips"></ul>
+
+      <div class="actions">
+        <button class="btn primary" id="again-btn">Try again</button>
+        <button class="btn secondary" id="next-btn">Next note →</button>
+        <button class="btn secondary" id="choose-btn">Choose note</button>
+      </div>
+    </section>
+
+    <!-- Tuner -->
+    <section class="view" id="view-tuner" hidden>
+      <h2>Tuner</h2>
+      <div class="tuner-note" id="tuner-note">—</div>
+      <div class="tuner-detail" id="tuner-detail">Play a note…</div>
+      <div class="meter big" aria-hidden="true">
+        <div class="meter-zone"></div>
+        <div class="meter-center"></div>
+        <div class="meter-needle" id="tuner-needle"></div>
+        <span class="meter-label left">flat</span>
+        <span class="meter-label right">sharp</span>
+      </div>
+      <div class="live-cents" id="tuner-cents">&nbsp;</div>
+      <p class="error" id="tuner-error" hidden></p>
+    </section>
+  </main>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

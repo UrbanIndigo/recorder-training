@@ -1,0 +1,11 @@
+{
+  "name": "recorder-training",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Recorder practice app: long-tone training with pitch scoring, and a tuner.",
+  "type": "module",
+  "scripts": {
+    "start": "npx --yes http-server -c-1 -p 8080 .",
+    "test": "node --test test/*.test.js"
+  }
+}
