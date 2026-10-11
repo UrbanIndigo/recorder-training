@@ -276,29 +276,19 @@ h3 { margin: 28px 0 8px; font-size: 1.05rem; }
 .sheet .beam { fill: var(--text); }
 .sheet .rest-stroke { fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 .sheet .rest-stroke.thin { stroke-width: 1.7; }
-.sheet .timeline-bg { fill: var(--surface-2); }
-.sheet .tick { stroke: var(--text-muted); stroke-width: 1; opacity: 0.5; }
-.sheet .tick.strong { opacity: 1; }
-.sheet .expected { fill: none; stroke: var(--text-muted); stroke-width: 1; }
-.sheet .expected.s-missed { stroke-dasharray: 3 2; stroke: var(--bad); }
-.sheet .played { fill: var(--trace); opacity: 0.9; }
 .sheet .cursor { stroke: var(--accent); stroke-width: 2; }
 .sheet .s-good { color: var(--good); }
 .sheet .s-close { color: var(--warn); }
 .sheet .s-off, .sheet .s-wrong, .sheet .rest.s-hit { color: var(--bad); }
 .sheet .note.s-missed { color: var(--text-muted); opacity: 0.45; }
-.sheet .played.s-good { fill: var(--good); }
-.sheet .played.s-close { fill: var(--warn); }
-.sheet .played.s-off, .sheet .played.s-wrong { fill: var(--bad); }
 
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; font-size: 0.78rem; color: var(--text-muted); }
 .legend span { display: inline-flex; align-items: center; gap: 5px; }
 .sw { display: inline-block; width: 14px; height: 8px; border-radius: 2px; }
-.sw.expected { border: 1px solid var(--text-muted); }
 .sw.s-good { background: var(--good); }
 .sw.s-close { background: var(--warn); }
 .sw.s-off { background: var(--bad); }
-.sw.s-missed { border: 1px dashed var(--bad); }
+.sw.s-missed { background: var(--text-muted); opacity: 0.45; }
 
 .beat-row { display: flex; justify-content: center; gap: 10px; margin-top: 16px; }
 .beat-row span {
@@ -372,3 +362,14 @@ h3 { margin: 28px 0 8px; font-size: 1.05rem; }
   background: var(--surface); border: 2px solid var(--bad); box-shadow: var(--shadow);
   display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
 }
+.sheet .tie { fill: currentColor; color: var(--text); }
+.sheet .tie.s-good { color: var(--good); }
+.sheet .tie.s-close { color: var(--warn); }
+.sheet .tie.s-off, .sheet .tie.s-wrong { color: var(--bad); }
+.sheet .tie.s-missed { color: var(--text-muted); opacity: 0.45; }
+.sheet .tuplet { font: italic 700 12px Georgia, "Times New Roman", serif; text-anchor: middle; fill: var(--text); }
+.sheet .marker { font: 700 13px system-ui, sans-serif; text-anchor: middle; }
+.sheet .marker.s-close { fill: var(--warn); }
+.sheet .marker.s-off { fill: var(--bad); }
+.beat-row.small { justify-content: flex-start; margin-top: 10px; }
+.beat-row.small span { width: 32px; height: 32px; font-size: 0.85rem; }

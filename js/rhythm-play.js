@@ -1,8 +1,9 @@
 // Plays a rhythm exercise (count-in, clicks and notes) so the player can
 // hear how it should go.
 
-import { scheduleClick, scheduleTone, createPlaybackContext } from './audio.js?v=1.6';
-import { midiToFreq } from './music.js?v=1.6';
+import { scheduleClick, scheduleTone, createPlaybackContext } from './audio.js?v=1.7';
+import { midiToFreq } from './music.js?v=1.7';
+import { soundingNotes } from './rhythm.js?v=1.7';
 
 /**
  * @param {object} exercise
@@ -20,8 +21,8 @@ export function playDemo(exercise, bpm, a4, onPosition, onEnd) {
   const start = t0 + bpb * beat;
   for (let i = 0; i < bpb; i++) scheduleClick(ctx, t0 + i * beat, i === 0);
   for (let b = 0; b < exercise.totalBeats; b++) scheduleClick(ctx, start + b * beat, b % bpb === 0, 0.5);
-  for (const e of exercise.events) {
-    if (!e.rest) scheduleTone(ctx, midiToFreq(e.midi, a4), start + e.beat * beat, e.beats * beat - Math.min(0.07, beat * 0.15));
+  for (const n of soundingNotes(exercise)) {
+    scheduleTone(ctx, midiToFreq(n.midi, a4), start + n.beat * beat, n.beats * beat - Math.min(0.07, beat * 0.15));
   }
   let stopped = false;
   const tick = () => {

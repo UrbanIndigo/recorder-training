@@ -1,7 +1,7 @@
 // Rhythm reading: exercise generation, note-onset tracking from the mic,
 // and scoring of a performance against the written rhythm. No DOM code.
 
-import { gradeFor } from './longtone.js?v=1.6';
+import { gradeFor } from './longtone.js?v=1.7';
 
 // ------------------------------------------------------------------ levels
 
@@ -14,13 +14,29 @@ const CELLS = {
   dottedHalf: { len: 3, fits: (pos) => pos <= 1, events: [{ beats: 3, dotted: true }] },
   half: { len: 2, fits: strongBeat, events: [{ beats: 2 }] },
   halfRest: { len: 2, fits: strongBeat, events: [{ beats: 2, rest: true }] },
+  // A whole-bar rest uses the whole-rest sign in any time signature.
+  barRest: { len: 'bar', fits: (pos) => pos === 0, events: [{ beats: 'bar', rest: true, barRest: true }] },
   quarter: { len: 1, fits: anyBeat, events: [{ beats: 1 }] },
   quarterRest: { len: 1, fits: anyBeat, events: [{ beats: 1, rest: true }] },
   eighths: { len: 1, fits: anyBeat, events: [{ beats: 0.5, beam: true }, { beats: 0.5, beam: true }] },
   restEighth: { len: 1, fits: anyBeat, events: [{ beats: 0.5, rest: true }, { beats: 0.5 }] },
+  eighthRest: { len: 1, fits: anyBeat, events: [{ beats: 0.5 }, { beats: 0.5, rest: true }] },
   dottedQuarterEighth: { len: 2, fits: strongBeat, events: [{ beats: 1.5, dotted: true }, { beats: 0.5 }] },
   syncopation: { len: 2, fits: strongBeat, events: [{ beats: 0.5 }, { beats: 1 }, { beats: 0.5 }] },
+  // Quarter tied to an eighth: sounds like a dotted quarter, written across the beat.
+  tiedQuarterEighth: {
+    len: 2,
+    fits: strongBeat,
+    events: [{ beats: 1, tieNext: true }, { beats: 0.5, tied: true, beam: true }, { beats: 0.5, beam: true }],
+  },
+  sixteenths: { len: 1, fits: anyBeat, events: [0, 1, 2, 3].map(() => ({ beats: 0.25, beam: true })) },
+  eighthTwoSixteenths: { len: 1, fits: anyBeat, events: [{ beats: 0.5, beam: true }, { beats: 0.25, beam: true }, { beats: 0.25, beam: true }] },
+  twoSixteenthsEighth: { len: 1, fits: anyBeat, events: [{ beats: 0.25, beam: true }, { beats: 0.25, beam: true }, { beats: 0.5, beam: true }] },
+  dottedEighthSixteenth: { len: 1, fits: anyBeat, events: [{ beats: 0.75, dotted: true, beam: true }, { beats: 0.25, beam: true }] },
+  triplet: { len: 1, fits: anyBeat, events: [0, 1, 2].map(() => ({ beats: 1 / 3, beam: true, tuplet: 3 })) },
 };
+
+const cellLen = (name, bpb) => (CELLS[name].len === 'bar' ? bpb : CELLS[name].len);
 
 export const LEVELS = [
   {
@@ -52,6 +68,18 @@ export const LEVELS = [
     name: 'Syncopation',
     timeSigs: [4, 3, 2],
     cells: { half: 1, quarter: 2, quarterRest: 1, eighths: 2, restEighth: 1.5, dottedQuarterEighth: 2, syncopation: 3 },
+  },
+  {
+    id: 6,
+    name: 'Sixteenth notes',
+    timeSigs: [4, 3, 2],
+    cells: { half: 0.5, quarter: 2, quarterRest: 1, eighths: 2, sixteenths: 2.5, eighthTwoSixteenths: 2, twoSixteenthsEighth: 2 },
+  },
+  {
+    id: 7,
+    name: 'Ties, dotted eighths & triplets',
+    timeSigs: [4, 3, 2],
+    cells: { quarter: 2, eighths: 1.5, eighthRest: 1, tiedQuarterEighth: 2, dottedEighthSixteenth: 2.5, triplet: 2.5, sixteenths: 1, barRest: 0.3 },
   },
 ];
 
@@ -90,18 +118,21 @@ export function generateFromCells({ cells, beatsPerBar: bpb, pitches, bars = 4, 
   const barCells = [];
   for (let b = 0; b < bars; b++) {
     let cells;
-    for (let attempt = 0; attempt < 30; attempt++) {
+    let ok = false;
+    for (let attempt = 0; attempt < 60 && !ok; attempt++) {
       cells = fillBar(lvl, bpb, random);
       const events = cells.flatMap((c) => CELLS[c].events);
       const notes = events.filter((e) => !e.rest);
-      const ok =
-        notes.length > 0 &&
+      const lastBeats = events.at(-1).beats === 'bar' ? bpb : events.at(-1).beats;
+      ok =
+        (notes.length > 0 || events[0].barRest) &&
         // Start on a note so there's a clear entry...
-        (b > 0 || !events[0].rest) &&
+        (b > 0 || !events[0].rest || events[0].barRest) &&
         // ...and end on a note of at least a beat.
-        (b < bars - 1 || (!events.at(-1).rest && events.at(-1).beats >= 1));
-      if (ok) break;
+        (b < bars - 1 || (!events.at(-1).rest && !events.at(-1).tied && lastBeats >= 1));
     }
+    // Busy levels rarely end on a long note by chance: finish on a quarter.
+    if (!ok && b === bars - 1) cells = [...fillBar(lvl, bpb, random, bpb - 1), 'quarter'];
     barCells.push(cells);
   }
 
@@ -113,10 +144,18 @@ export function generateFromCells({ cells, beatsPerBar: bpb, pitches, bars = 4, 
   barCells.forEach((cells, barIndex) => {
     for (const name of cells) {
       group++;
+      const cellStart = beat;
       for (const e of CELLS[name].events) {
-        const ev = { beat, beats: e.beats, rest: !!e.rest, dotted: !!e.dotted, bar: barIndex, cell: name, cellId: group };
+        const beats = e.beats === 'bar' ? bpb : e.beats;
+        const ev = { beat, beats, rest: !!e.rest, dotted: !!e.dotted, bar: barIndex, cell: name, cellId: group };
         if (e.beam) ev.beamGroup = group;
-        if (!ev.rest) {
+        if (e.tuplet) ev.tuplet = e.tuplet;
+        if (e.tieNext) ev.tieNext = true;
+        if (e.tied) ev.tied = true; // continues the previous note: same pitch, no new tongue
+        if (e.barRest) ev.barRest = true;
+        if (ev.tied) {
+          ev.midi = events.at(-1).midi;
+        } else if (!ev.rest) {
           if (pitches.length > 1 && events.some((x) => !x.rest)) {
             const step = [-2, -1, -1, 0, 1, 1, 2][Math.floor(random() * 7)];
             pitchIdx = Math.max(0, Math.min(pitches.length - 1, pitchIdx + step));
@@ -124,21 +163,23 @@ export function generateFromCells({ cells, beatsPerBar: bpb, pitches, bars = 4, 
           ev.midi = pitches[pitchIdx];
         }
         events.push(ev);
-        beat += e.beats;
+        beat += beats;
       }
+      beat = cellStart + cellLen(name, bpb); // keep triplet positions exact
     }
   });
 
   return { beatsPerBar: bpb, bars, totalBeats: bars * bpb, events };
 }
 
-function fillBar(lvl, bpb, random) {
+/** Fill `length` beats of a bar of `bpb` beats (normally the whole bar). */
+function fillBar(lvl, bpb, random, length = bpb) {
   for (let attempt = 0; attempt < 50; attempt++) {
     const cells = [];
     let pos = 0;
-    while (pos < bpb) {
+    while (pos < length) {
       const options = Object.entries(lvl.cells).filter(
-        ([name]) => pos + CELLS[name].len <= bpb && CELLS[name].fits(pos, bpb),
+        ([name]) => pos + cellLen(name, bpb) <= length && CELLS[name].fits(pos, bpb),
       );
       if (!options.length) break;
       const total = options.reduce((s, [, w]) => s + w, 0);
@@ -152,11 +193,11 @@ function fillBar(lvl, bpb, random) {
         }
       }
       cells.push(pick);
-      pos += CELLS[pick].len;
+      pos += cellLen(pick, bpb);
     }
-    if (pos === bpb) return cells;
+    if (pos === length) return cells;
   }
-  return Array(bpb).fill('quarter');
+  return Array(length).fill('quarter');
 }
 
 /** Exercise of steady quarter notes, used to measure the device's delay. */
@@ -164,6 +205,20 @@ export function calibrationExercise(midi) {
   const events = [];
   for (let i = 0; i < 8; i++) events.push({ beat: i, beats: 1, rest: false, dotted: false, bar: i >> 2, midi });
   return { level: 0, beatsPerBar: 4, bars: 2, totalBeats: 8, events };
+}
+
+/**
+ * The notes you actually tongue, with tied notes merged into one longer
+ * note. @returns {{event: object, beat: number, beats: number, midi: number}[]}
+ */
+export function soundingNotes(exercise) {
+  const out = [];
+  for (const e of exercise.events) {
+    if (e.rest) continue;
+    if (e.tied && out.length) out.at(-1).beats += e.beats;
+    else out.push({ event: e, beat: e.beat, beats: e.beats, midi: e.midi });
+  }
+  return out;
 }
 
 // ----------------------------------------------------------- onset tracking
@@ -339,12 +394,12 @@ export const CLOSE_MS = 120;
  */
 export function scoreRhythm(exercise, played, bpm, { checkPitch = false } = {}) {
   const beatSec = 60 / bpm;
-  const expected = exercise.events.filter((e) => !e.rest);
-  const onsets = expected.map((e) => e.beat * beatSec);
+  const expected = soundingNotes(exercise);
+  const onsets = expected.map((x) => x.beat * beatSec);
 
   // Each written note claims the closest unclaimed played note near it.
   const used = new Set();
-  const notes = expected.map((e, i) => {
+  const notes = expected.map(({ event: e, beats }, i) => {
     const start = onsets[i];
     const gapPrev = i > 0 ? start - onsets[i - 1] : Infinity;
     const gapNext = i < onsets.length - 1 ? onsets[i + 1] - start : Infinity;
@@ -356,8 +411,8 @@ export function scoreRhythm(exercise, played, bpm, { checkPitch = false } = {}) 
       if (d <= window && (best === -1 || d < Math.abs(played[best].start - start))) best = j;
     });
 
-    const expectedDur = e.beats * beatSec;
-    const result = { event: e, expectedStart: start, expectedEnd: start + expectedDur };
+    const expectedDur = beats * beatSec;
+    const result = { event: e, beats, expectedStart: start, expectedEnd: start + expectedDur };
     if (best === -1) return { ...result, status: 'missed', score: 0 };
     used.add(best);
     const p = played[best];
@@ -398,7 +453,7 @@ export function scoreRhythm(exercise, played, bpm, { checkPitch = false } = {}) 
   const meanAbsErrorMs = errors.length ? avg(errors.map(Math.abs)) : null;
   const onTime = notes.filter((n) => n.status === 'good').length;
   const missed = notes.filter((n) => n.status === 'missed').length;
-  const shortNotes = matched.filter((n) => n.short && n.event.beats >= 1);
+  const shortNotes = matched.filter((n) => n.short && n.beats >= 1);
   const wrongPitches = matched.filter((n) => n.wrongPitch).length;
 
   const base = notes.length ? avg(notes.map((n) => n.score)) * 100 : 0;
@@ -440,7 +495,7 @@ function rhythmTips(r, shortNotes) {
     tips.push(`${r.missed} note${r.missed === 1 ? ' was' : 's were'} missed. If you played them, tongue each note clearly ("tu") so they don't blur into one.`);
   }
   if (shortNotes.length) {
-    const long = shortNotes.filter((n) => n.event.beats >= 2).length;
+    const long = shortNotes.filter((n) => n.beats >= 2).length;
     tips.push(long
       ? 'Some long notes were cut short. Keep the air going for the whole value — a half note lasts until the next beat 3 or 1.'
       : 'Some notes were cut short. Hold each note right up to the next one.');
@@ -457,6 +512,23 @@ function rhythmTips(r, shortNotes) {
     tips.push(r.bpm < 100 ? 'Rock solid! Try a faster tempo or the next level.' : 'Rock solid! Try the next level.');
   }
   return tips;
+}
+
+/**
+ * What to show on the music after scoring: a status per event index
+ * (good/close/off/missed/wrong, or 'hit' for a rest played through) and
+ * the timing error in ms for each note that was heard.
+ */
+export function resultMarks(exercise, result) {
+  const statuses = new Map();
+  const offsets = new Map();
+  for (const n of result.notes) {
+    const idx = exercise.events.indexOf(n.event);
+    statuses.set(idx, n.status === 'missed' ? 'missed' : n.wrongPitch ? 'wrong' : n.status);
+    if (n.played) offsets.set(idx, n.errorMs);
+  }
+  for (const r of result.restHits) statuses.set(exercise.events.indexOf(r), 'hit');
+  return { statuses, offsets };
 }
 
 /**
@@ -484,7 +556,7 @@ export function barVerdict(exercise, result, b) {
   if (mean < -50) return { text: 'Early', level: mean < -100 ? 'far' : 'close' };
   if (mean > 50) return { text: 'Late', level: mean > 100 ? 'far' : 'close' };
   if (spread > 160) return { text: 'Uneven', level: 'close' };
-  if (notes.some((n) => n.short && n.event.beats >= 1)) return { text: 'Too short', level: 'close' };
+  if (notes.some((n) => n.short && n.beats >= 1)) return { text: 'Too short', level: 'close' };
   if (notes.every((n) => n.status === 'good')) return { text: 'Great', level: 'good' };
   return { text: 'Good', level: notes.every((n) => n.status !== 'off') ? 'good' : 'close' };
 }

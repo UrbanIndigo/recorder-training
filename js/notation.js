@@ -1,18 +1,22 @@
-// Draws a rhythm exercise as sheet music (SVG), with a timeline strip under
-// each line where the written notes and what you played line up in time.
-// Notes are spaced in proportion to their length so the timeline matches.
+// Draws a rhythm exercise as sheet music (SVG). Notes are spaced like
+// printed music (short notes closer together, long notes with more room),
+// so the layout doesn't give the timing away.
 
-import { diatonicStep } from './music.js?v=1.6';
+import { diatonicStep } from './music.js?v=1.7';
 
 const GAP = 10; // staff line spacing
-const STAFF_TOP = 38; // within each line block
-const LINE_HEIGHT = 150;
-const TIMELINE_Y = STAFF_TOP + 4 * GAP + 44;
-const TIMELINE_H = 14;
+const STAFF_TOP = 34; // within each line block (room above for bar badges)
+const LINE_HEIGHT = 124;
 const STEM = 3.3 * GAP;
 const MIDDLE_STEP = 34; // B4, the middle line of the treble staff
+const PREFIX_FIRST = 62; // clef + time signature
+const PREFIX = 40; // clef
+const RIGHT = 8;
 
 const svgNs = 'http://www.w3.org/2000/svg';
+
+/** Room an event takes, before the line is stretched to fit. */
+const naturalWidth = (beats) => 10 + 22 * Math.sqrt(beats);
 
 export class RhythmSheet {
   /**
@@ -25,155 +29,234 @@ export class RhythmSheet {
     this.exercise = exercise;
     this.toWritten = toWritten;
     this.statuses = null;
+    this.offsets = null;
+    this.barLabels = null;
+    this.counting = false;
     this.render();
   }
 
-  render() {
-    const ex = this.exercise;
-    const width = Math.max(300, this.container.clientWidth || 340);
-    const bpb = ex.beatsPerBar;
-    const prefixFirst = 62; // clef + time signature
-    const right = 24; // room for the last note's timeline bar
-    // Eighth notes need wider beats so their flags clear each other and bar lines.
-    const minPpb = ex.events.some((e) => e.beats % 1 !== 0) ? 46 : 30;
-    const barsPerLine = Math.max(1, Math.min(ex.bars, Math.floor((width - prefixFirst - right) / (bpb * minPpb))));
-    const ppb = (width - prefixFirst - right) / (barsPerLine * bpb);
-    const inset = Math.min(13, ppb * 0.28);
-    const lineCount = Math.ceil(ex.bars / barsPerLine);
-    this.width = width;
-    this.lines = [];
-    for (let i = 0; i < lineCount; i++) {
-      const startBeat = i * barsPerLine * bpb;
-      const endBeat = Math.min(ex.totalBeats, startBeat + barsPerLine * bpb);
-      // Every line starts at the same x so beats line up vertically.
-      this.lines.push({ startBeat, endBeat, top: i * LINE_HEIGHT, x0: prefixFirst, ppb, inset });
-    }
-    this.height = lineCount * LINE_HEIGHT;
+  // ------------------------------------------------------------- layout
 
+  layout(width) {
+    const ex = this.exercise;
+    const bars = [];
+    for (let b = 0; b < ex.bars; b++) {
+      const events = ex.events.map((e, i) => ({ e, i })).filter(({ e }) => e.bar === b);
+      // Triplet notes get a little extra room for their "trip let" counting.
+      const widths = events.map(({ e }) => (e.barRest ? naturalWidth(2) : naturalWidth(e.beats) + (e.tuplet ? 5 : 0)));
+      bars.push({ index: b, events, widths, natural: widths.reduce((a, c) => a + c, 0) + 8 });
+    }
+    // Fill lines with as many bars as fit (squeezing up to 15% if needed).
+    const lines = [];
+    let cur = null;
+    for (const bar of bars) {
+      const prefix = lines.length === 0 && !cur ? PREFIX_FIRST : PREFIX;
+      const avail = width - (cur ? cur.prefix : prefix) - RIGHT;
+      if (cur && (cur.natural + bar.natural) * 0.85 <= avail) {
+        cur.bars.push(bar);
+        cur.natural += bar.natural;
+      } else {
+        if (cur) lines.push(cur);
+        cur = { prefix: lines.length === 0 ? PREFIX_FIRST : PREFIX, bars: [bar], natural: bar.natural };
+      }
+    }
+    lines.push(cur);
+
+    // Place everything, stretching each line to the full width.
+    this.positions = new Map(); // event index -> { x, line }
+    lines.forEach((line, li) => {
+      line.top = li * LINE_HEIGHT;
+      const scale = (width - line.prefix - RIGHT) / line.natural;
+      let x = line.prefix;
+      line.anchors = []; // [beat, x] for the playhead and bar badges
+      for (const bar of line.bars) {
+        bar.startX = x;
+        x += 8 * scale; // space after the bar line
+        bar.events.forEach(({ e, i }, k) => {
+          const w = bar.widths[k] * scale;
+          const headX = e.barRest ? null : x + 7;
+          this.positions.set(i, { x: headX, slotX: x, slotW: w, line: li });
+          line.anchors.push([e.beat, x + 7]);
+          x += w;
+        });
+        bar.endX = x;
+        line.anchors.push([(bar.index + 1) * this.exercise.beatsPerBar, x]);
+      }
+      line.startBeat = line.bars[0].index * this.exercise.beatsPerBar;
+      line.endBeat = (line.bars.at(-1).index + 1) * this.exercise.beatsPerBar;
+    });
+    this.lines = lines;
+    this.bars = bars;
+    this.height = lines.length * LINE_HEIGHT;
+  }
+
+  render() {
+    const width = Math.max(300, this.container.clientWidth || 340);
+    this.width = width;
+    this.layout(width);
     const parts = [];
     this.lines.forEach((line, i) => parts.push(this.drawLine(line, i === 0)));
     parts.push(this.drawNotes());
     if (this.counting) parts.push(this.drawCounting());
-    parts.push('<g class="played-layer"></g>');
-    parts.push('<g class="bar-labels"></g>');
+    parts.push('<g class="markers"></g><g class="bar-labels"></g>');
     parts.push('<line class="cursor" x1="0" x2="0" y1="0" y2="0" visibility="hidden"/>');
-    this.container.innerHTML = `<svg xmlns="${svgNs}" viewBox="0 0 ${width} ${this.height}" width="100%" class="sheet" role="img" aria-label="Rhythm in ${bpb}/4, ${ex.bars} bars">${parts.join('')}</svg>`;
+    const ex = this.exercise;
+    this.container.innerHTML = `<svg xmlns="${svgNs}" viewBox="0 0 ${width} ${this.height}" width="100%" class="sheet" role="img" aria-label="Rhythm in ${ex.beatsPerBar}/4, ${ex.bars} bars">${parts.join('')}</svg>`;
     this.svg = this.container.firstElementChild;
-    this.playedLayer = this.svg.querySelector('.played-layer');
+    this.markerLayer = this.svg.querySelector('.markers');
     this.labelLayer = this.svg.querySelector('.bar-labels');
-    if (this.barLabels) this.setBarLabels(this.barLabels);
     this.cursor = this.svg.querySelector('.cursor');
-    if (this.statuses) this.setResults(this.statuses);
-    if (this.lastPlayed) this.setPlayed(this.lastPlayed);
-  }
-
-  lineFor(beat) {
-    return this.lines.find((l) => beat < l.endBeat - 1e-9) || this.lines.at(-1);
-  }
-
-  /** x position of a beat on its line (aligned with noteheads). */
-  x(line, beat) {
-    return line.x0 + (beat - line.startBeat) * line.ppb + line.inset;
+    if (this.statuses) this.setResults(this.statuses, this.offsets);
+    if (this.barLabels) this.setBarLabels(this.barLabels);
   }
 
   drawLine(line, first) {
     const p = [];
     const top = line.top + STAFF_TOP;
-    const xEnd = line.x0 + (line.endBeat - line.startBeat) * line.ppb;
+    const xEnd = line.bars.at(-1).endX;
     for (let k = 0; k < 5; k++) {
       p.push(`<line class="staff-line" x1="4" x2="${xEnd}" y1="${top + k * GAP}" y2="${top + k * GAP}"/>`);
     }
     p.push(`<text class="clef clef-treble" x="6" y="${top + GAP * 3.35}" style="font-size:52px">𝄞</text>`);
     if (first) {
-      const tx = 46;
-      p.push(`<text class="timesig" x="${tx}" y="${top + GAP * 1.85}">${this.exercise.beatsPerBar}</text>`);
-      p.push(`<text class="timesig" x="${tx}" y="${top + GAP * 3.85}">4</text>`);
+      p.push(`<text class="timesig" x="46" y="${top + GAP * 1.85}">${this.exercise.beatsPerBar}</text>`);
+      p.push(`<text class="timesig" x="46" y="${top + GAP * 3.85}">4</text>`);
     }
-    // Bar lines (final one doubled at the very end).
-    const bpb = this.exercise.beatsPerBar;
-    for (let b = line.startBeat + bpb; b <= line.endBeat + 1e-9; b += bpb) {
-      const x = line.x0 + (b - line.startBeat) * line.ppb;
-      if (b >= this.exercise.totalBeats - 1e-9) {
+    for (const bar of line.bars) {
+      const x = bar.endX;
+      if (bar.index === this.exercise.bars - 1) {
         p.push(`<line class="barline" x1="${x - 5}" x2="${x - 5}" y1="${top}" y2="${top + 4 * GAP}"/>`);
         p.push(`<rect class="barline-thick" x="${x - 3}" y="${top}" width="3" height="${4 * GAP}"/>`);
       } else {
         p.push(`<line class="barline" x1="${x}" x2="${x}" y1="${top}" y2="${top + 4 * GAP}"/>`);
       }
     }
-    // Timeline strip with beat ticks.
-    // The timeline is shifted by the same inset as the noteheads, so each
-    // written note's bar starts right under its notehead.
-    const ty = line.top + TIMELINE_Y;
-    p.push(`<rect class="timeline-bg" x="${line.x0 + line.inset - 2}" y="${ty}" width="${xEnd - line.x0 + 4}" height="${TIMELINE_H}" rx="3"/>`);
-    for (let b = line.startBeat; b <= line.endBeat + 1e-9; b++) {
-      const x = this.x(line, b);
-      const strong = (b % bpb) === 0;
-      p.push(`<line class="${strong ? 'tick strong' : 'tick'}" x1="${x}" x2="${x}" y1="${ty - (strong ? 4 : 2)}" y2="${ty}"/>`);
-    }
     return p.join('');
+  }
+
+  headY(i) {
+    const e = this.exercise.events[i];
+    const line = this.lines[this.positions.get(i).line];
+    const bottom = line.top + STAFF_TOP + 4 * GAP;
+    return bottom - (diatonicStep(this.toWritten(e.midi)) - 30) * (GAP / 2);
   }
 
   drawNotes() {
     const ex = this.exercise;
     const p = [];
-    const expected = [];
     const handled = new Set();
-
     ex.events.forEach((e, idx) => {
-      const line = this.lineFor(e.beat);
-      const x = this.x(line, e.beat);
+      if (handled.has(idx)) return;
+      const pos = this.positions.get(idx);
+      const line = this.lines[pos.line];
       const top = line.top + STAFF_TOP;
-      const bottom = top + 4 * GAP;
       const mid = top + 2 * GAP;
-
       if (e.rest) {
-        p.push(`<g class="rest" data-idx="${idx}">${restGlyph(e.beats, x, mid)}</g>`);
+        if (e.barRest) {
+          const bar = this.bars[e.bar];
+          const cx = (bar.startX + bar.endX) / 2;
+          p.push(`<g class="rest" data-idx="${idx}"><rect class="rest-fill" x="${cx - 6}" y="${top + GAP}" width="12" height="${GAP / 2}"/></g>`);
+        } else {
+          p.push(`<g class="rest" data-idx="${idx}">${restGlyph(e.beats, pos.x, mid)}</g>`);
+        }
         return;
       }
-
-      // Expected note on the timeline.
-      const ty = line.top + TIMELINE_Y;
-      const w = Math.max(3, e.beats * line.ppb - 3);
-      expected.push(`<rect class="expected" data-idx="${idx}" x="${x}" y="${ty + 1}" width="${w}" height="${TIMELINE_H - 2}" rx="2"/>`);
-
-      if (handled.has(idx)) return;
-      const step = diatonicStep(this.toWritten(e.midi));
-      const y = bottom - (step - 30) * (GAP / 2);
-
       if (e.beamGroup != null) {
         const group = ex.events.map((g, i) => ({ g, i })).filter(({ g }) => g.beamGroup === e.beamGroup);
         group.forEach(({ i }) => handled.add(i));
-        p.push(this.drawBeamGroup(group, line, bottom));
+        p.push(this.drawBeamGroup(group, top + 4 * GAP));
         return;
       }
-
-      p.push(`<g class="note" data-idx="${idx}">${noteGlyph(e, x, y, step, bottom)}</g>`);
+      const step = diatonicStep(this.toWritten(e.midi));
+      p.push(`<g class="note" data-idx="${idx}">${noteGlyph(e, pos.x, this.headY(idx), step, top + 4 * GAP)}</g>`);
     });
-    return `<g class="expected-layer">${expected.join('')}</g>${p.join('')}`;
+    p.push(this.drawTies());
+    return p.join('');
+  }
+
+  drawBeamGroup(group, bottom) {
+    const heads = group.map(({ g, i }) => ({ i, e: g, step: diatonicStep(this.toWritten(g.midi)), x: this.positions.get(i).x, y: this.headY(i) }));
+    const avgStep = heads.reduce((s, h) => s + h.step, 0) / heads.length;
+    const up = avgStep < MIDDLE_STEP;
+    const tip = up ? Math.min(...heads.map((h) => h.y)) - STEM : Math.max(...heads.map((h) => h.y)) + STEM;
+    const stemX = (h) => (up ? h.x + 5.6 : h.x - 5.6);
+    const parts = heads.map((h) => {
+      const dot = h.e.dotted ? dotGlyph(h.x, h.y, h.step) : '';
+      return `<g class="note" data-idx="${h.i}">${head(h.x, h.y, true)}${ledgers(h.x, h.step, bottom)}${dot}<line class="stem" x1="${stemX(h)}" x2="${stemX(h)}" y1="${h.y}" y2="${tip}"/></g>`;
+    });
+    // Primary beam across the group.
+    const beamY = (level) => (up ? tip + level * 7 : tip - 4.5 - level * 7);
+    const beam = (x1, x2, level) => `<rect class="beam" x="${x1 - 0.7}" y="${beamY(level)}" width="${x2 - x1 + 1.4}" height="4.5"/>`;
+    parts.push(beam(stemX(heads[0]), stemX(heads.at(-1)), 0));
+    // Second beam for sixteenths: joined across neighbours, or a short stub.
+    const isSixteenth = (h) => !h.e.dotted && h.e.beats <= 0.25 + 1e-9;
+    for (let k = 0; k < heads.length; ) {
+      if (!isSixteenth(heads[k])) {
+        k++;
+        continue;
+      }
+      let j = k;
+      while (j + 1 < heads.length && isSixteenth(heads[j + 1])) j++;
+      if (j > k) parts.push(beam(stemX(heads[k]), stemX(heads[j]), 1));
+      else {
+        const x = stemX(heads[k]);
+        parts.push(k === heads.length - 1 ? beam(x - 8, x, 1) : beam(x, x + 8, 1));
+      }
+      k = j + 1;
+    }
+    // Triplet number.
+    if (heads[0].e.tuplet) {
+      const cx = (stemX(heads[0]) + stemX(heads.at(-1))) / 2;
+      // Above the group either way: over the beam, or over the noteheads when
+      // stems point down (keeps it clear of the counting underneath).
+      const y = up ? tip - 5 : Math.min(...heads.map((h) => h.y)) - 9;
+      parts.push(`<text class="tuplet" x="${cx}" y="${y}">${heads[0].e.tuplet}</text>`);
+    }
+    return `<g class="beam-group">${parts.join('')}</g>`;
+  }
+
+  drawTies() {
+    const out = [];
+    this.exercise.events.forEach((e, i) => {
+      if (!e.tieNext) return;
+      const a = this.positions.get(i);
+      const b = this.positions.get(i + 1);
+      if (!b || a.line !== b.line) return;
+      const y = this.headY(i);
+      const below = diatonicStep(this.toWritten(e.midi)) < MIDDLE_STEP; // stems up, so tie underneath
+      const dy = below ? 1 : -1;
+      const x1 = a.x + 5, x2 = b.x - 5, mx = (x1 + x2) / 2;
+      out.push(`<path class="tie" data-idx="${i}" d="M${x1} ${y + dy * 6} Q${mx} ${y + dy * 14} ${x2} ${y + dy * 6} Q${mx} ${y + dy * 11} ${x1} ${y + dy * 6} Z"/>`);
+    });
+    return out.join('');
   }
 
   /**
-   * Counting under the staff: beat numbers, with "+" for notes on the
-   * off-beat. Beats you hold through are shown in brackets, rests faded.
+   * Counting under the staff: "1 e + a" for sixteenths, "1 trip let" for
+   * triplets. Beats you hold through are shown in brackets, rests faded.
    */
   drawCounting() {
     const ex = this.exercise;
     const bpb = ex.beatsPerBar;
     const out = [];
-    const label = (beat, text, cls) => {
-      const line = this.lineFor(beat);
-      const y = line.top + STAFF_TOP + 4 * GAP + 30;
-      out.push(`<text class="count ${cls}" x="${this.x(line, beat)}" y="${y}">${text}</text>`);
+    const label = (beat, x, li, text, cls) => {
+      const y = this.lines[li].top + STAFF_TOP + 4 * GAP + 30;
+      out.push(`<text class="count ${cls}" x="${x}" y="${y}">${text}</text>`);
     };
-    for (const e of ex.events) {
+    ex.events.forEach((e, i) => {
+      const pos = this.positions.get(i);
       const beatInBar = e.beat - e.bar * bpb;
-      const whole = Number.isInteger(beatInBar);
-      label(e.beat, whole ? String(beatInBar + 1) : '+', e.rest ? 'rest' : 'start');
-      // Beats held or rested through.
-      for (let b = Math.floor(e.beat) + 1; b < e.beat + e.beats - 1e-9; b++) {
-        label(b, e.rest ? String(b - e.bar * bpb + 1) : `(${b - e.bar * bpb + 1})`, e.rest ? 'rest' : 'hold');
+      const text = countSyllable(beatInBar);
+      const x = pos.x ?? pos.slotX + pos.slotW / 2;
+      if (e.tied) label(e.beat, x, pos.line, `(${text})`, 'hold');
+      else label(e.beat, x, pos.line, e.barRest ? `(${Array.from({ length: bpb }, (_, k) => k + 1).join(' ')})` : text, e.rest ? 'rest' : 'start');
+      // Whole beats held through by long notes.
+      if (e.barRest || e.beats <= 1) return;
+      for (let b = Math.floor(e.beat + 1e-9) + 1; b < e.beat + e.beats - 1e-9; b++) {
+        const frac = (b - e.beat) / e.beats;
+        label(b, pos.slotX + 7 + frac * pos.slotW, pos.line, e.rest ? String(b - e.bar * bpb + 1) : `(${b - e.bar * bpb + 1})`, e.rest ? 'rest' : 'hold');
       }
-    }
+    });
     return `<g class="counting">${out.join('')}</g>`;
   }
 
@@ -183,65 +266,52 @@ export class RhythmSheet {
     this.render();
   }
 
-  drawBeamGroup(group, line, bottom) {
-    const heads = group.map(({ g, i }) => {
-      const step = diatonicStep(this.toWritten(g.midi));
-      return { i, step, x: this.x(line, g.beat), y: bottom - (step - 30) * (GAP / 2) };
-    });
-    const avgStep = heads.reduce((s, h) => s + h.step, 0) / heads.length;
-    const up = avgStep < MIDDLE_STEP;
-    const tip = up ? Math.min(...heads.map((h) => h.y)) - STEM : Math.max(...heads.map((h) => h.y)) + STEM;
-    const parts = heads.map((h) => {
-      const sx = up ? h.x + 5.6 : h.x - 5.6;
-      return `<g class="note" data-idx="${h.i}">${head(h.x, h.y, true)}${ledgers(h.x, h.step, bottom)}<line class="stem" x1="${sx}" x2="${sx}" y1="${h.y}" y2="${tip}"/></g>`;
-    });
-    const x1 = (up ? heads[0].x + 5.6 : heads[0].x - 5.6) - 0.7;
-    const x2 = (up ? heads.at(-1).x + 5.6 : heads.at(-1).x - 5.6) + 0.7;
-    const by = up ? tip : tip - 4.5;
-    parts.push(`<rect class="beam" x="${x1}" y="${by}" width="${x2 - x1}" height="4.5"/>`);
-    return `<g class="beam-group">${parts.join('')}</g>`;
-  }
+  // ------------------------------------------------------------ results
 
-  /** Colour notes after scoring. @param {Map<number,string>} statuses event index -> status */
-  setResults(statuses) {
+  /**
+   * Colour notes after scoring, and mark notes that were early or late.
+   * @param {Map<number,string>} statuses event index -> status
+   * @param {Map<number,number>} [offsets] event index -> timing error in ms
+   */
+  setResults(statuses, offsets = null) {
     this.statuses = statuses;
+    this.offsets = offsets;
+    const all = new Map(statuses);
+    // Tied continuations take their first note's colour.
+    this.exercise.events.forEach((e, i) => {
+      if (e.tied && all.has(i - 1)) all.set(i, all.get(i - 1));
+      if (e.tieNext && all.has(i)) all.set(`tie${i}`, all.get(i));
+    });
     for (const el of this.svg.querySelectorAll('[data-idx]')) {
-      const s = statuses.get(Number(el.dataset.idx));
+      const idx = Number(el.dataset.idx);
+      const s = el.classList.contains('tie') ? all.get(`tie${idx}`) : all.get(idx);
       el.classList.remove('s-good', 's-close', 's-off', 's-missed', 's-wrong', 's-hit');
       if (s) el.classList.add(`s-${s}`);
     }
+    // ◂ early / ▸ late, only for notes that were noticeably off.
+    const marks = [];
+    if (offsets) {
+      for (const [idx, ms] of offsets) {
+        const s = statuses.get(idx);
+        if (s !== 'close' && s !== 'off') continue;
+        const pos = this.positions.get(idx);
+        const line = this.lines[pos.line];
+        const y = line.top + STAFF_TOP + 4 * GAP + (this.counting ? 44 : 22);
+        marks.push(`<text class="marker s-${s}" x="${pos.x}" y="${y}">${ms < 0 ? '◂' : '▸'}</text>`);
+      }
+    }
+    this.markerLayer.innerHTML = marks.join('');
   }
 
   clearResults() {
     this.statuses = null;
-    this.lastPlayed = null;
+    this.offsets = null;
     this.barLabels = null;
-    this.labelLayer.innerHTML = '';
     for (const el of this.svg.querySelectorAll('[data-idx]')) {
       el.classList.remove('s-good', 's-close', 's-off', 's-missed', 's-wrong', 's-hit');
     }
-    this.playedLayer.innerHTML = '';
-  }
-
-  /**
-   * Draw what was played on the timeline.
-   * @param {{start: number, end: number, status?: string}[]} notes in beats
-   */
-  setPlayed(notes) {
-    this.lastPlayed = notes;
-    const parts = [];
-    for (const n of notes) {
-      for (const line of this.lines) {
-        const s = Math.max(n.start, line.startBeat - line.inset / line.ppb);
-        const e = Math.min(n.end, line.endBeat);
-        if (e <= s) continue;
-        const x1 = this.x(line, s);
-        const x2 = this.x(line, e);
-        const ty = line.top + TIMELINE_Y;
-        parts.push(`<rect class="played ${n.status ? `s-${n.status}` : ''}" x="${x1}" y="${ty + 3.5}" width="${Math.max(2, x2 - x1)}" height="${TIMELINE_H - 7}" rx="2"/>`);
-      }
-    }
-    this.playedLayer.innerHTML = parts.join('');
+    this.markerLayer.innerHTML = '';
+    this.labelLayer.innerHTML = '';
   }
 
   /**
@@ -250,14 +320,13 @@ export class RhythmSheet {
    */
   setBarLabels(labels) {
     this.barLabels = labels;
-    const bpb = this.exercise.beatsPerBar;
     const parts = [];
-    labels.forEach((l, bar) => {
+    labels.forEach((l, b) => {
       if (!l) return;
-      const beat = bar * bpb;
-      const line = this.lineFor(beat);
-      const x = line.x0 + (beat - line.startBeat) * line.ppb + 4;
-      const y = line.top + 6;
+      const bar = this.bars[b];
+      const line = this.lines.find((ln) => ln.bars.includes(bar));
+      const x = bar.startX + 6;
+      const y = line.top + 4;
       const icon = l.level === 'good' ? '✓ ' : l.level === 'far' ? '✗ ' : '';
       const text = icon + l.text;
       const w = text.length * 6.4 + 14;
@@ -266,24 +335,51 @@ export class RhythmSheet {
     this.labelLayer.innerHTML = parts.join('');
   }
 
-  /** Move the playhead to a beat (or hide it with null). */
+  /** Move the (optional) playhead to a beat, or hide it with null. */
   setCursor(beat) {
     if (beat == null || beat < 0 || beat > this.exercise.totalBeats) {
       this.cursor.setAttribute('visibility', 'hidden');
       return;
     }
-    const line = this.lineFor(beat);
-    const x = this.x(line, beat);
+    const line = this.lines.find((l) => beat < l.endBeat - 1e-9) || this.lines.at(-1);
+    const a = line.anchors;
+    let x = a.at(-1)[1];
+    for (let k = 0; k < a.length - 1; k++) {
+      if (beat >= a[k][0] && beat <= a[k + 1][0]) {
+        const f = (beat - a[k][0]) / (a[k + 1][0] - a[k][0] || 1);
+        x = a[k][1] + f * (a[k + 1][1] - a[k][1]);
+        break;
+      }
+    }
     this.cursor.setAttribute('x1', x);
     this.cursor.setAttribute('x2', x);
-    this.cursor.setAttribute('y1', line.top + STAFF_TOP - 16);
-    this.cursor.setAttribute('y2', line.top + TIMELINE_Y + TIMELINE_H + 2);
+    this.cursor.setAttribute('y1', line.top + STAFF_TOP - 12);
+    this.cursor.setAttribute('y2', line.top + STAFF_TOP + 4 * GAP + 12);
     this.cursor.setAttribute('visibility', 'visible');
   }
 }
 
+/** "1", "e", "+", "a" for sixteenths; "trip", "let" for triplets. */
+function countSyllable(beatInBar) {
+  const whole = Math.floor(beatInBar + 1e-9);
+  const f = beatInBar - whole;
+  const near = (v) => Math.abs(f - v) < 0.02;
+  if (near(0)) return String(whole + 1);
+  if (near(0.25)) return 'e';
+  if (near(0.5)) return '+';
+  if (near(0.75)) return 'a';
+  if (near(1 / 3)) return 'trip';
+  if (near(2 / 3)) return 'let';
+  return '·';
+}
+
 function head(x, y, filled) {
   return `<ellipse class="${filled ? 'head' : 'head hollow'}" cx="${x}" cy="${y}" rx="6.2" ry="4.5" transform="rotate(-20 ${x} ${y})"/>`;
+}
+
+function dotGlyph(x, y, step) {
+  const onLine = (step - 30) % 2 === 0;
+  return `<circle class="dot" cx="${x + 11}" cy="${onLine ? y - GAP / 2 : y}" r="1.9"/>`;
 }
 
 function ledgers(x, step, bottom) {
@@ -308,16 +404,13 @@ function noteGlyph(e, x, y, step, bottom) {
     const sx = up ? x + 5.6 : x - 5.6;
     const tip = up ? y - STEM : y + STEM;
     out.push(`<line class="stem" x1="${sx}" x2="${sx}" y1="${y}" y2="${tip}"/>`);
-    if (base === 0.5) {
+    if (base <= 0.5 + 1e-9) {
       out.push(up
         ? `<path class="flag" d="M${sx} ${tip} c1 6 8 9 7.5 17 c2.5 -7 -3 -11 -7.5 -12 z"/>`
         : `<path class="flag" d="M${sx} ${tip} c1 -6 8 -9 7.5 -17 c2.5 7 -3 11 -7.5 12 z"/>`);
     }
   }
-  if (e.dotted) {
-    const onLine = (step - 30) % 2 === 0;
-    out.push(`<circle class="dot" cx="${x + 11}" cy="${onLine ? y - GAP / 2 : y}" r="1.9"/>`);
-  }
+  if (e.dotted) out.push(dotGlyph(x, y, step));
   return out.join('');
 }
 

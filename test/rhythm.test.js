@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { generateExercise, LEVELS, OnsetTracker, scoreRhythm, calibrationExercise, calibrationOffset } from '../js/rhythm.js';
+import { generateExercise, LEVELS, OnsetTracker, scoreRhythm, calibrationExercise, calibrationOffset, soundingNotes } from '../js/rhythm.js';
 
 function seeded(seed) {
   return () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296);
@@ -11,18 +11,21 @@ test('generated bars always add up and follow the level rules', () => {
     for (let s = 1; s <= 40; s++) {
       const ex = generateExercise({ level: lvl.id, pitches: [79, 81, 83], random: seeded(s) });
       assert.ok(lvl.timeSigs.includes(ex.beatsPerBar));
+      const near = (a, b) => Math.abs(a - b) < 1e-9;
       const sum = ex.events.reduce((a, e) => a + e.beats, 0);
-      assert.equal(sum, ex.totalBeats);
+      assert.ok(near(sum, ex.totalBeats));
       for (let b = 0; b < ex.bars; b++) {
         const barSum = ex.events.filter((e) => e.bar === b).reduce((a, e) => a + e.beats, 0);
-        assert.equal(barSum, ex.beatsPerBar, `level ${lvl.id} seed ${s} bar ${b}`);
+        assert.ok(near(barSum, ex.beatsPerBar), `level ${lvl.id} seed ${s} bar ${b}`);
         // No event crosses a bar line.
         for (const e of ex.events.filter((x) => x.bar === b)) {
           assert.ok(e.beat + e.beats <= (b + 1) * ex.beatsPerBar + 1e-9);
         }
       }
-      assert.equal(ex.events[0].rest, false);
+      assert.ok(!ex.events[0].rest || ex.events[0].barRest);
       assert.equal(ex.events.at(-1).rest, false);
+      // Tied notes continue the same pitch.
+      ex.events.forEach((e, i) => { if (e.tied) assert.equal(e.midi, ex.events[i - 1].midi); });
       if (lvl.id === 1) assert.ok(ex.events.every((e) => !e.rest && e.beats >= 1));
       for (const e of ex.events) if (!e.rest) assert.ok([79, 81, 83].includes(e.midi));
     }
@@ -35,8 +38,7 @@ test('generated bars always add up and follow the level rules', () => {
  */
 function perform(exercise, bpm, { offsets = () => 0, gapMs = 45, lengthFactor = 1, decay = 0.85 } = {}) {
   const beatSec = 60 / bpm;
-  const notes = exercise.events
-    .filter((e) => !e.rest)
+  const notes = soundingNotes(exercise)
     .map((e, i) => ({ start: e.beat * beatSec + offsets(i), end: (e.beat + e.beats * lengthFactor) * beatSec - gapMs / 1000, midi: e.midi }));
   const tracker = new OnsetTracker();
   const gate = 0.0016;

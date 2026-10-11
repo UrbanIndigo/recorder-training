@@ -1,11 +1,11 @@
 // Rhythm Reading screen: show a rhythm, play it back, count in, listen to
 // the player, and show how their timing compared.
 
-import { LEVELS, generateExercise, calibrationExercise, calibrationOffset, OnsetTracker, scoreRhythm, barVerdicts, ON_TIME_MS } from './rhythm.js?v=1.6';
-import { RhythmSheet } from './notation.js?v=1.6';
-import { scheduleClick } from './audio.js?v=1.6';
-import { playDemo } from './rhythm-play.js?v=1.6';
-import { writtenMidi } from './recorders.js?v=1.6';
+import { LEVELS, generateExercise, OnsetTracker, scoreRhythm, barVerdicts, resultMarks, ON_TIME_MS } from './rhythm.js?v=1.7';
+import { RhythmSheet } from './notation.js?v=1.7';
+import { scheduleClick } from './audio.js?v=1.7';
+import { playDemo } from './rhythm-play.js?v=1.7';
+import { writtenMidi } from './recorders.js?v=1.7';
 
 // Easy left-hand notes, as semitones above the recorder's lowest note. On a
 // C recorder these are written G A B C D; on an F recorder, C D E F G — the
@@ -18,8 +18,7 @@ export function initRhythmView(d) {
   const { $, state } = d;
   let exercise = null;
   let sheet = null;
-  let active = null; // the current demo, performance or calibration
-  let mainExercise = null; // kept while a calibration run borrows the sheet
+  let active = null; // the current demo or performance
 
   // ---------------------------------------------------------------- controls
 
@@ -60,18 +59,12 @@ export function initRhythmView(d) {
 
   $('rh-new').addEventListener('click', newExercise);
   $('rh-hear').addEventListener('click', hearIt);
-  $('rh-play').addEventListener('click', () => perform(false));
+  $('rh-play').addEventListener('click', perform);
   $('rh-stop').addEventListener('click', () => stop(true));
-  $('rh-again').addEventListener('click', () => perform(false));
+  $('rh-again').addEventListener('click', perform);
   $('rh-next').addEventListener('click', () => {
     newExercise();
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  });
-  $('rh-calibrate').addEventListener('click', () => perform(true));
-  $('rh-cal-reset').addEventListener('click', () => {
-    state.latencyMs = null;
-    d.save();
-    showCalibration();
   });
 
   window.addEventListener('resize', () => sheet?.render());
@@ -120,7 +113,7 @@ export function initRhythmView(d) {
     $('rh-hear').hidden = busy;
     $('rh-new').hidden = busy;
     $('rh-stop').hidden = !busy;
-    for (const id of ['rh-level', 'rh-notes', 'rh-slower', 'rh-faster', 'rh-again', 'rh-next', 'rh-calibrate']) $(id).disabled = busy;
+    for (const id of ['rh-level', 'rh-notes', 'rh-slower', 'rh-faster', 'rh-again', 'rh-next']) $(id).disabled = busy;
   }
 
   // ---------------------------------------------------------------- hear it
@@ -157,7 +150,7 @@ export function initRhythmView(d) {
 
   // ---------------------------------------------------------------- perform
 
-  async function perform(calibrating) {
+  async function perform() {
     stop();
     $('rh-error').hidden = true;
     try {
@@ -165,11 +158,6 @@ export function initRhythmView(d) {
     } catch (err) {
       d.showMicError($('rh-error'), err);
       return;
-    }
-    if (calibrating) {
-      mainExercise = exercise;
-      exercise = calibrationExercise(pitches()[0]);
-      showExercise();
     }
     sheet.clearResults();
     $('rh-results').hidden = true;
@@ -181,17 +169,16 @@ export function initRhythmView(d) {
     const start = t0 + bpb * beat;
     const end = start + exercise.totalBeats * beat;
     for (let i = 0; i < bpb; i++) scheduleClick(ctx, t0 + i * beat, i === 0);
-    if (state.clickWhilePlaying || calibrating) {
+    if (state.clickWhilePlaying) {
       for (let b = 0; b < exercise.totalBeats; b++) scheduleClick(ctx, start + b * beat, b % bpb === 0, 0.7);
     }
-    const latency = calibrating ? 0 : state.latencyMs != null ? state.latencyMs / 1000 : d.listener.estimatedLatency();
+    const latency = state.latencyMs != null ? state.latencyMs / 1000 : d.listener.estimatedLatency();
 
-    const run = { kind: calibrating ? 'calibration' : 'perform', tracker: new OnsetTracker(), start, beat, latency, cancelled: false };
+    const run = { kind: 'perform', tracker: new OnsetTracker(), start, beat, latency, cancelled: false };
     active = run;
     setBusy(true);
     d.requestWakeLock();
 
-    const toBeats = (n) => ({ start: (n.start - latency - start) / beat, end: (n.end - latency - start) / beat });
     run.unsub = d.listener.onPitch((reading) => {
       if (run.cancelled) return;
       d.setLevel($('rh-mic'), reading);
@@ -201,9 +188,8 @@ export function initRhythmView(d) {
       const now = reading.audioTime;
       const pos = (now - (ctx.outputLatency || 0) - start) / beat;
       followBeat(pos);
-      if (pos >= 0) setStatus(calibrating ? 'Play a short note on every click' : 'Playing…');
+      if (pos >= 0) setStatus('Playing…');
       $('rh-heard').textContent = midi != null ? `♪ ${d.writtenInfo(Math.round(midi)).name}` : tonal ? '♪' : '—';
-      if (state.showPlayhead || calibrating) sheet.setPlayed(run.tracker.snapshot(now).filter((n) => n.end - latency > t0).map(toBeats));
       if (now > end + latency + 0.35) finish(run, now);
     });
   }
@@ -215,21 +201,11 @@ export function initRhythmView(d) {
       .filter((n) => n.start >= -0.5 * run.beat); // ignore warm-up toots during the count-in
     const ex = exercise;
     stop();
-    if (run.kind === 'calibration') return finishCalibration(ex, played);
 
     const result = scoreRhythm(ex, played, state.bpm, { checkPitch: state.rhythmNotes > 1 });
-    const statuses = new Map();
-    const playedStatus = new Map();
-    for (const n of result.notes) {
-      const idx = ex.events.indexOf(n.event);
-      const s = n.status === 'missed' ? 'missed' : n.wrongPitch ? 'wrong' : n.status;
-      statuses.set(idx, s);
-      if (n.played) playedStatus.set(n.played, s);
-    }
-    for (const r of result.restHits) statuses.set(ex.events.indexOf(r), 'hit');
-    sheet.setResults(statuses);
+    const { statuses, offsets } = resultMarks(ex, result);
+    sheet.setResults(statuses, offsets);
     sheet.setBarLabels(barVerdicts(ex, result));
-    sheet.setPlayed(played.map((p) => ({ start: p.start / run.beat, end: p.end / run.beat, status: playedStatus.get(p) || 'off' })));
 
     const prev = state.rhythmBest[ex.level];
     state.rhythmBest[ex.level] = Math.max(prev ?? 0, result.overall);
@@ -285,29 +261,6 @@ export function initRhythmView(d) {
     $(id).classList.add(level);
   }
 
-  // ------------------------------------------------------------ calibration
-
-  function finishCalibration(ex, played) {
-    const offset = calibrationOffset(ex, played, state.bpm);
-    exercise = mainExercise;
-    mainExercise = null;
-    showExercise();
-    if (offset == null) {
-      $('rh-cal-result').textContent = 'Not enough notes were heard to measure. Play a short, clear note on every click and try again.';
-    } else {
-      state.latencyMs = Math.round(Math.max(0, Math.min(0.4, offset)) * 1000);
-      d.save();
-      showCalibration(true);
-    }
-  }
-
-  function showCalibration(justSaved = false) {
-    $('rh-cal-result').textContent = state.latencyMs == null
-      ? 'Using an automatic estimate of your device’s delay.'
-      : `${justSaved ? 'Saved. ' : ''}Your device’s delay is set to ${state.latencyMs} ms.`;
-    $('rh-cal-reset').hidden = state.latencyMs == null;
-  }
-
   // ------------------------------------------------------------------ stop
 
   function stop(byUser = false) {
@@ -327,11 +280,6 @@ export function initRhythmView(d) {
     $('rh-heard').textContent = '—';
     sheet?.setCursor(null);
     renderBeats(null);
-    if (run.kind === 'calibration' && byUser) {
-      exercise = mainExercise;
-      mainExercise = null;
-      showExercise();
-    }
     if (byUser) setStatus('Stopped. Press Play to try again.');
   }
 
@@ -340,7 +288,6 @@ export function initRhythmView(d) {
       $('rh-playhead').checked = !!state.showPlayhead;
       if (!exercise) newExercise();
       else sheet.render();
-      showCalibration();
     },
     leave() {
       stop();

@@ -27,23 +27,25 @@ You also get tips based on the result. Your best score on each note is saved in 
 ### Rhythm Reading — Endless
 Rhythm training that keeps going until you stop. A metronome runs the whole time. After each 2-bar rhythm you get a beat to see your score, then a bar of clicks to read the next one.
 
-- **Levels up on its own.** You start with quarter notes. Twelve stages unlock one at a time once you're consistently scoring well: half notes, whole notes, rests, dotted halves, 3/4, eighths, off-beat eighths, dotted quarter + eighth, 2/4, then syncopation. Each new rhythm gets a short explanation card with how to count it, and you can hear an example. Once everything is unlocked, the tempo creeps up instead.
+- **Levels up on its own.** You start with quarter notes. Twenty stages unlock one at a time once you're consistently scoring well: half notes, whole notes, quarter and half rests, whole-bar rests, dotted halves, 3/4, eighths, off-beat eighths, dotted quarter + eighth, 2/4, syncopation, eighth rests, ties, sixteenths, eighth + two sixteenths, two sixteenths + eighth, dotted eighth + sixteenth, then triplets. Each new rhythm gets a short explanation card with how to count it, and you can hear an example. Once everything is unlocked, the tempo creeps up instead.
 - **Repeats what you get wrong.** Score under 70 and the same rhythm comes straight back, with the counting shown, your last attempt coloured on the notes, and the tricky pattern named. Miss it again and it goes into a review list that comes back a few rhythms later.
 - **Targets your weak spots.** It tracks how well you do on each rhythm pattern and gives you the hard ones more often. If you're struggling, it slows down.
 - **A verdict for every bar.** As each bar finishes you get "Great", "Early", "Late", "Too short", "Missed a note" or "Played in a rest" above it while you carry on, plus a bar-by-bar summary after each rhythm.
 - **What to work on.** It tracks recurring problems for each rhythm pattern (rushing eighths, cutting half notes short, playing through rests…). It lists your top ones with a tip, and gives you more of those patterns.
-- **No playhead by default.** The moving line and live note bars make reading too easy, so they're off unless you turn them on in the options.
+- **Nothing gives the timing away.** Notes are spaced like printed music, not by length. There's no timeline under the music and no moving line, unless you turn the line on in the options. After a bar is scored, its notes are coloured, and ◂ / ▸ marks show which notes were early or late.
 - Progress is saved. Options let you jump ahead a stage, always show counting, or start over.
 
 ### Rhythm Reading — Practice
-Pick a level and practise reading rhythms. You get a random 4-bar rhythm in sheet music, at one of five levels:
+Pick a level and practise reading rhythms. You get a random 4-bar rhythm in sheet music, at one of seven levels:
 1. Whole, half & quarter notes
 2. Rests & 3/4 time
 3. Eighth notes
 4. Dotted rhythms
 5. Syncopation
+6. Sixteenth notes
+7. Ties, dotted eighths & triplets
 
-Press **Hear it** to hear how it goes. Press **Play it** to hear a one-bar count-in and then play along with the metronome. Afterwards each note is coloured by timing: green is within ±60 ms, yellow is a bit off, red is off the beat, and grey means missed. A timeline under each line shows when you actually played against the written notes. You also get:
+Press **Hear it** to hear how it goes. Press **Play it** to hear a one-bar count-in and then play along with the metronome. Afterwards each note is coloured by timing: green is within ±60 ms, yellow is a bit off, red is off the beat, and grey means missed. ◂ / ▸ marks show which way off notes were. You also get:
 - how many notes were on time
 - whether you tend to **rush** or **drag**, and by how much
 - whether notes were held for their full length
@@ -85,7 +87,8 @@ Code layout (`js/`):
 - `pitch.js`: YIN pitch detection plus a median smoother
 - `longtone.js`: long-tone session state machine, scoring and tips (no DOM code, unit tested)
 - `rhythm.js`: rhythm generation by level, note start/stop tracking, and timing scoring (no DOM code, unit tested)
-- `notation.js`: draws rhythm exercises as sheet music with a timeline
+- `notation.js`: draws rhythm exercises as sheet music (beams, ties, triplets, rests, counting)
+- `calibration.js`: measures the click-to-mic delay
 - `progression.js`: endless-mode curriculum, skill tracking, retries, review and tempo changes (no DOM code, unit tested)
 - `endless-view.js`: the Endless screen (continuous metronome loop)
 - `rhythm-view.js`: the Practice screen

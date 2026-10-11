@@ -3,22 +3,23 @@
 // to read the next. Hard rhythms are repeated with counting shown, new
 // patterns unlock as the player improves, and the tempo adapts.
 
-import { CURRICULUM, newProgress, chooseNext, recordResult, unlockProgress, cellTitle, topIssues } from './progression.js?v=1.6';
-import { OnsetTracker, scoreRhythm, generateFromCells, barVerdict, barVerdicts } from './rhythm.js?v=1.6';
-import { RhythmSheet } from './notation.js?v=1.6';
-import { scheduleClick } from './audio.js?v=1.6';
-import { playDemo } from './rhythm-play.js?v=1.6';
-import { writtenMidi } from './recorders.js?v=1.6';
+import { CURRICULUM, newProgress, migrateProgress, chooseNext, recordResult, unlockProgress, cellTitle, topIssues } from './progression.js?v=1.7';
+import { OnsetTracker, scoreRhythm, generateFromCells, barVerdict, barVerdicts, resultMarks } from './rhythm.js?v=1.7';
+import { RhythmSheet } from './notation.js?v=1.7';
+import { scheduleClick } from './audio.js?v=1.7';
+import { playDemo } from './rhythm-play.js?v=1.7';
+import { writtenMidi } from './recorders.js?v=1.7';
 
 const NOTE_SETS = { 1: [11], 3: [7, 9, 11], 5: [7, 9, 11, 12, 14] };
 
 export function initEndlessView(d) {
   const { $, state } = d;
   if (!state.endless) state.endless = newProgress(state.bpm);
+  migrateProgress(state.endless);
   const progress = () => state.endless;
 
   let current = null; // { exercise, kind, hint, focus }
-  let last = null; // { exercise, result, statuses, playedBeats }
+  let last = null; // { exercise, result, statuses, offsets }
   let sheet = null;
   let run = null;
   let demoStop = null;
@@ -118,8 +119,7 @@ export function initEndlessView(d) {
     sheet = new RhythmSheet($('en-sheet'), next.exercise, (m) => writtenMidi(d.recorder(), m));
     sheet.setCounting(state.alwaysCount || next.hint);
     if (next.kind === 'retry' && last) {
-      sheet.setResults(last.statuses);
-      sheet.setPlayed(last.playedBeats);
+      sheet.setResults(last.statuses, last.offsets);
       sheet.setBarLabels(barVerdicts(last.exercise, last.result));
     }
     const label = {
@@ -261,16 +261,7 @@ export function initEndlessView(d) {
       }
       renderBeats(Math.floor(pos) % bpb);
       setStatus(pos < ex.totalBeats ? 'Play!' : 'How did that go…');
-      if (state.showPlayhead) {
-        sheet.setCursor(Math.min(pos, ex.totalBeats));
-        const rel = (t) => (t - run.latency - cycle.start) / cycle.beat;
-        sheet.setPlayed(
-          tracker
-            .snapshot(now)
-            .filter((n) => n.end - run.latency > cycle.start - 0.5 * cycle.beat)
-            .map((n) => ({ start: rel(n.start), end: rel(n.end) })),
-        );
-      }
+      if (state.showPlayhead) sheet.setCursor(Math.min(pos, ex.totalBeats));
       // Judge each bar as soon as it's over, while the player carries on.
       for (let b = 0; b < ex.bars - 1; b++) {
         if (run.labels[b]) continue;
@@ -278,10 +269,9 @@ export function initEndlessView(d) {
         const ev = evaluate(now);
         run.labels[b] = barVerdict(ex, ev.result, b);
         sheet.setBarLabels(run.labels);
-        // Colour that bar's notes and what was played in it.
-        const upTo = (b + 1) * bpb;
-        sheet.setResults(new Map([...ev.statuses].filter(([idx]) => ex.events[idx].bar <= b)));
-        sheet.setPlayed(ev.playedBeats.filter((p) => p.start < upTo));
+        // Colour the notes of the bars judged so far.
+        const done = ([idx]) => ex.events[idx].bar <= b;
+        sheet.setResults(new Map([...ev.statuses].filter(done)), new Map([...ev.offsets].filter(done)));
       }
     }
 
@@ -298,22 +288,13 @@ export function initEndlessView(d) {
       .map((n) => ({ start: relS(n.start), end: Math.min(relS(n.end), ex.totalBeats * cycle.beat + 0.2), midi: n.midi }))
       .filter((n) => n.start >= -0.5 * cycle.beat && n.start < ex.totalBeats * cycle.beat);
     const result = scoreRhythm(ex, played, 60 / cycle.beat, { checkPitch: state.rhythmNotes > 1 });
-    const statuses = new Map();
-    const playedStatus = new Map();
-    for (const n of result.notes) {
-      const st = n.status === 'missed' ? 'missed' : n.wrongPitch ? 'wrong' : n.status;
-      statuses.set(ex.events.indexOf(n.event), st);
-      if (n.played) playedStatus.set(n.played, st);
-    }
-    for (const r of result.restHits) statuses.set(ex.events.indexOf(r), 'hit');
-    const playedBeats = played.map((p) => ({ start: p.start / cycle.beat, end: p.end / cycle.beat, status: playedStatus.get(p) || 'off' }));
-    return { result, statuses, playedBeats };
+    return { result, ...resultMarks(ex, result) };
   }
 
   function decide(now) {
     const { cycle, tracker } = run;
     const ex = cycle.exercise;
-    const { result, statuses, playedBeats } = evaluate(now);
+    const { result, statuses, offsets } = evaluate(now);
     // Forget old notes so the tracker doesn't grow forever.
     tracker.notes = tracker.notes.filter((n) => n.end > now - 2);
 
@@ -321,7 +302,7 @@ export function initEndlessView(d) {
     d.save();
     session.count++;
     session.total += result.overall;
-    last = { exercise: ex, result, statuses, playedBeats };
+    last = { exercise: ex, result, statuses, offsets };
     showFeedback(result, event, cycle.kind, barVerdicts(ex, result));
     renderStage();
     renderIssues();

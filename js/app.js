@@ -1,15 +1,16 @@
 // UI controller: navigation, the long-tone exercise, results, and the tuner.
 
-import { RECORDERS, recorderNotes, writtenMidi, detectionRange } from './recorders.js?v=1.6';
-import { noteInfo, midiToFreq, freqToMidi, describeInterval } from './music.js?v=1.6';
-import { PitchListener, playReferenceTone } from './audio.js?v=1.6';
-import { PitchSmoother } from './pitch.js?v=1.6';
-import { LongToneSession, IN_TUNE_CENTS } from './longtone.js?v=1.6';
-import { staffSvg } from './staff.js?v=1.6';
-import { drawPitchChart } from './chart.js?v=1.6';
-import { loadState, saveState, recordAttempt, noteHistory } from './storage.js?v=1.6';
-import { initRhythmView } from './rhythm-view.js?v=1.6';
-import { initEndlessView } from './endless-view.js?v=1.6';
+import { RECORDERS, recorderNotes, writtenMidi, detectionRange } from './recorders.js?v=1.7';
+import { noteInfo, midiToFreq, freqToMidi, describeInterval } from './music.js?v=1.7';
+import { PitchListener, playReferenceTone } from './audio.js?v=1.7';
+import { PitchSmoother } from './pitch.js?v=1.7';
+import { LongToneSession, IN_TUNE_CENTS } from './longtone.js?v=1.7';
+import { staffSvg } from './staff.js?v=1.7';
+import { drawPitchChart } from './chart.js?v=1.7';
+import { loadState, saveState, recordAttempt, noteHistory } from './storage.js?v=1.7';
+import { initRhythmView } from './rhythm-view.js?v=1.7';
+import { initEndlessView } from './endless-view.js?v=1.7';
+import { initCalibration } from './calibration.js?v=1.7';
 
 const $ = (id) => document.getElementById(id);
 const state = loadState();
@@ -34,6 +35,7 @@ function show(view) {
   if (currentView === 'rhythm') {
     rhythmView.leave();
     endlessView.leave();
+    calibration.stop();
   }
   for (const el of document.querySelectorAll('.view')) el.hidden = el.id !== `view-${view}`;
   currentView = view;
@@ -234,6 +236,7 @@ document.addEventListener('visibilitychange', () => {
   }
   if (document.hidden && rhythmView.busy) rhythmView.stopIfRunning();
   if (document.hidden && endlessView.busy) endlessView.stopIfRunning();
+  if (document.hidden && calibration.busy) calibration.stop();
 });
 
 function setTimer(elapsed, duration) {
@@ -464,12 +467,18 @@ function releaseWakeLock() {
   wakeLock = null;
 }
 
+// The rhythm screens and calibration share the mic: starting one stops the other.
+const startRhythmMic = async () => {
+  if (calibration.busy) calibration.stop();
+  await startMic();
+};
+
 const rhythmView = initRhythmView({
   $,
   state,
   save: () => saveState(state),
   listener,
-  startMic,
+  startMic: startRhythmMic,
   showMicError,
   recorder,
   writtenInfo,
@@ -485,7 +494,7 @@ const endlessView = initEndlessView({
   state,
   save: () => saveState(state),
   listener,
-  startMic,
+  startMic: startRhythmMic,
   showMicError,
   recorder,
   writtenInfo,
@@ -494,6 +503,21 @@ const endlessView = initEndlessView({
   scoreColor,
   requestWakeLock,
   releaseWakeLock,
+});
+
+const calibration = initCalibration({
+  $,
+  state,
+  save: () => saveState(state),
+  listener,
+  startMic,
+  showMicError,
+  recorder,
+  pitchToMidi,
+  beforeCalibrate: () => {
+    rhythmView.leave();
+    endlessView.leave();
+  },
 });
 
 // Rhythm Reading has two tabs: Endless (adaptive) and Practice (pick a level).

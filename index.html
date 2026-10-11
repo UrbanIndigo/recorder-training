@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1f6f5c">
   <title>Recorder Trainer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="css/styles.css?v=1.6">
+  <link rel="stylesheet" href="css/styles.css?v=1.7">
 </head>
 <body>
   <header class="topbar">
@@ -56,7 +56,7 @@
           <small>Turn it up if your playing isn't picked up, down if background noise is. The Mic bar shows the level: it turns green when it hears you, and the line marks the cut-off.</small>
         </div>
       </details>
-      <p class="hint version">Version 1.6</p>
+      <p class="hint version">Version 1.7</p>
     </section>
 
     <!-- Long tone: choose note -->
@@ -251,7 +251,7 @@
           <label class="toggle setting-row"><input type="checkbox" id="en-click"> Click while playing</label>
           <label class="toggle setting-row"><input type="checkbox" id="en-count"> Always show counting</label>
           <label class="toggle setting-row"><input type="checkbox" id="en-playhead"> Show where you are while playing</label>
-          <small class="hint">Off by default: following a moving line makes reading too easy. Your bars still fill in after each one is scored.</small>
+          <small class="hint">Off by default: following a moving line makes reading too easy. Each bar is still marked after you've played it.</small>
           <div class="setting">
             <label for="en-jump">Jump to stage</label>
             <select id="en-jump"></select>
@@ -290,11 +290,11 @@
         <div class="sheet-meta" id="rh-meta"></div>
         <div id="rh-sheet"></div>
         <div class="legend">
-          <span><i class="sw expected"></i>written</span>
           <span><i class="sw s-good"></i>on time</span>
           <span><i class="sw s-close"></i>a bit off</span>
           <span><i class="sw s-off"></i>off the beat</span>
           <span><i class="sw s-missed"></i>missed</span>
+          <span>◂ early · ▸ late</span>
         </div>
       </div>
 
@@ -354,7 +354,8 @@
       <details class="settings">
         <summary>Timing calibration</summary>
         <p class="hint">Phones and Bluetooth headphones add a small delay between the click and the mic. If the app keeps saying you're late when you feel on time, calibrate: press the button and play a short note exactly on each of the 8 clicks after the count-in. Don't use Bluetooth headphones for this.</p>
-        <p id="rh-cal-result"></p>
+        <div class="beat-row small" id="cal-beats" aria-hidden="true" hidden></div>
+        <p id="rh-cal-result" aria-live="polite"></p>
         <div class="actions left">
           <button class="btn secondary small" id="rh-calibrate">Calibrate timing</button>
           <button class="btn secondary small" id="rh-cal-reset" hidden>Use automatic</button>
@@ -386,7 +387,7 @@
     <button class="btn primary small" id="load-error-reload">Reload</button>
   </p>
   <script>
-    window.APP_VERSION = '1.6';
+    window.APP_VERSION = '1.7';
     // If the app hasn't started after a few seconds, offer a fresh reload.
     setTimeout(function () {
       if (window.appReady) return;
@@ -397,6 +398,6 @@
       };
     }, 4000);
   </script>
-  <script type="module" src="js/app.js?v=1.6"></script>
+  <script type="module" src="js/app.js?v=1.7"></script>
 </body>
 </html>

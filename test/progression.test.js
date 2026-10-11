@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { newProgress, chooseNext, recordResult, CURRICULUM, unlocked, unlockProgress, cellScores } from '../js/progression.js';
-import { scoreRhythm } from '../js/rhythm.js';
+import { scoreRhythm, soundingNotes } from '../js/rhythm.js';
 
 function seeded(seed) {
   return () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296);
@@ -10,8 +10,7 @@ function seeded(seed) {
 /** Play an exercise perfectly, or with every note `late` seconds late. */
 function play(exercise, bpm, late = 0) {
   const beat = 60 / bpm;
-  const played = exercise.events
-    .filter((e) => !e.rest)
+  const played = soundingNotes(exercise)
     .map((e) => ({ start: e.beat * beat + late, end: (e.beat + e.beats) * beat - 0.04 + late, midi: e.midi }));
   return scoreRhythm(exercise, played, bpm);
 }
@@ -22,7 +21,7 @@ test('a perfect player unlocks every pattern, then the tempo rises', () => {
   const unlocks = [];
   let last = null;
   let tempoUps = 0;
-  for (let i = 0; i < 200; i++) {
+  for (let i = 0; i < 400; i++) {
     const next = chooseNext(p, last, [83], rand);
     assert.equal(next.kind, 'new');
     const { cells, timeSigs } = unlocked(p);
@@ -102,14 +101,14 @@ test('pattern scores and unlock progress', () => {
 test('recurring problems are spotted per rhythm pattern', async () => {
   const { topIssues } = await import('../js/progression.js');
   const p = newProgress(70);
-  p.stage = 7; // eighth notes unlocked
+  p.stage = CURRICULUM.findIndex((st) => st.cell === 'eighths'); // eighth notes unlocked
   const rand = seeded(11);
   for (let i = 0; i < 8; i++) {
     const n = chooseNext(p, null, [83], rand);
     // Rush only the eighth notes by 90 ms.
     const beat = 60 / 70;
-    const played = n.exercise.events.filter((e) => !e.rest).map((e) => {
-      const off = e.cell === 'eighths' ? -0.09 : 0;
+    const played = soundingNotes(n.exercise).map((e) => {
+      const off = e.event.cell === 'eighths' ? -0.09 : 0;
       return { start: e.beat * beat + off, end: (e.beat + e.beats) * beat - 0.04 + off, midi: e.midi };
     });
     recordResult(p, n.exercise, scoreRhythm(n.exercise, played, 70));
@@ -119,4 +118,28 @@ test('recurring problems are spotted per rhythm pattern', async () => {
   assert.equal(issues[0].cell, 'eighths');
   assert.equal(issues[0].kind, 'rush');
   assert.match(issues[0].text, /Rushing eighth notes/);
+});
+
+test('saved progress from before whole-bar rests moves up a stage', async () => {
+  const { migrateProgress } = await import('../js/progression.js');
+  const old = { ...newProgress(70), stage: 7 };
+  delete old.version;
+  migrateProgress(old);
+  assert.equal(CURRICULUM[old.stage].cell, 'eighths'); // was stage 8 "Eighth notes"
+  const fresh = newProgress(70);
+  migrateProgress(fresh);
+  assert.equal(fresh.stage, 0);
+});
+
+test('a newly unlocked pattern appears in its first rhythms', () => {
+  for (let stage = 1; stage < CURRICULUM.length; stage++) {
+    const step = CURRICULUM[stage];
+    if (!step.cell) continue;
+    const p = { ...newProgress(70), stage, stageStartedAt: 0 };
+    const rand = seeded(stage);
+    for (let k = 0; k < 3; k++) {
+      const n = chooseNext(p, null, [83], rand);
+      assert.ok(n.exercise.events.some((e) => e.cell === step.cell), `${step.title} missing`);
+    }
+  }
 });
