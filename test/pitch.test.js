@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { detectPitch, PitchSmoother } from '../js/pitch.js';
+import { detectPitch, PitchSmoother, NoiseGate } from '../js/pitch.js';
 import { freqToMidi, midiToFreq } from '../js/music.js';
 
 const SR = 48000;
@@ -50,7 +50,29 @@ test('smoother ignores single-frame dropouts and blips', () => {
   assert.equal(s.push(null), 72); // one dropout is bridged
   s.push(72);
   assert.equal(s.push(84), 72); // octave blip removed by the median
-  s.push(null);
-  s.push(null);
+  for (let i = 0; i < 12; i++) assert.equal(s.push(null), 72); // short gaps bridged
   assert.equal(s.push(null), null); // sustained silence
+});
+
+test('detects a quiet, breathy note', () => {
+  // Phone-mic level with breath noise mixed in.
+  const f = midiToFreq(78); // soprano F♯
+  const { freq } = detectPitch(tone(f, { amp: 0.004, noise: 0.0015 }), SR, { minFreq: 300, maxFreq: 4000 });
+  assert.ok(freq, 'no pitch detected');
+  assert.ok(Math.abs((freqToMidi(freq) - 78) * 100) < 5);
+});
+
+test('noise gate adapts to the room and lets quiet playing through', () => {
+  const gate = new NoiseGate({ ratio: 4 });
+  for (let i = 0; i < 120; i++) gate.update(0.0003); // quiet room
+  assert.equal(gate.update(0.0003), false);
+  assert.equal(gate.update(0.003), true); // soft playing on a phone mic
+  // Holding a note for 10 s barely moves the background estimate.
+  for (let i = 0; i < 600; i++) gate.update(0.003);
+  assert.equal(gate.update(0.003), true);
+
+  const noisy = new NoiseGate({ ratio: 4 });
+  for (let i = 0; i < 120; i++) noisy.update(0.004); // noisy room
+  for (let i = 0; i < 600; i++) noisy.update(0.004);
+  assert.equal(noisy.update(0.005), false);
 });

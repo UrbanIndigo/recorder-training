@@ -85,9 +85,10 @@ $('duration-select').addEventListener('change', (e) => {
 });
 
 function applyDetectorOptions() {
-  // Sensitivity 0..1 maps to a loudness gate from 0.05 down to 0.002 RMS.
-  const minRms = 0.05 * 0.04 ** state.sensitivity;
-  listener.setOptions({ ...detectionRange(recorder(), state.a4), minRms });
+  // Sensitivity 0..1: how far above the background noise a note must be,
+  // from 10x (only loud playing) down to 1.5x.
+  const gateRatio = 10 * 0.15 ** state.sensitivity;
+  listener.setOptions({ ...detectionRange(recorder(), state.a4), gateRatio });
 }
 applyDetectorOptions();
 
@@ -192,6 +193,7 @@ async function startExercise() {
 
 function onExerciseFrame(reading, now) {
   if (!session) return;
+  setLevel($('run-level'), reading);
   const midi = smoother.push(reading.freq ? pitchToMidi(reading.freq) : null);
   session.push(midi, now);
   setLive(midi, $('live-note'), $('meter-needle'), $('live-cents'), targetMidi);
@@ -265,6 +267,14 @@ function setLive(midi, noteEl, needleEl, centsEl, target = null) {
   needleEl.classList.toggle('far', Math.abs(cents) > 25);
   centsEl.textContent = centsText(cents);
   return played;
+}
+
+/** Mic level bar on a log scale (about 60 dB), with a mark at the noise gate. */
+function setLevel(el, reading) {
+  const pos = (v) => Math.max(0, Math.min(100, ((Math.log10(Math.max(v, 1e-6)) + 3.5) / 3) * 100));
+  el.querySelector('.level-fill').style.width = `${pos(reading.rms)}%`;
+  el.querySelector('.level-gate').style.left = `${pos(reading.gate)}%`;
+  el.classList.toggle('heard', reading.rms >= reading.gate);
 }
 
 function centsText(cents) {
@@ -391,6 +401,7 @@ async function startTuner() {
     : '';
   smoother.reset();
   tunerUnsub = listener.onPitch((reading) => {
+    setLevel($('tuner-level'), reading);
     const midi = smoother.push(reading.freq ? pitchToMidi(reading.freq) : null);
     const played = setLive(midi, $('tuner-note'), $('tuner-needle'), $('tuner-cents'));
     if (played) {

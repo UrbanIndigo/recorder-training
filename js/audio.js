@@ -1,6 +1,6 @@
 // Microphone input and reference-tone playback.
 
-import { detectPitch } from './pitch.js';
+import { detectPitch, NoiseGate } from './pitch.js';
 
 const AudioCtx = window.AudioContext || window.webkitAudioContext;
 
@@ -9,6 +9,7 @@ export class PitchListener {
     this.listeners = new Set();
     this.running = false;
     this.options = {};
+    this.gate = new NoiseGate();
   }
 
   /** Ask for the microphone and begin analysing. Throws if permission is refused. */
@@ -48,11 +49,12 @@ export class PitchListener {
     return { contextRate: this.ctx.sampleRate, micRate: track?.getSettings?.().sampleRate ?? null };
   }
 
-  setOptions(options) {
+  setOptions({ gateRatio, ...options }) {
+    if (gateRatio != null) this.gate.ratio = gateRatio;
     Object.assign(this.options, options);
   }
 
-  /** @param {(reading: {freq: number|null, clarity: number, rms: number}, now: number) => void} fn */
+  /** @param {(reading: {freq: number|null, clarity: number, rms: number, gate: number}, now: number) => void} fn */
   onPitch(fn) {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);
@@ -62,6 +64,8 @@ export class PitchListener {
     if (!this.running) return;
     this.analyser.getFloatTimeDomainData(this.buf);
     const reading = detectPitch(this.buf, this.ctx.sampleRate, this.options);
+    reading.gate = this.gate.threshold;
+    if (!this.gate.update(reading.rms)) reading.freq = null;
     const now = performance.now() / 1000;
     for (const fn of this.listeners) fn(reading, now);
     this.raf = requestAnimationFrame(this.tick);

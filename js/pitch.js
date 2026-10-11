@@ -8,7 +8,7 @@
  * @returns {{freq: number|null, clarity: number, rms: number}}
  */
 export function detectPitch(buf, sampleRate, opts = {}) {
-  const { minFreq = 150, maxFreq = 4000, threshold = 0.12, minRms = 0.01 } = opts;
+  const { minFreq = 150, maxFreq = 4000, threshold = 0.15, maxAperiodicity = 0.4, minRms = 0 } = opts;
   const n = buf.length;
 
   let sumSq = 0;
@@ -51,7 +51,7 @@ export function detectPitch(buf, sampleRate, opts = {}) {
   if (tau === -1) {
     let best = minTau;
     for (let t = minTau + 1; t <= maxTau; t++) if (cmnd[t] < cmnd[best]) best = t;
-    if (cmnd[best] > 0.3) return { freq: null, clarity: 1 - cmnd[best], rms };
+    if (cmnd[best] > maxAperiodicity) return { freq: null, clarity: 1 - cmnd[best], rms };
     tau = best;
   }
 
@@ -69,12 +69,41 @@ export function detectPitch(buf, sampleRate, opts = {}) {
 }
 
 /**
+ * Decides whether a frame is loud enough to be someone playing, relative to
+ * the room's background noise rather than a fixed level. Phone microphones
+ * (with automatic gain turned off, as it must be for accurate pitch) record
+ * much more quietly than laptop ones, so a fixed cut-off misses real notes.
+ */
+export class NoiseGate {
+  constructor({ ratio = 4, minLevel = 0.0004 } = {}) {
+    this.ratio = ratio; // how far above the background a note must be
+    this.minLevel = minLevel;
+    this.noise = 0.001; // background estimate (RMS)
+  }
+
+  /** @returns {boolean} true if this frame counts as sound */
+  update(rms) {
+    // The estimate drops quickly to quiet frames and creeps up slowly, so a
+    // long held note barely moves it.
+    if (rms < this.noise) this.noise += (rms - this.noise) * 0.1;
+    else this.noise = Math.min(0.05, this.noise * 1.001);
+    return rms >= this.threshold;
+  }
+
+  get threshold() {
+    return Math.max(this.minLevel, this.noise) * this.ratio;
+  }
+}
+
+/**
  * Smooths a stream of pitch readings (in MIDI units) with a short median
- * filter and ignores one-frame blips, so the display doesn't flicker.
+ * filter, and bridges brief dropouts (a breathy moment the detector can't
+ * read) so a held note isn't counted as stopping.
  */
 export class PitchSmoother {
-  constructor(size = 5) {
+  constructor(size = 5, bridgeFrames = 12) {
     this.size = size;
+    this.bridgeFrames = bridgeFrames;
     this.values = [];
     this.silentFrames = 0;
   }
@@ -83,8 +112,8 @@ export class PitchSmoother {
   push(midi) {
     if (midi == null) {
       this.silentFrames++;
-      if (this.silentFrames >= 3) this.values = [];
-      return this.silentFrames >= 3 || this.values.length === 0 ? null : median(this.values);
+      if (this.silentFrames > this.bridgeFrames) this.values = [];
+      return this.values.length < 2 ? null : median(this.values);
     }
     this.silentFrames = 0;
     this.values.push(midi);

@@ -243,3 +243,9 @@ h3 { margin: 28px 0 8px; font-size: 1.05rem; }
 }
 .diag { text-align: center; margin-top: 32px; }
 .version { text-align: center; margin-top: 24px; }
+
+.level-row { display: flex; align-items: center; gap: 8px; max-width: 460px; margin: 14px auto 0; color: var(--text-muted); font-size: 0.78rem; }
+.level { position: relative; flex: 1; height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+.level-fill { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--text-muted); transition: width 60ms linear; }
+.level.heard .level-fill { background: var(--good); }
+.level-gate { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--text); opacity: 0.6; }
