@@ -2,8 +2,8 @@
 // printed music (short notes closer together, long notes with more room),
 // so the layout doesn't give the timing away.
 
-import { diatonicStep, noteInfo } from './music.js?v=2.0';
-import { meterOf, soundingNotes } from './rhythm.js?v=2.0';
+import { diatonicStep, noteInfo } from './music.js?v=2.1';
+import { meterOf, soundingNotes } from './rhythm.js?v=2.1';
 
 const GAP = 10; // staff line spacing
 const STAFF_TOP = 34; // within each line block (room above for bar badges); more for high notes
@@ -24,12 +24,16 @@ export class RhythmSheet {
    * @param {object} exercise from generateExercise
    * @param {(soundingMidi: number) => number} toWritten
    * @param {'treble'|'bass'} [clef]
+   * @param {{showTimeSig?: boolean, fixedHeight?: {top: number, below: number}}} [options]
    */
-  constructor(container, exercise, toWritten, clef = 'treble') {
+  constructor(container, exercise, toWritten, clef = 'treble', options = {}) {
     this.container = container;
     this.exercise = exercise;
     this.toWritten = toWritten;
     this.clef = clef;
+    // For rows in a scrolling score: show the time signature only when it
+    // changes, and fix the height so every row lines up.
+    this.options = { showTimeSig: true, fixedHeight: null, ...options };
     this.bottomStep = clef === 'bass' ? 18 : 30; // G2 or E4 on the bottom line
     this.statuses = null;
     this.offsets = null;
@@ -53,6 +57,10 @@ export class RhythmSheet {
     this.staffTop = STAFF_TOP + Math.max(0, (highest - 8) * (GAP / 2) + (highest > 8 ? 6 : 0));
     const lowest = Math.min(0, ...positions);
     this.belowExtra = Math.max(0, (-lowest - 2) * (GAP / 2));
+    if (this.options.fixedHeight) {
+      this.staffTop = Math.max(this.staffTop, this.options.fixedHeight.top);
+      this.belowExtra = Math.max(this.belowExtra, this.options.fixedHeight.below);
+    }
     this.accidentals = accidentalsFor(ex, this.toWritten);
     const bars = [];
     for (let b = 0; b < ex.bars; b++) {
@@ -80,7 +88,7 @@ export class RhythmSheet {
     // Place everything, stretching each line to the full width.
     this.positions = new Map(); // event index -> { x, line }
     // Extra room under the staff for counting and for the "what you played" strip.
-    this.lineHeight = this.staffTop + 78 + this.belowExtra + (this.counting ? 18 : 0) + (this.played ? 26 : 0);
+    this.lineHeight = this.staffTop + 78 + this.belowExtra + (this.counting || this.options.fixedHeight ? 18 : 0) + (this.played ? 26 : 0);
     lines.forEach((line, li) => {
       line.top = li * this.lineHeight;
       const scale = (width - line.prefix - RIGHT) / line.natural;
@@ -138,7 +146,7 @@ export class RhythmSheet {
     p.push(this.clef === 'bass'
       ? `<text class="clef clef-bass" x="8" y="${top + GAP * 2.1}" style="font-size:34px">𝄢</text>`
       : `<text class="clef clef-treble" x="6" y="${top + GAP * 3.35}" style="font-size:52px">𝄞</text>`);
-    if (first) {
+    if (first && this.options.showTimeSig) {
       const m = meterOf(this.exercise);
       p.push(`<text class="timesig" x="46" y="${top + GAP * 1.85}">${m.num}</text>`);
       p.push(`<text class="timesig" x="46" y="${top + GAP * 3.85}">${m.den}</text>`);

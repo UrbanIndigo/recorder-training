@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1f6f5c">
   <title>Recorder Trainer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="css/styles.css?v=2.0">
+  <link rel="stylesheet" href="css/styles.css?v=2.1">
 </head>
 <body>
   <header class="topbar">
@@ -56,7 +56,7 @@
           <small>Turn it up if your playing isn't picked up, down if background noise is. The Mic bar shows the level: it turns green when it hears you, and the line marks the cut-off.</small>
         </div>
       </details>
-      <p class="hint version">Version 2.0</p>
+      <p class="hint version">Version 2.1</p>
     </section>
 
     <!-- Long tone: choose note -->
@@ -205,28 +205,30 @@
           </div>
         </div>
 
+        <div class="transport" id="en-transport">
+          <button class="btn primary" id="en-start">▶ Start</button>
+          <button class="btn secondary" id="en-stop" hidden>Stop</button>
+          <div class="transport-beat">
+            <div class="beat-row small" id="en-beats" aria-hidden="true"></div>
+            <p class="rh-status" id="en-status" aria-live="polite"></p>
+          </div>
+        </div>
+
         <div class="en-feedback" id="en-feedback" hidden>
           <span class="en-chip" id="en-chip"></span>
           <div class="en-feedback-body">
             <div class="en-feedback-text" id="en-feedback-text"></div>
-            <div class="en-bars" id="en-bars"></div>
           </div>
         </div>
 
-        <div class="sheet-card">
-          <div class="sheet-meta" id="en-meta"></div>
-          <div id="en-sheet"></div>
+        <div class="stream" id="en-stream" aria-label="Scrolling score">
+          <div class="stream-track" id="en-track">
+            <div class="stream-row placeholder" id="en-placeholder" aria-hidden="true"></div>
+          </div>
         </div>
 
-        <div class="beat-row" id="en-beats" aria-hidden="true"></div>
-        <p class="rh-status" id="en-status" aria-live="polite"></p>
         <div class="level-row"><span>Mic</span><div class="level" id="en-mic" title="Microphone level"><div class="level-fill"></div><div class="level-gate"></div></div><span class="heard-note" id="en-heard" title="The note the app hears">—</span></div>
 
-        <div class="actions">
-          <button class="btn primary" id="en-start">▶ Start</button>
-          <button class="btn secondary" id="en-stop" hidden>Stop</button>
-          <button class="btn secondary" id="en-hear">🔊 Hear it</button>
-        </div>
         <p class="error" id="en-error" hidden></p>
 
         <div class="en-summary" id="en-summary" hidden></div>
@@ -236,7 +238,7 @@
           <ul id="en-issues-list"></ul>
         </div>
 
-        <p class="hint">Rhythms keep coming, right on the beat, until you press Stop. After each one there's a bar of clicks while you read the next. New rhythms unlock as you get good, and any you find hard come back. Tongue every note ("tu").</p>
+        <p class="hint">One bar after another with no breaks, until you press Stop. Play the highlighted bar; the score scrolls up as you go and shows how you did. You can only see one bar ahead. Bars you get wrong come back two bars later. Tongue every note ("tu").</p>
 
         <details class="settings">
           <summary>Endless options</summary>
@@ -249,13 +251,6 @@
               <option value="octave">One octave</option>
               <option value="range">Whole range (naturals)</option>
               <option value="chromatic">Whole range, with sharps &amp; flats</option>
-            </select>
-          </div>
-          <div class="setting">
-            <label for="en-read">Reading time before each rhythm</label>
-            <select id="en-read">
-              <option value="1">1 bar (sight-reading)</option>
-              <option value="2">2 bars</option>
             </select>
           </div>
           <label class="toggle setting-row"><input type="checkbox" id="en-click"> Click while playing</label>
@@ -400,7 +395,7 @@
     <button class="btn primary small" id="load-error-reload">Reload</button>
   </p>
   <script>
-    window.APP_VERSION = '2.0';
+    window.APP_VERSION = '2.1';
     // If the app hasn't started after a few seconds, offer a fresh reload.
     setTimeout(function () {
       if (window.appReady) return;
@@ -411,6 +406,6 @@
       };
     }, 4000);
   </script>
-  <script type="module" src="js/app.js?v=2.0"></script>
+  <script type="module" src="js/app.js?v=2.1"></script>
 </body>
 </html>

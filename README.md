@@ -25,8 +25,10 @@ When you finish you get a score out of 100 and a breakdown:
 You also get tips based on the result. Your best score on each note is saved in the browser and shown as a coloured dot in the note picker.
 
 ### Rhythm Reading — Endless
-Rhythm training that keeps going until you stop. The metronome never stops or skips a beat. Each 2-bar rhythm is followed straight away by a bar of count-in (or two, if you set a longer reading time) while you read the next one. Even when a new pattern unlocks, the beat carries on: you get an extra bar to read it and the explanation appears alongside.
-
+A scrolling score that keeps going until you stop. After one bar of count-in the metronome never stops: you play one bar after another with no breaks.
+- **About five bars on screen:** the last two you played (with your score and a verdict), the bar you're on (highlighted), and **just one bar ahead**. The score scrolls up a row as each bar ends.
+- **Bars you get wrong come back two bars later**, marked "again" with the counting shown. The bar right below you never changes, so there are no surprises.
+- New patterns unlock, and the tempo speeds up or slows down, at a bar line without stopping. Time signatures can change from bar to bar.
 - **Levels up on its own.** You start with quarter notes. 45 stages unlock one at a time once you're consistently scoring well:
   - **basics:** half notes, whole notes, quarter, half and whole-bar rests, dotted halves, 3/4
   - **eighths:** eighths, off-beat eighths, dotted quarter + eighth, 2/4, syncopation, eighth rests, ties
@@ -36,12 +38,13 @@ Rhythm training that keeps going until you stop. The metronome never stops or sk
   - **6/8 time:** dotted quarters, three eighths, quarter + eighth, eighth + quarter, dotted-quarter rests, sixteenths, and the siciliano rhythm
   - **tuplets:** triplets with rests, sixteenth-note triplets, quintuplets, 6/8 duplets
   - **fast notes and double dots:** thirty-second notes, dotted sixteenth + thirty-second, double-dotted quarter + sixteenth, double-dotted half + eighth
-  - **more kinds of rest:** coming in after a rest (rhythms can now start with one), sixteenth rests mid-beat, dotted eighth rest + sixteenth Each new rhythm gets a short explanation card with how to count it, and you can hear an example. Once everything is unlocked, the tempo creeps up instead.
-- **Repeats what you get wrong.** Score under 70 and the same rhythm comes straight back, with the counting shown, your last attempt coloured on the notes, and the tricky pattern named. Miss it again and it goes into a review list that comes back a few rhythms later.
+  - **more kinds of rest:** coming in after a rest (rhythms can now start with one), sixteenth rests mid-beat, dotted eighth rest + sixteenth
+
+  Each new rhythm gets a short explanation card with how to count it. Once everything is unlocked, the tempo creeps up instead.
 - **Targets your weak spots.** It tracks how well you do on each rhythm pattern and gives you the hard ones more often. If you're struggling, it slows down.
-- **A verdict for every bar.** As each bar finishes you get "Great", "Early", "Late", "Too short", "Missed a note" or "Played in a rest" above it while you carry on, plus a bar-by-bar summary after each rhythm.
+- **A verdict for every bar.** As each bar scrolls up it gets a score and a verdict ("Great", "Early", "Late", "Too short", "Missed a note", "Played in a rest"…).
 - **What to work on.** It tracks recurring problems for each rhythm pattern (rushing eighths, cutting half notes short, playing through rests…). It lists your top ones with a tip, and gives you more of those patterns.
-- **Nothing gives the timing away before you play.** Notes are spaced like printed music, not by length, and there's no moving line unless you turn it on. After a bar is scored, its notes are coloured, ◂ / ▸ marks show which were early or late, and a strip under the bar shows what you played against the written lengths.
+- **Nothing gives the timing away before you play.** Notes are spaced like printed music, not by length, and there's no moving line unless you turn it on. After a bar is scored, its notes are coloured and ◂ / ▸ marks show which were early or late.
 - Progress is saved. Options let you jump ahead a stage, always show counting, or start over.
 
 ### Rhythm Reading — Practice
@@ -112,7 +115,7 @@ Code layout (`js/`):
 - `notation.js`: draws rhythm exercises as sheet music (beams, ties, triplets, rests, counting)
 - `calibration.js`: measures the click-to-mic delay
 - `progression.js`: endless-mode curriculum, skill tracking, retries, review and tempo changes (no DOM code, unit tested)
-- `endless-view.js`: the Endless screen (continuous metronome loop)
+- `endless-view.js`: the Endless screen (scrolling score, one bar at a time)
 - `rhythm-view.js`: the Practice screen
 - `rhythm-play.js`: plays a rhythm back so you can hear it
 - `recorders.js`: instrument ranges and transpositions

@@ -1,7 +1,7 @@
 // Rhythm reading: exercise generation, note-onset tracking from the mic,
 // and scoring of a performance against the written rhythm. No DOM code.
 
-import { gradeFor } from './longtone.js?v=2.0';
+import { gradeFor } from './longtone.js?v=2.1';
 
 // ------------------------------------------------------------------ levels
 
@@ -216,7 +216,12 @@ export const CELL_NAMES = Object.keys(CELLS);
  * @param {number} o.beatsPerBar
  * @param {number[]} o.pitches sounding MIDI notes to use (stepwise order)
  */
-export function generateFromCells({ cells, meter: meterId = '4/4', pitches, bars = 4, random = Math.random, allowRestStart = false }) {
+/**
+ * `standalone` rhythms start on a note and end on a long note so they make
+ * sense on their own; bars for a continuous stream don't need that.
+ * `startPitch` continues the melody from a previous bar.
+ */
+export function generateFromCells({ cells, meter: meterId = '4/4', pitches, bars = 4, random = Math.random, allowRestStart = false, standalone = true, startPitch = null }) {
   const meter = METERS[meterId];
   const bpb = meter.bpb;
   // Only cells that belong to this kind of time signature.
@@ -234,12 +239,12 @@ export function generateFromCells({ cells, meter: meterId = '4/4', pitches, bars
       ok =
         (notes.length > 0 || events[0].barRest) &&
         // Start on a note so there's a clear entry...
-        (b > 0 || !events[0].rest || events[0].barRest || allowRestStart) &&
+        (!standalone || b > 0 || !events[0].rest || events[0].barRest || allowRestStart) &&
         // ...and end on a note of at least a beat.
-        (b < bars - 1 || (!events.at(-1).rest && !events.at(-1).tied && lastBeats >= 1));
+        (!standalone || b < bars - 1 || (!events.at(-1).rest && !events.at(-1).tied && lastBeats >= 1));
     }
     // Busy levels rarely end on a long note by chance: finish on a quarter.
-    if (!ok && b === bars - 1) {
+    if (!ok && standalone && b === bars - 1) {
       cells = meter.compound
         ? [...fillBar(lvl, bpb, random, bpb - 1.5), 'c_dottedQuarter']
         : [...fillBar(lvl, bpb, random, bpb - 1), 'quarter'];
@@ -251,7 +256,7 @@ export function generateFromCells({ cells, meter: meterId = '4/4', pitches, bars
   const events = [];
   let beat = 0;
   let group = 0;
-  let pitchIdx = Math.floor(pitches.length / 2);
+  let pitchIdx = startPitch != null && pitches.includes(startPitch) ? pitches.indexOf(startPitch) : Math.floor(pitches.length / 2);
   barCells.forEach((cells, barIndex) => {
     for (const name of cells) {
       group++;

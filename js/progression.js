@@ -2,7 +2,7 @@
 // the player gets them right, retries and reviews of rhythms they found
 // hard, and tempo that rises once everything is unlocked. No DOM code.
 
-import { generateFromCells, cellFitsMeter } from './rhythm.js?v=2.0';
+import { generateFromCells, cellFitsMeter } from './rhythm.js?v=2.1';
 
 /** Each step unlocks one new rhythm pattern or time signature, in teaching order. */
 export const CURRICULUM = [
@@ -104,7 +104,7 @@ export function unlocked(progress) {
  * @param {{exercise: object, result: object}|null} last the rhythm just played
  * @returns {{exercise: object, kind: 'new'|'retry'|'review', hint: boolean, focus: string|null}}
  */
-export function chooseNext(progress, last, pitches, random = Math.random) {
+export function chooseNext(progress, last, pitches, random = Math.random, { bars = PHRASE_BARS, standalone = true, startPitch = null } = {}) {
   if (last && last.result.overall < PASS_SCORE && !last.exercise.retry) {
     return { exercise: { ...last.exercise, retry: true }, kind: 'retry', hint: true, focus: weakestCell(last.exercise, last.result) };
   }
@@ -144,7 +144,7 @@ export function chooseNext(progress, last, pitches, random = Math.random) {
   const mustInclude = fresh ? newCells.filter((c) => cellFitsMeter(c, meter)) : [];
   let exercise;
   for (let attempt = 0; attempt < 40; attempt++) {
-    exercise = generateFromCells({ cells: weights, meter, pitches, bars: PHRASE_BARS, random, allowRestStart });
+    exercise = generateFromCells({ cells: weights, meter, pitches, bars, random, allowRestStart, standalone, startPitch });
     if (!mustInclude.length || exercise.events.some((e) => mustInclude.includes(e.cell))) break;
   }
   const hint = newCells.length > 0 && sinceUnlock < 2 && exercise.events.some((e) => newCells.includes(e.cell));
@@ -155,10 +155,16 @@ export function chooseNext(progress, last, pitches, random = Math.random) {
  * Record how a rhythm went and move the player on.
  * @returns {{type: 'unlock', step: object}|{type: 'tempo', bpm: number, faster: boolean}|null}
  */
-export function recordResult(progress, exercise, result) {
+/**
+ * Record how a rhythm went and move the player on. `window` is how many
+ * recent results must average 80+ to unlock the next step (and how many
+ * results since the last unlock are needed): 3 two-bar rhythms by default,
+ * more when scoring bar by bar.
+ */
+export function recordResult(progress, exercise, result, { window = 3 } = {}) {
   progress.phrases++;
   progress.recent.push(result.overall);
-  if (progress.recent.length > 8) progress.recent.shift();
+  if (progress.recent.length > Math.max(8, window)) progress.recent.shift();
   progress.streak = result.overall >= PASS_SCORE ? progress.streak + 1 : 0;
   progress.bestStreak = Math.max(progress.bestStreak, progress.streak);
 
@@ -176,25 +182,25 @@ export function recordResult(progress, exercise, result) {
     if (progress.review.length > 5) progress.review.shift();
   }
 
-  const recent3 = progress.recent.slice(-3);
+  const recent3 = progress.recent.slice(-window);
   const avg3 = recent3.reduce((a, b) => a + b, 0) / recent3.length;
   const sinceUnlock = progress.phrases - progress.stageStartedAt;
 
-  if (recent3.length === 3 && avg3 >= 80 && sinceUnlock >= 3 && allMastered(progress)) {
+  if (recent3.length === window && avg3 >= 80 && sinceUnlock >= window && allMastered(progress)) {
     if (progress.stage < CURRICULUM.length - 1) {
       progress.stage++;
       progress.stageStartedAt = progress.phrases;
       progress.recent = [];
       return { type: 'unlock', step: CURRICULUM[progress.stage] };
     }
-    if (progress.bpm < MAX_TEMPO && progress.phrases - progress.lastTempoChange >= 4) {
+    if (progress.bpm < MAX_TEMPO && progress.phrases - progress.lastTempoChange >= window + 1) {
       progress.bpm = Math.min(MAX_TEMPO, progress.bpm + 5);
       progress.lastTempoChange = progress.phrases;
       progress.recent = [];
       return { type: 'tempo', bpm: progress.bpm, faster: true };
     }
   }
-  if (recent3.length === 3 && avg3 < 45 && progress.bpm > MIN_TEMPO && progress.phrases - progress.lastTempoChange >= 3) {
+  if (recent3.length === window && avg3 < 45 && progress.bpm > MIN_TEMPO && progress.phrases - progress.lastTempoChange >= window) {
     progress.bpm = Math.max(MIN_TEMPO, progress.bpm - 5);
     progress.lastTempoChange = progress.phrases;
     progress.recent = [];
@@ -204,12 +210,12 @@ export function recordResult(progress, exercise, result) {
 }
 
 /** How close the player is to the next unlock, 0..1, for a progress bar. */
-export function unlockProgress(progress) {
+export function unlockProgress(progress, { window = 3 } = {}) {
   const { cells } = unlocked(progress);
   const skills = cells.map((c) => Math.min(1, (progress.skill[c]?.ema ?? 0.5) / MASTERED));
   const skillPart = skills.reduce((a, b) => a + b, 0) / skills.length;
-  const phrasePart = Math.min(1, (progress.phrases - progress.stageStartedAt) / 3);
-  const recent = progress.recent.slice(-3);
+  const phrasePart = Math.min(1, (progress.phrases - progress.stageStartedAt) / window);
+  const recent = progress.recent.slice(-window);
   const scorePart = recent.length ? Math.min(1, recent.reduce((a, b) => a + b, 0) / recent.length / 80) : 0;
   return Math.min(skillPart, phrasePart, scorePart);
 }

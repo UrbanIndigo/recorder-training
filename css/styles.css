@@ -383,3 +383,36 @@ h3 { margin: 28px 0 8px; font-size: 1.05rem; }
 .sheet .strip-played.s-off, .sheet .strip-played.s-wrong { fill: var(--bad); }
 .sheet .accidental { font: 18px "Noto Music", "Segoe UI Symbol", "Apple Symbols", serif; fill: currentColor; text-anchor: middle; }
 .sheet .clef-bass { fill: var(--text); }
+
+/* Endless: scrolling score */
+.stream {
+  position: relative; overflow: hidden; border-radius: var(--radius);
+  background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 18px, #000 calc(100% - 40px), transparent 100%);
+          mask-image: linear-gradient(to bottom, transparent 0, #000 18px, #000 calc(100% - 40px), transparent 100%);
+}
+.stream-track { position: relative; transition: transform 380ms cubic-bezier(0.3, 0.7, 0.2, 1); }
+@media (prefers-reduced-motion: reduce) { .stream-track { transition: none; } }
+.stream-row {
+  position: absolute; left: 0; right: 0; display: flex; align-items: stretch; gap: 4px;
+  padding: 0 10px 0 4px; border-left: 4px solid transparent; transition: opacity 300ms, background 300ms;
+}
+.stream-row .row-sheet { flex: 1; min-width: 0; }
+.stream-row .row-side { flex: 0 0 34px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding-top: 10px; font-variant-numeric: tabular-nums; }
+.row-num { font-size: 0.78rem; color: var(--text-muted); font-weight: 600; }
+.row-tag { font-size: 0.66rem; font-weight: 700; color: var(--warn); text-transform: uppercase; letter-spacing: 0.03em; }
+.row-score:not(:empty) { font-size: 0.75rem; font-weight: 800; color: var(--accent-contrast); border-radius: 999px; padding: 1px 6px; }
+.stream-row.past { opacity: 0.75; }
+.stream-row.current { background: color-mix(in srgb, var(--accent) 9%, transparent); border-left-color: var(--accent); }
+.stream-row.next { opacity: 0.95; }
+.stream-row.future { opacity: 0; }
+.stream-row.placeholder { background: repeating-linear-gradient(to bottom, transparent 0, transparent 44px, var(--border) 44px, var(--border) 45px, transparent 45px, transparent 54px, var(--border) 54px, var(--border) 55px); opacity: 0.25; pointer-events: none; }
+
+body { overflow-anchor: none; } /* rows updating shouldn't make the page jump */
+.transport { display: flex; align-items: center; gap: 12px; margin: 4px 0 10px; scroll-margin-top: calc(64px + env(safe-area-inset-top, 0px)); }
+.transport .btn { flex: 0 0 auto; }
+.transport-beat { flex: 1; min-width: 0; }
+.transport .beat-row.small { margin-top: 0; justify-content: flex-start; gap: 6px; }
+.transport .beat-row.small span { width: 28px; height: 28px; font-size: 0.8rem; }
+.transport .rh-status { text-align: left; margin: 4px 0 0; font-size: 0.85rem; }
+#rh-endless .level-row { margin-top: 10px; }

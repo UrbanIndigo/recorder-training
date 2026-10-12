@@ -1,14 +1,20 @@
-// Endless rhythm training: rhythms keep coming with a continuous metronome.
-// After each one the player gets a beat to see the score and a bar of clicks
-// to read the next. Hard rhythms are repeated with counting shown, new
-// patterns unlock as the player improves, and the tempo adapts.
+// Endless rhythm training as a scrolling score. One bar after another, with
+// no breaks: after a single count-in the metronome keeps going and the
+// score scrolls up a row as each bar ends. You see the bar you're playing,
+// just one bar ahead, and the last few bars with how you did. A bar you
+// fail comes back two bars later (the bar right below you never changes).
+// New patterns unlock and the tempo adapts as you go.
 
-import { CURRICULUM, newProgress, migrateProgress, chooseNext, recordResult, unlockProgress, cellTitle, topIssues } from './progression.js?v=2.0';
-import { OnsetTracker, scoreRhythm, generateFromCells, barVerdict, barVerdicts, resultMarks, playedBeats, meterOf, cellFitsMeter } from './rhythm.js?v=2.0';
-import { RhythmSheet } from './notation.js?v=2.0';
-import { playDemo, scheduleBarClicks, clicksPerBar, clickIndex } from './rhythm-play.js?v=2.0';
-import { writtenMidi, rhythmPitches, checksPitch } from './recorders.js?v=2.0';
+import { CURRICULUM, newProgress, migrateProgress, chooseNext, recordResult, unlockProgress, topIssues } from './progression.js?v=2.1';
+import { OnsetTracker, scoreRhythm, generateFromCells, barVerdict, resultMarks, meterOf, cellFitsMeter, soundingNotes } from './rhythm.js?v=2.1';
+import { RhythmSheet } from './notation.js?v=2.1';
+import { playDemo, scheduleBarClicks, clicksPerBar, clickIndex } from './rhythm-play.js?v=2.1';
+import { writtenMidi, rhythmPitches, checksPitch } from './recorders.js?v=2.1';
+import { diatonicStep } from './music.js?v=2.1';
 
+const PASS = 70; // bars scoring below this come back
+const WINDOW = 6; // bars that must go well before the next unlock
+const ROWS_BEHIND = 2; // finished bars kept in view above the current one
 
 export function initEndlessView(d) {
   const { $, state } = d;
@@ -16,10 +22,10 @@ export function initEndlessView(d) {
   migrateProgress(state.endless);
   const progress = () => state.endless;
 
-  let current = null; // { exercise, kind, hint, focus }
-  let last = null; // { exercise, result, statuses, offsets }
-  let sheet = null;
   let run = null;
+  let preview = []; // the first two bars, shown before starting
+  let rows = []; // { bar, el, sheet }
+  let rowHeight = 120;
   let demoStop = null;
   let session = null;
 
@@ -29,16 +35,11 @@ export function initEndlessView(d) {
   $('en-notes').addEventListener('change', (e) => {
     state.rhythmNotes = e.target.value;
     d.save();
-    if (!run) newRhythm();
+    if (!run) resetPreview();
   });
   $('en-click').checked = state.clickWhilePlaying;
   $('en-click').addEventListener('change', (e) => {
     state.clickWhilePlaying = e.target.checked;
-    d.save();
-  });
-  $('en-read').value = String(state.readBars || 1);
-  $('en-read').addEventListener('change', (e) => {
-    state.readBars = Number(e.target.value);
     d.save();
   });
   $('en-playhead').checked = !!state.showPlayhead;
@@ -50,7 +51,7 @@ export function initEndlessView(d) {
   $('en-count').addEventListener('change', (e) => {
     state.alwaysCount = e.target.checked;
     d.save();
-    sheet?.setCounting(state.alwaysCount || !!current?.hint);
+    for (const r of rows) r.sheet.setCounting(state.alwaysCount || !!r.bar.hint);
   });
   CURRICULUM.forEach((step, i) => $('en-jump').add(new Option(`${i + 1}. ${step.title}`, String(i))));
   $('en-jump').addEventListener('change', (e) => {
@@ -60,7 +61,7 @@ export function initEndlessView(d) {
     p.recent = [];
     d.save();
     renderStage();
-    if (!run) newRhythm();
+    if (!run) resetPreview();
   });
   $('en-reset').addEventListener('click', () => {
     if ($('en-reset').dataset.confirm !== '1') {
@@ -73,36 +74,122 @@ export function initEndlessView(d) {
     stop();
     state.endless = newProgress(state.bpm);
     d.save();
-    last = null;
     renderStage();
-    newRhythm();
+    renderIssues();
+    resetPreview();
   });
 
   $('en-start').addEventListener('click', start);
   $('en-stop').addEventListener('click', () => stop(true));
-  $('en-hear').addEventListener('click', () => hear(current.exercise));
   $('en-continue').addEventListener('click', () => {
     $('en-intro').hidden = true;
-    if (!run) start();
   });
   $('en-intro-hear').addEventListener('click', () => {
-    // A short example built mostly from the newly unlocked pattern.
+    // A short example built mostly from the newest pattern.
     const step = CURRICULUM[progress().stage];
     const newCells = step.cell ? [step.cell] : step.cells || [];
     const meter = step.timeSig || (newCells.some((c) => cellFitsMeter(c, '6/8')) ? '6/8' : '4/4');
     const cells = meter === '6/8' ? { c_dottedQuarter: 0.5 } : { quarter: 0.5 };
     for (const c of newCells) cells[c] = 3;
-    hear(generateFromCells({ cells, meter, pitches: pitches(), bars: 2 }), true);
+    hear(generateFromCells({ cells, meter, pitches: pitches(), bars: 2 }));
   });
 
-  window.addEventListener('resize', () => sheet?.render());
+  window.addEventListener('resize', () => {
+    for (const r of rows) r.sheet.render();
+    measureRows();
+    placeRows();
+  });
 
-  // -------------------------------------------------------------- display
+  // ------------------------------------------------------------ the bars
 
   function pitches() {
-    const r = d.recorder();
-    return rhythmPitches(r, String(state.rhythmNotes));
+    return rhythmPitches(d.recorder(), String(state.rhythmNotes));
   }
+
+  /** Make the next bar: a failed bar coming back if one is due, else a fresh one. */
+  function nextBar(prev) {
+    let choice;
+    if (run?.retryQueue.length) {
+      const failed = run.retryQueue.shift();
+      choice = { exercise: { ...failed.exercise, retry: true }, kind: 'retry', hint: true };
+    } else {
+      const lastPitch = prev ? soundingNotes(prev.exercise).at(-1)?.midi ?? null : null;
+      choice = chooseNext(progress(), null, pitches(), Math.random, { bars: 1, standalone: false, startPitch: lastPitch });
+    }
+    return { id: (prev?.id ?? -1) + 1, kind: choice.kind, hint: choice.hint, exercise: choice.exercise, meter: meterOf(choice.exercise) };
+  }
+
+  /** Rows all share one height, tall enough for the notes in use. */
+  function fixedHeight() {
+    const r = d.recorder();
+    const bottom = r.clef === 'bass' ? 18 : 30;
+    const ps = pitches().map((m) => diatonicStep(writtenMidi(r, m)) - bottom);
+    const hi = Math.max(8, ...ps);
+    const lo = Math.min(0, ...ps);
+    return { top: 34 + Math.max(0, (hi - 8) * 5 + (hi > 8 ? 6 : 0)), below: Math.max(0, (-lo - 2) * 5) };
+  }
+
+  function addRow(bar, prevBar) {
+    const el = document.createElement('div');
+    el.className = 'stream-row future';
+    el.innerHTML = '<div class="row-side"><span class="row-num"></span><span class="row-tag"></span><span class="row-score"></span></div><div class="row-sheet"></div>';
+    el.querySelector('.row-num').textContent = String(bar.id + 1);
+    $('en-track').append(el);
+    const sheet = new RhythmSheet(el.querySelector('.row-sheet'), bar.exercise, (m) => writtenMidi(d.recorder(), m), d.recorder().clef, {
+      showTimeSig: !prevBar || prevBar.meter.id !== bar.meter.id,
+      fixedHeight: fixedHeight(),
+    });
+    sheet.setCounting(state.alwaysCount || !!bar.hint);
+    if (bar.kind === 'retry') el.querySelector('.row-tag').textContent = 'again';
+    else if (bar.kind === 'review') el.querySelector('.row-tag').textContent = 'review';
+    const row = { bar, el, sheet };
+    rows.push(row);
+    bar.row = row;
+    // Keep the page light: forget rows well out of view.
+    while (rows.length > ROWS_BEHIND + 6) rows.shift().el.remove();
+    measureRows();
+    placeRows();
+    return row;
+  }
+
+  function measureRows() {
+    const first = rows[0]?.el;
+    if (first) rowHeight = first.offsetHeight + 6;
+    $('en-stream').style.height = `${Math.round(rowHeight * (ROWS_BEHIND + 2.45))}px`;
+  }
+
+  /** Position rows, and scroll so the current bar sits third from the top. */
+  function placeRows(currentId = run?.currentId ?? 0) {
+    const id = Math.max(0, currentId);
+    for (const r of rows) {
+      r.el.style.top = `${r.bar.id * rowHeight}px`;
+      const rel = r.bar.id - id;
+      r.el.className = `stream-row ${rel < 0 ? 'past' : rel === 0 ? 'current' : rel === 1 ? 'next' : 'future'}`;
+    }
+    const lastId = rows.at(-1)?.bar.id ?? 0;
+    $('en-placeholder').style.top = `${(lastId + 1) * rowHeight}px`;
+    $('en-placeholder').style.height = `${rowHeight - 6}px`;
+    $('en-track').style.transform = `translateY(${-Math.max(0, id - ROWS_BEHIND) * rowHeight}px)`;
+  }
+
+  function clearRows() {
+    for (const r of rows) r.el.remove();
+    rows = [];
+  }
+
+  /** Before starting: show the first bar and the one after it. */
+  function resetPreview() {
+    clearRows();
+    const b0 = nextBar(null);
+    const b1 = nextBar(b0);
+    preview = [b0, b1];
+    addRow(b0, null);
+    addRow(b1, b0);
+    placeRows(0);
+    renderBeats(b0.meter, null);
+  }
+
+  // -------------------------------------------------------------- display
 
   function renderStage() {
     const p = progress();
@@ -110,36 +197,10 @@ export function initEndlessView(d) {
     $('en-stage-label').textContent = p.stage === CURRICULUM.length - 1 ? `Stage ${p.stage + 1} of ${CURRICULUM.length} · all rhythms unlocked` : `Stage ${p.stage + 1} of ${CURRICULUM.length}`;
     $('en-stage-name').textContent = step.title;
     $('en-bpm').textContent = String(p.bpm);
-    $('en-streak').textContent = p.streak >= 2 ? `🔥 ${p.streak} in a row` : p.bestStreak ? `best streak ${p.bestStreak}` : '';
-    const pct = Math.round(unlockProgress(p) * 100);
-    $('en-progress-fill').style.width = `${pct}%`;
-    $('en-progress-label').textContent = p.stage < CURRICULUM.length - 1
-      ? `Next unlock: ${CURRICULUM[p.stage + 1].title}`
-      : 'Next: faster tempo';
+    $('en-streak').textContent = p.streak >= 2 ? `🔥 ${p.streak} bars in a row` : p.bestStreak ? `best streak ${p.bestStreak}` : '';
+    $('en-progress-fill').style.width = `${Math.round(unlockProgress(p, { window: WINDOW }) * 100)}%`;
+    $('en-progress-label').textContent = p.stage < CURRICULUM.length - 1 ? `Next unlock: ${CURRICULUM[p.stage + 1].title}` : 'Next: faster tempo';
     $('en-jump').value = String(p.stage);
-  }
-
-  function show(next) {
-    current = next;
-    sheet = new RhythmSheet($('en-sheet'), next.exercise, (m) => writtenMidi(d.recorder(), m), d.recorder().clef);
-    sheet.setCounting(state.alwaysCount || next.hint);
-    if (next.kind === 'retry' && last) {
-      sheet.setResults(last.statuses, last.offsets);
-      sheet.setBarLabels(barVerdicts(last.exercise, last.result));
-      sheet.setPlayed(last.played);
-    }
-    const label = {
-      new: 'Next rhythm',
-      retry: next.focus ? `Try that again — watch the ${cellTitle(next.focus)}` : 'Try that again',
-      review: 'Review: one you found tricky earlier',
-    }[next.kind];
-    $('en-meta').textContent = `${label} · ${meterOf(next.exercise).id}`;
-    $('en-meta').classList.toggle('retry', next.kind !== 'new');
-    if (!run) renderBeats(meterOf(next.exercise), null);
-  }
-
-  function newRhythm() {
-    show(chooseNext(progress(), null, pitches()));
   }
 
   /** The beat counter: one circle per click of the bar. */
@@ -161,29 +222,10 @@ export function initEndlessView(d) {
 
   function setBusy(busy) {
     $('en-start').hidden = busy;
-    $('en-hear').hidden = busy;
     $('en-stop').hidden = !busy;
     $('en-notes').disabled = busy;
     $('en-jump').disabled = busy;
-  }
-
-  function showFeedback(result, event, kind, verdicts) {
-    const chip = $('en-chip');
-    chip.textContent = String(result.overall);
-    chip.style.background = d.scoreColor(result.overall);
-    const bits = [`${result.grade.label} — ${result.onTime}/${result.total} on time`];
-    const m = result.meanErrorMs;
-    if (m != null && Math.abs(m) > 40) bits.push(m < 0 ? `rushing ${Math.round(-m)} ms` : `dragging ${Math.round(m)} ms`);
-    if (kind === 'retry' && result.overall >= 70) bits.push('nailed it this time!');
-    if (event?.type === 'tempo') bits.push(event.faster ? `speeding up to ${event.bpm} bpm` : `slowing to ${event.bpm} bpm`);
-    $('en-feedback-text').textContent = bits.join(' · ');
-    $('en-bars').replaceChildren(
-      ...verdicts.map((v, i) => Object.assign(document.createElement('span'), {
-        className: `en-bar ${v.level}`,
-        textContent: `Bar ${i + 1}: ${v.text}`,
-      })),
-    );
-    $('en-feedback').hidden = false;
+    $('en-intro-hear').hidden = busy;
   }
 
   /** The player's recurring problems, with a tip for each. */
@@ -200,13 +242,26 @@ export function initEndlessView(d) {
     );
   }
 
+  function showLatest(bar, result, verdict, event) {
+    const chip = $('en-chip');
+    chip.textContent = String(result.overall);
+    chip.style.background = d.scoreColor(result.overall);
+    const bits = [`Bar ${bar.id + 1}: ${verdict.text}`];
+    if (result.overall < PASS && !bar.exercise.retry) bits.push('it comes back in 2 bars');
+    if (bar.kind === 'retry' && result.overall >= PASS) bits.push('nailed it this time!');
+    if (event?.type === 'tempo') bits.push(event.faster ? `speeding up to ${event.bpm} bpm` : `slowing to ${event.bpm} bpm`);
+    $('en-feedback-text').textContent = bits.join(' · ');
+    $('en-feedback').hidden = false;
+  }
+
+  function showIntro(step) {
+    $('en-intro-title').textContent = step.title;
+    $('en-intro-text').textContent = step.text;
+    $('en-intro-count').textContent = step.count;
+    $('en-intro').hidden = false;
+  }
+
   // ------------------------------------------------------------- running
-  //
-  // The metronome never stops or skips: each rhythm is followed straight
-  // away by the count-in bar(s) of the next one, starting exactly on the
-  // next downbeat. To manage that, the next rhythm is picked a moment
-  // before the current one ends (from a provisional score), and the final
-  // score is worked out once the last note has had time to finish.
 
   async function start() {
     stopDemo();
@@ -218,43 +273,51 @@ export function initEndlessView(d) {
       d.showMicError($('en-error'), err);
       return;
     }
-    if (!session) session = { count: 0, total: 0, unlocked: [] };
+    session = { count: 0, total: 0, unlocked: [] };
     const ctx = d.listener.ctx;
     const latency = state.latencyMs != null ? state.latencyMs / 1000 : d.listener.estimatedLatency();
-    run = { ctx, latency, tracker: new OnsetTracker(), cycle: null, next: null };
-    run.cycle = makeCycle(current, ctx.currentTime + 0.3, readBars());
+    run = { ctx, latency, tracker: new OnsetTracker(), bars: [], currentId: -1, retryQueue: [] };
+    if (preview.length !== 2) resetPreview();
+    const [b0, b1] = preview;
+    preview = [];
+    // One count-in bar, then the bars follow each other with no gaps.
+    const beat = 60 / progress().bpm;
+    run.countStart = ctx.currentTime + 0.3;
+    scheduleBarClicks(ctx, b0.meter, run.countStart, beat, 1, 1);
+    schedule(b0, run.countStart + b0.meter.bpb * beat);
+    schedule(b1, b0.end);
+    placeRows(0);
     setBusy(true);
-    $('en-intro-hear').hidden = true;
-    $('en-continue').textContent = 'Got it';
+    $('en-transport').scrollIntoView({ behavior: 'smooth', block: 'start' });
     d.requestWakeLock();
     run.unsub = d.listener.onPitch(onFrame);
   }
 
-  const readBars = () => state.readBars || 1;
+  /** Fix a bar's place in time and schedule its clicks. */
+  function schedule(bar, startTime) {
+    const beat = 60 / progress().bpm;
+    bar.beat = beat;
+    bar.start = startTime;
+    bar.end = startTime + bar.meter.bpb * beat;
+    if (state.clickWhilePlaying) scheduleBarClicks(run.ctx, bar.meter, bar.start, beat, 1, 0.7);
+    const prev = run.bars.at(-1);
+    bar.windowStart = bar.start - 0.5 * beat;
+    run.bars.push(bar);
+    if (prev) setBoundary(prev, bar);
+  }
 
-  /** Schedule count-in bar(s) and the rhythm, starting at `countStart` (audio time). */
-  function makeCycle(choice, countStart, countBars, { countScheduled = false, beat = 60 / progress().bpm } = {}) {
-    const ex = choice.exercise;
-    const m = meterOf(ex);
-    const start = countStart + countBars * m.bpb * beat;
-    const end = start + ex.totalBeats * beat;
-    if (!countScheduled) scheduleBarClicks(run.ctx, m, countStart, beat, countBars, 1);
-    const playClicks = state.clickWhilePlaying ? scheduleBarClicks(run.ctx, m, start, beat, ex.bars, 0.7) : [];
-    return {
-      choice,
-      exercise: ex,
-      meter: m,
-      beat,
-      countStart,
-      countBars,
-      start,
-      end,
-      playClicks,
-      labels: Array(ex.bars).fill(null),
-      cleared: false,
-      queueAt: end - 0.25, // pick the next rhythm just before this one ends
-      decideAt: end + 0.3 + run.latency, // final score once the last note is done
-    };
+  /**
+   * Which played notes belong to which bar: the line between two bars sits
+   * halfway between the last note of one and the first note of the next,
+   * so a slightly early or late note still counts for the right bar.
+   */
+  function setBoundary(prev, next) {
+    const lastOnset = soundingNotes(prev.exercise).at(-1)?.beat ?? 0;
+    const firstNext = soundingNotes(next.exercise)[0]?.beat ?? next.meter.bpb;
+    const a = prev.start + lastOnset * prev.beat;
+    const b = next.start + firstNext * next.beat;
+    prev.windowEnd = Math.min((a + b) / 2, b - 0.03);
+    next.windowStart = prev.windowEnd;
   }
 
   function onFrame(reading) {
@@ -267,146 +330,78 @@ export function initEndlessView(d) {
     $('en-heard').textContent = midi != null ? `♪ ${d.writtenInfo(Math.round(midi)).name}` : tonal ? '♪' : '—';
     const now = reading.audioTime;
     const heard = now - (run.ctx.outputLatency || 0);
-    const cycle = run.cycle;
 
-    // The beat display follows the next rhythm once its count-in has begun.
-    const shown = run.next && heard >= (run.next.leadIn?.start ?? run.next.countStart) ? run.next : cycle;
-    const m = shown.meter;
-    const pos = (heard - shown.start) / shown.beat;
-    const lead = shown.leadIn;
-    if (pos < 0 && lead && heard < shown.countStart && heard >= lead.start) {
-      // A count-in bar already under way when this rhythm was swapped in.
-      renderBeats(lead.meter, clickIndex((heard - lead.start) / shown.beat, lead.meter), true);
-      setStatus('Read ahead…');
-      if (shown === cycle) sheet.setCursor(null);
-    } else if (pos < 0) {
-      const barsLeft = Math.ceil(-pos / m.bpb - 1e-9);
-      const idx = heard < shown.countStart ? -1 : clickIndex(pos, m);
-      renderBeats(m, idx, true);
-      const last = barsLeft === 1 && idx === clicksPerBar(m) - 1;
-      setStatus(heard < shown.countStart ? 'Get ready…' : last ? 'Breathe in… play!' : barsLeft > 1 ? 'Read ahead…' : `Read ahead… ${idx + 1}`);
-      if (shown === cycle) sheet.setCursor(null);
+    // Which bar is being played; scroll the score when it changes.
+    let cur = -1;
+    for (const b of run.bars) if (heard >= b.start) cur = b.id;
+    const first = run.bars[0];
+    if (cur === -1) {
+      const pos = (heard - first.start) / first.beat;
+      const idx = heard < run.countStart ? null : clickIndex(pos, first.meter);
+      renderBeats(first.meter, idx, true);
+      setStatus(idx === clicksPerBar(first.meter) - 1 ? 'Breathe in… play!' : 'Count-in…');
     } else {
-      renderBeats(m, clickIndex(pos, m));
-      if (shown === cycle) {
-        if (!cycle.cleared) {
-          sheet.clearResults();
-          cycle.cleared = true;
-        }
-        setStatus(pos < cycle.exercise.totalBeats ? 'Play!' : 'How did that go…');
-        if (state.showPlayhead) sheet.setCursor(Math.min(pos, cycle.exercise.totalBeats));
+      if (cur !== run.currentId) {
+        run.currentId = cur;
+        placeRows(cur);
+        setStatus('Keep going…');
       }
+      const bar = run.bars.find((b) => b.id === cur);
+      const pos = (heard - bar.start) / bar.beat;
+      renderBeats(bar.meter, clickIndex(pos, bar.meter));
+      for (const r of rows) r.sheet.setCursor(state.showPlayhead && r.bar === bar ? Math.min(pos, bar.meter.bpb) : null);
     }
 
-    // Judge each bar as soon as it's over, while the player carries on.
-    const ex = cycle.exercise;
-    for (let b = 0; b < ex.bars - 1; b++) {
-      if (cycle.labels[b]) continue;
-      if (now < cycle.start + (b + 1) * cycle.meter.bpb * cycle.beat + 0.25 + run.latency) break;
-      const ev = evaluate(cycle, now);
-      cycle.labels[b] = barVerdict(ex, ev.result, b);
-      sheet.setBarLabels(cycle.labels);
-      const done = ([idx]) => ex.events[idx].bar <= b;
-      sheet.setResults(new Map([...ev.statuses].filter(done)), new Map([...ev.offsets].filter(done)));
-      const strip = ev.played;
-      strip.upToBar = b;
-      sheet.setPlayed(strip);
+    // Score each bar once its last note has had time to finish, then line
+    // up the bar after next (the next one is already on screen).
+    for (const bar of run.bars) {
+      if (bar.scored) continue;
+      if (bar.windowEnd == null || now < Math.max(bar.end, bar.windowEnd) + 0.3 + run.latency) break;
+      scoreBar(bar, now);
+      if (!run) return;
+      const last = run.bars.at(-1);
+      const added = nextBar(last);
+      schedule(added, last.end);
+      addRow(added, last);
     }
-
-    if (!run.next && now >= cycle.queueAt) queueNext(now);
-    if (now >= cycle.decideAt) decide(now);
+    run.bars = run.bars.filter((b) => !b.scored || b.end > heard - 8);
+    tracker.notes = tracker.notes.filter((n) => n.end > now - 6);
   }
 
-  /**
-   * Score what has been played in a rhythm so far. A provisional score
-   * treats a note that's still sounding as lasting to the end.
-   */
-  function evaluate(cycle, now, provisional = false) {
-    const { tracker, latency } = run;
-    const ex = cycle.exercise;
-    const endSec = ex.totalBeats * cycle.beat;
-    const relS = (t) => t - latency - cycle.start;
-    const played = tracker
+  function scoreBar(bar, now) {
+    bar.scored = true;
+    const ex = bar.exercise;
+    const endSec = ex.totalBeats * bar.beat;
+    const lat = run.latency;
+    // Note times are as the mic heard them; remove the delay before comparing.
+    const played = run.tracker
       .snapshot(now)
-      .map((n) => ({ start: relS(n.start), end: provisional && n.open ? endSec : Math.min(relS(n.end), endSec + 0.2), midi: n.midi }))
-      .filter((n) => n.start >= -0.5 * cycle.beat && n.start < endSec);
-    const result = scoreRhythm(ex, played, 60 / cycle.beat, { checkPitch: checksPitch(state.rhythmNotes) });
-    return { result, ...resultMarks(ex, result), played: playedBeats(result, played, cycle.beat) };
-  }
+      .filter((n) => n.start - lat >= bar.windowStart && n.start - lat < bar.windowEnd)
+      .map((n) => ({ start: n.start - lat - bar.start, end: Math.min(n.end - lat - bar.start, endSec + 0.2), midi: n.midi }));
+    const result = scoreRhythm(ex, played, 60 / bar.beat, { checkPitch: checksPitch(state.rhythmNotes) });
+    const { statuses, offsets } = resultMarks(ex, result);
+    const verdict = barVerdict(ex, result, 0);
+    if (bar.row?.el.isConnected) {
+      bar.row.sheet.setResults(statuses, offsets);
+      bar.row.sheet.setBarLabels([verdict]);
+      const score = bar.row.el.querySelector('.row-score');
+      score.textContent = String(result.overall);
+      score.style.background = d.scoreColor(result.overall);
+    }
 
-  /** Pick the next rhythm and schedule it to start right on the next downbeat. */
-  function queueNext(now) {
-    const cycle = run.cycle;
-    const provisional = evaluate(cycle, now, true).result;
-    const choice = chooseNext(progress(), { exercise: cycle.exercise, result: provisional }, pitches());
-    run.next = makeCycle(choice, cycle.end, readBars());
-  }
-
-  function decide(now) {
-    const { cycle, tracker } = run;
-    const ex = cycle.exercise;
-    const { result, statuses, offsets, played } = evaluate(cycle, now);
-    tracker.notes = tracker.notes.filter((n) => n.end > now - 2); // keep the tracker small
-
-    const event = recordResult(progress(), ex, result);
+    // A failed bar comes back as the bar after next.
+    if (result.overall < PASS && !ex.retry) run.retryQueue.push({ exercise: ex });
+    const event = recordResult(progress(), ex, result, { window: WINDOW });
     d.save();
     session.count++;
     session.total += result.overall;
-    last = { exercise: ex, result, statuses, offsets, played };
-    showFeedback(result, event, cycle.choice.kind, barVerdicts(ex, result));
+    showLatest(bar, result, verdict, event);
     renderStage();
     renderIssues();
-    if (cycle.choice.introduced) $('en-intro').hidden = true;
-
-    let next = run.next || makeCycle(chooseNext(progress(), last, pitches()), cycle.end, readBars());
     if (event?.type === 'unlock') {
       session.unlocked.push(event.step.title);
-      next = introduce(next, event.step);
-    } else {
-      // The next rhythm was picked from a provisional score. If the final
-      // score disagrees about repeating this one, swap it.
-      const failed = result.overall < 70 && !ex.retry;
-      const isRetry = next.choice.kind === 'retry';
-      if (failed !== isRetry) next = swapQueued(next, chooseNext(progress(), last, pitches()));
+      showIntro(event.step);
     }
-    run.cycle = next;
-    run.next = null;
-    show(next.choice);
-  }
-
-  /**
-   * Replace a queued rhythm that hasn't started yet. Its count-in keeps
-   * going; if the time signature changes, one bar of count-in in the new
-   * time signature follows, so the beat carries straight on.
-   */
-  function swapQueued(queued, choice) {
-    for (const src of queued.playClicks) src.stop();
-    // A review taken off the list for the discarded rhythm goes back on it.
-    if (queued.choice.kind === 'review') progress().review.unshift({ exercise: queued.choice.exercise, due: progress().phrases });
-    const sameMeter = meterOf(choice.exercise).id === queued.meter.id;
-    const cycle = sameMeter
-      ? makeCycle(choice, queued.countStart, queued.countBars, { countScheduled: true, beat: queued.beat })
-      : makeCycle(choice, queued.start, 1, { beat: queued.beat });
-    if (!sameMeter) cycle.leadIn = { start: queued.countStart, meter: queued.meter };
-    return cycle;
-  }
-
-  /**
-   * A new pattern was just unlocked. Swap the queued rhythm for one that
-   * features it, adding a bar of count-in so there's time to read it; the
-   * count-in already under way carries on, so the beat never breaks.
-   */
-  function introduce(queued, step) {
-    for (const src of queued.playClicks) src.stop();
-    const choice = chooseNext(progress(), null, pitches());
-    choice.introduced = true;
-    $('en-intro-title').textContent = step.title;
-    $('en-intro-text').textContent = step.text;
-    $('en-intro-count').textContent = step.count;
-    $('en-intro').hidden = false;
-    const cycle = makeCycle(choice, queued.start, 1, { beat: queued.beat });
-    cycle.leadIn = { start: queued.countStart, meter: queued.meter };
-    return cycle;
   }
 
   function endRun() {
@@ -416,10 +411,7 @@ export function initEndlessView(d) {
     d.listener.stop(); // also silences any clicks still scheduled
     d.releaseWakeLock();
     setBusy(false);
-    $('en-intro-hear').hidden = false;
-    $('en-continue').textContent = 'Continue';
-    sheet?.setCursor(null);
-    renderBeats(meterOf(current.exercise), null);
+    for (const r of rows) r.sheet.setCursor(null);
     d.setLevel($('en-mic'), { rms: 0, gate: 0 });
     $('en-heard').textContent = '—';
   }
@@ -429,41 +421,27 @@ export function initEndlessView(d) {
     const wasRunning = !!run;
     endRun();
     if (byUser && wasRunning) {
-      setStatus('Stopped. Press Start to carry on.');
+      setStatus('Stopped. Press Start for a fresh run.');
       if (session?.count) {
         const avg = Math.round(session.total / session.count);
         const unlockedText = session.unlocked.length ? ` · unlocked: ${session.unlocked.join(', ')}` : '';
-        $('en-summary').textContent = `This session: ${session.count} rhythm${session.count === 1 ? '' : 's'} · average score ${avg}${unlockedText}`;
+        $('en-summary').textContent = `This run: ${session.count} bar${session.count === 1 ? '' : 's'} · average score ${avg}${unlockedText}`;
         $('en-summary').hidden = false;
       }
       session = null;
-      // Don't leave a half-finished retry hanging: offer a fresh rhythm next time.
-      if (current?.kind === 'retry') newRhythm();
     }
   }
 
   // ---------------------------------------------------------------- demo
 
-  function hear(exercise, isExample = false) {
+  function hear(exercise) {
     stopDemo();
-    const demoSheet = isExample ? null : sheet;
-    $('en-hear').disabled = true;
     $('en-intro-hear').disabled = true;
-    setStatus(isExample ? 'Listen to how it sounds…' : 'Listen and follow the music…');
-    demoStop = playDemo(exercise, progress().bpm, state.a4, (pos) => {
-      if (!demoSheet) return;
-      const m = meterOf(exercise);
-      if (pos < 0) {
-        renderBeats(m, pos < -m.bpb ? -1 : clickIndex(pos, m), true);
-        demoSheet.setCursor(null);
-      } else {
-        renderBeats(m, clickIndex(pos, m));
-        demoSheet.setCursor(Math.min(pos, exercise.totalBeats));
-      }
-    }, () => {
+    setStatus('Listen to how it sounds…');
+    demoStop = playDemo(exercise, progress().bpm, state.a4, () => {}, () => {
       demoStop = null;
-      finishDemo();
-      setStatus(isExample ? 'Press Continue when you’re ready.' : 'Press Start when you’re ready.');
+      $('en-intro-hear').disabled = false;
+      setStatus('Press Start when you’re ready.');
     });
   }
 
@@ -471,14 +449,7 @@ export function initEndlessView(d) {
     if (!demoStop) return;
     demoStop();
     demoStop = null;
-    finishDemo();
-  }
-
-  function finishDemo() {
-    $('en-hear').disabled = false;
     $('en-intro-hear').disabled = false;
-    sheet?.setCursor(null);
-    if (current) renderBeats(meterOf(current.exercise), null);
   }
 
   return {
@@ -486,15 +457,16 @@ export function initEndlessView(d) {
       $('en-playhead').checked = !!state.showPlayhead;
       renderStage();
       renderIssues();
-      if (!current) newRhythm();
-      else sheet.render();
-      if (!run) setStatus(`Press Start. You'll hear a bar of clicks, then play what you see. Tempo ${progress().bpm} bpm.`);
+      if (!run) {
+        resetPreview();
+        setStatus(`Press Start. After one bar of clicks, play each bar as it reaches the highlighted row. Tempo ${progress().bpm} bpm.`);
+      }
     },
     leave() {
       stop(true);
     },
     recorderChanged() {
-      if (!run && current) newRhythm();
+      if (!run) resetPreview();
     },
     get busy() {
       return !!run;
@@ -504,4 +476,3 @@ export function initEndlessView(d) {
     },
   };
 }
-
