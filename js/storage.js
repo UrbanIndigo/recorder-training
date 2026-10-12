@@ -18,6 +18,7 @@ const DEFAULTS = {
   alwaysCount: false,
   showPlayhead: false, // moving line and live note bars while playing rhythms
   endless: null, // endless-mode progress (see progression.js)
+  chords: null, // piano chord settings and stats (see chords-view.js)
   history: {}, // { [recorderId]: { [midi]: { best, attempts: [{ score, meanCents, date }] } } }
 };
 

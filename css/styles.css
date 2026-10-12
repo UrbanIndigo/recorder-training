@@ -416,3 +416,44 @@ body { overflow-anchor: none; } /* rows updating shouldn't make the page jump */
 .transport .beat-row.small span { width: 28px; height: 28px; font-size: 0.8rem; }
 .transport .rh-status { text-align: left; margin: 4px 0 0; font-size: 0.85rem; }
 #rh-endless .level-row { margin-top: 10px; }
+
+/* Piano chords */
+.ch-setup { display: flex; flex-wrap: wrap; gap: 12px 18px; margin: 8px 0 12px; }
+.ch-types { display: grid; gap: 10px; margin-top: 10px; }
+.settings fieldset { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px 10px; margin: 10px 0 0; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.settings legend { font-weight: 600; font-size: 0.85rem; color: var(--text-muted); padding: 0 4px; }
+.ch-inv { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.ch-prompt {
+  position: relative; text-align: center; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 18px 16px 12px; box-shadow: var(--shadow); margin-top: 12px;
+  transition: border-color 200ms, background 200ms;
+}
+.ch-prompt.solved { border-color: var(--good); background: color-mix(in srgb, var(--good) 8%, var(--surface)); }
+.ch-prompt.missed { border-color: var(--bad); }
+.ch-name { font-size: 2rem; font-weight: 800; line-height: 1.15; }
+.ch-inversion { font-size: 1.2rem; font-weight: 600; color: var(--accent); margin-top: 2px; }
+.ch-symbol { color: var(--text-muted); font-family: Georgia, "Times New Roman", serif; font-size: 1.05rem; margin-top: 4px; }
+.ch-tag { position: absolute; top: 10px; left: 12px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--warn); }
+.ch-about-box { margin-top: 8px; color: var(--text-muted); font-size: 0.9rem; }
+.ch-about-box summary { cursor: pointer; }
+.ch-about-box p { margin: 6px 0 0; }
+.ch-feedback { text-align: center; min-height: 1.5em; font-weight: 600; margin: 14px 0 4px; }
+.ch-feedback.good { color: var(--good); }
+.ch-feedback.bad { color: var(--bad); }
+.ch-feedback.warn { color: var(--warn); }
+.ch-heard-row { justify-content: center; }
+.ch-heard { min-width: 0; text-align: left; }
+.small-actions { margin-top: 8px; }
+.ch-answer { margin-top: 18px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+.ch-notes { text-align: center; margin: 8px 0 0; font-weight: 600; }
+.keyboard { display: block; max-width: 100%; }
+.keyboard .key.white { fill: #fdfdfb; stroke: #8a8f8c; stroke-width: 1; }
+.keyboard .key.black { fill: #1d2420; stroke: #1d2420; }
+.keyboard .key.on { fill: var(--trace); }
+.keyboard .key.bass { fill: var(--accent); }
+.keyboard .key-label { font: 700 10px system-ui, sans-serif; text-anchor: middle; fill: #fff; }
+.keyboard .key-c { font: 9px system-ui, sans-serif; text-anchor: middle; fill: #8a8f8c; }
+.ch-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.ch-table th { text-align: left; color: var(--text-muted); font-weight: 600; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.ch-table td { padding: 5px 0; border-bottom: 1px solid var(--border); }
+.ch-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; padding-left: 10px; }

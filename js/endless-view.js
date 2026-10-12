@@ -5,12 +5,12 @@
 // fail comes back two bars later (the bar right below you never changes).
 // New patterns unlock and the tempo adapts as you go.
 
-import { CURRICULUM, newProgress, migrateProgress, chooseNext, recordResult, unlockProgress, topIssues } from './progression.js?v=2.1';
-import { OnsetTracker, scoreRhythm, generateFromCells, barVerdict, resultMarks, meterOf, cellFitsMeter, soundingNotes } from './rhythm.js?v=2.1';
-import { RhythmSheet } from './notation.js?v=2.1';
-import { playDemo, scheduleBarClicks, clicksPerBar, clickIndex } from './rhythm-play.js?v=2.1';
-import { writtenMidi, rhythmPitches, checksPitch } from './recorders.js?v=2.1';
-import { diatonicStep } from './music.js?v=2.1';
+import { CURRICULUM, newProgress, migrateProgress, chooseNext, recordResult, unlockProgress, topIssues } from './progression.js?v=2.2';
+import { OnsetTracker, scoreRhythm, generateFromCells, barVerdict, resultMarks, meterOf, cellFitsMeter, soundingNotes } from './rhythm.js?v=2.2';
+import { RhythmSheet } from './notation.js?v=2.2';
+import { playDemo, scheduleBarClicks, clicksPerBar, clickIndex } from './rhythm-play.js?v=2.2';
+import { writtenMidi, rhythmPitches, checksPitch } from './recorders.js?v=2.2';
+import { diatonicStep } from './music.js?v=2.2';
 
 const PASS = 70; // bars scoring below this come back
 const WINDOW = 6; // bars that must go well before the next unlock

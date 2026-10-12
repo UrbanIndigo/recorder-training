@@ -80,6 +80,22 @@ With more than one note, wrong pitches are marked too. The music uses ledger lin
 
 **Timing calibration:** phones and Bluetooth headphones add a delay between the click and the mic. If you keep being told you're late, open *Timing calibration* and play 8 short notes on the clicks. The app measures the delay and allows for it.
 
+### Piano Chords
+Asks for a chord, like **G major, 1st inversion (G/B)**, and listens while you play it on the piano. It tells you when you've got it, or what's wrong: a missing note, an extra one, or the wrong inversion ("Right notes, wrong inversion: that's root position…"). Afterwards it shows the chord on a keyboard, with the bass note marked and the note names, and "Hear it" plays it.
+
+- **Chord types:**
+  - triads: major, minor, diminished, augmented
+  - suspended and added: sus2, sus4, 6, minor 6, add9
+  - sevenths: dominant 7, major 7, minor 7, half-diminished, diminished 7, minor-major 7, 7sus4
+  - ninths: 9, major 9, minor 9
+- **Inversions and roots:** every inversion, from all 12 roots, spelled properly (E♭ minor is E♭ G♭ B♭; G♯° rather than A♭°).
+- **What to practise:** pick a ready-made set (major triads → triad inversions → 7th chords → … → everything) or choose your own chord types, inversions and roots.
+- **Listening:**
+  - a **MIDI keyboard** is exact (Chrome or Edge on a computer, or Android; not iPhone)
+  - the **microphone** works anywhere: it hears all the notes at once, removes each note's overtones so they aren't mistaken for extra notes, and takes the lowest note as the bass
+  - "I got it" / "I missed it" buttons for when it can't tell
+- **Adapts:** missed chords come back two chords later, weaker chord types and inversions come up more often, and a table shows your accuracy and speed for each.
+
 ### Tuner
 Play anything and see the note, frequency and cents offset.
 
@@ -114,6 +130,9 @@ Code layout (`js/`):
 - `rhythm.js`: rhythm generation by level, note start/stop tracking, and timing scoring (no DOM code, unit tested)
 - `notation.js`: draws rhythm exercises as sheet music (beams, ties, triplets, rests, counting)
 - `calibration.js`: measures the click-to-mic delay
+- `chords.js`: chord types, spelling, inversions, checking, and which chord to practise next (no DOM code, unit tested)
+- `chord-detect.js`: hearing several notes at once from the mic (overtone removal), and MIDI keyboard input
+- `keyboard.js`, `chords-view.js`: the keyboard picture and the Piano Chords screen
 - `progression.js`: endless-mode curriculum, skill tracking, retries, review and tempo changes (no DOM code, unit tested)
 - `endless-view.js`: the Endless screen (scrolling score, one bar at a time)
 - `rhythm-view.js`: the Practice screen

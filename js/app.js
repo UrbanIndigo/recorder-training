@@ -1,16 +1,17 @@
 // UI controller: navigation, the long-tone exercise, results, and the tuner.
 
-import { RECORDERS, recorderNotes, writtenMidi, detectionRange } from './recorders.js?v=2.1';
-import { noteInfo, midiToFreq, freqToMidi, describeInterval } from './music.js?v=2.1';
-import { PitchListener, playReferenceTone } from './audio.js?v=2.1';
-import { PitchSmoother } from './pitch.js?v=2.1';
-import { LongToneSession, IN_TUNE_CENTS } from './longtone.js?v=2.1';
-import { staffSvg } from './staff.js?v=2.1';
-import { drawPitchChart } from './chart.js?v=2.1';
-import { loadState, saveState, recordAttempt, noteHistory } from './storage.js?v=2.1';
-import { initRhythmView } from './rhythm-view.js?v=2.1';
-import { initEndlessView } from './endless-view.js?v=2.1';
-import { initCalibration } from './calibration.js?v=2.1';
+import { RECORDERS, recorderNotes, writtenMidi, detectionRange } from './recorders.js?v=2.2';
+import { noteInfo, midiToFreq, freqToMidi, describeInterval } from './music.js?v=2.2';
+import { PitchListener, playReferenceTone } from './audio.js?v=2.2';
+import { PitchSmoother } from './pitch.js?v=2.2';
+import { LongToneSession, IN_TUNE_CENTS } from './longtone.js?v=2.2';
+import { staffSvg } from './staff.js?v=2.2';
+import { drawPitchChart } from './chart.js?v=2.2';
+import { loadState, saveState, recordAttempt, noteHistory } from './storage.js?v=2.2';
+import { initRhythmView } from './rhythm-view.js?v=2.2';
+import { initEndlessView } from './endless-view.js?v=2.2';
+import { initCalibration } from './calibration.js?v=2.2';
+import { initChordsView } from './chords-view.js?v=2.2';
 
 const $ = (id) => document.getElementById(id);
 const state = loadState();
@@ -26,12 +27,13 @@ const pitchToMidi = (freq) => freqToMidi(freq, state.a4);
 
 // ---------------------------------------------------------------- navigation
 
-const PARENT = { home: null, pick: 'home', run: 'pick', results: 'pick', tuner: 'home', rhythm: 'home' };
+const PARENT = { home: null, pick: 'home', run: 'pick', results: 'pick', tuner: 'home', rhythm: 'home', chords: 'home' };
 let currentView = 'home';
 
 function show(view) {
   if (currentView === 'run') stopExercise();
   if (currentView === 'tuner') stopTuner();
+  if (currentView === 'chords') chordsView.leave();
   if (currentView === 'rhythm') {
     rhythmView.leave();
     endlessView.leave();
@@ -44,6 +46,7 @@ function show(view) {
   if (view === 'pick') renderNoteGrid();
   if (view === 'tuner') startTuner();
   if (view === 'rhythm') showRhythmTab(state.rhythmTab);
+  if (view === 'chords') chordsView.enter();
 }
 
 $('back-btn').addEventListener('click', () => show(PARENT[currentView] || 'home'));
@@ -518,6 +521,14 @@ const calibration = initCalibration({
     rhythmView.leave();
     endlessView.leave();
   },
+});
+
+const chordsView = initChordsView({
+  $,
+  state,
+  save: () => saveState(state),
+  showMicError,
+  beforeListening: () => listener.stop(),
 });
 
 // Rhythm Reading has two tabs: Endless (adaptive) and Practice (pick a level).
