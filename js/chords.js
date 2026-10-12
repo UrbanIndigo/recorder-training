@@ -1,6 +1,6 @@
 // Chord theory for the piano chord trainer: chord types, correct spelling,
-// inversions, a voicing to show on the keyboard, checking what was played,
-// and choosing the next chord to practise. No DOM code.
+// inversions, a voicing to show on the keyboard, and choosing the next
+// chord to practise. No DOM code.
 
 const LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 const LETTER_PC = [0, 2, 4, 5, 7, 9, 11];
@@ -116,44 +116,6 @@ export function voicing(chord) {
     prev = m;
   }
   return notes;
-}
-
-/**
- * Compare what was played with the chord asked for. Any voicing and
- * doubling is fine; the lowest note decides the inversion.
- * @param {object} chord from makeChord
- * @param {number[]} played MIDI notes
- * @param {{allowExtra?: number}} [opts] extra notes to tolerate (for the mic, which can mishear one)
- */
-export function checkChord(chord, played, { allowExtra = 0 } = {}) {
-  if (!played.length) return { correct: false, empty: true, message: 'Nothing heard yet.' };
-  const playedPcs = new Set(played.map((m) => ((m % 12) + 12) % 12));
-  const optional = new Set((CHORD_TYPES[chord.type].optional || []).map((i) => chord.tones[i].pc));
-  const wanted = chord.tones.map((t) => t.pc);
-  const missing = chord.tones.filter((t) => !playedPcs.has(t.pc) && !optional.has(t.pc));
-  const extra = [...playedPcs].filter((pc) => !wanted.includes(pc));
-  const lowest = Math.min(...played);
-  const bassOk = ((lowest % 12) + 12) % 12 === chord.bass.pc;
-  const correct = !missing.length && extra.length <= allowExtra && bassOk;
-
-  const name = (pc) => chord.tones.find((t) => t.pc === pc)?.name ?? SHARP_NAMES[pc];
-  let message;
-  if (correct) message = `Yes! ${chord.symbol}`;
-  else if (missing.length && extra.length > allowExtra) message = `Not quite: missing ${missing.map((t) => t.name).join(', ')}; ${extra.map(name).join(', ')} shouldn't be there.`;
-  else if (missing.length) message = `Almost: missing ${missing.map((t) => t.name).join(', ')}.`;
-  else if (extra.length > allowExtra) message = `Right notes, plus ${extra.map(name).join(', ')} which isn't in the chord.`;
-  else {
-    const inv = chord.tones.findIndex((t) => t.pc === ((lowest % 12) + 12) % 12);
-    message = `Right notes, wrong inversion: that's ${INVERSION_NAMES[inv] ?? 'a different bass note'} (${name(((lowest % 12) + 12) % 12)} in the bass). ${chord.inversionName[0].toUpperCase()}${chord.inversionName.slice(1)} needs ${chord.bass.name} at the bottom.`;
-  }
-  return { correct, missing, extra, bassOk, lowest, message };
-}
-
-const SHARP_NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'B♭', 'B'];
-
-/** Name played MIDI notes (for "Hearing: …"), lowest first. */
-export function nameNotes(midis) {
-  return [...new Set(midis)].sort((a, b) => a - b).map((m) => SHARP_NAMES[((m % 12) + 12) % 12]);
 }
 
 // -------------------------------------------------------------- practice

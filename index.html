@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1f6f5c">
   <title>Recorder Trainer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="css/styles.css?v=2.2">
+  <link rel="stylesheet" href="css/styles.css?v=2.3">
 </head>
 <body>
   <header class="topbar">
@@ -36,7 +36,7 @@
         <button class="mode-card" data-goto="chords">
           <span class="mode-icon" aria-hidden="true">🎹</span>
           <span class="mode-title">Piano Chords</span>
-          <span class="mode-desc">Play the chord it asks for, like G major in 1st inversion or Dsus4. It listens through the mic or a MIDI keyboard and tells you if you got it.</span>
+          <span class="mode-desc">Play the chord it asks for, like G major in 1st inversion or Dsus4. Then reveal the answer, compare, and mark whether you got it.</span>
         </button>
         <button class="mode-card" data-goto="tuner">
           <span class="mode-icon" aria-hidden="true">🎯</span>
@@ -61,7 +61,7 @@
           <small>Turn it up if your playing isn't picked up, down if background noise is. The Mic bar shows the level: it turns green when it hears you, and the line marks the cut-off.</small>
         </div>
       </details>
-      <p class="hint version">Version 2.2</p>
+      <p class="hint version">Version 2.3</p>
     </section>
 
     <!-- Long tone: choose note -->
@@ -383,12 +383,6 @@
         <label class="rh-field">Practise
           <select id="ch-preset"></select>
         </label>
-        <label class="rh-field">Listen with
-          <select id="ch-input">
-            <option value="mic">Microphone</option>
-            <option value="midi">MIDI keyboard</option>
-          </select>
-        </label>
       </div>
       <details class="settings" id="ch-custom" hidden open>
         <summary>Choose chords</summary>
@@ -411,26 +405,30 @@
         <details class="ch-about-box"><summary>What's this chord?</summary><p id="ch-about"></p></details>
       </div>
 
-      <p class="ch-feedback" id="ch-feedback" aria-live="polite"></p>
-      <div class="level-row ch-heard-row"><span>Hearing</span><span class="heard-note ch-heard" id="ch-heard">—</span></div>
-      <p class="hint" id="ch-source"></p>
-
-      <div class="actions">
-        <button class="btn primary" id="ch-start">🎙 Start listening</button>
-        <button class="btn secondary" id="ch-stop" hidden>Stop listening</button>
-        <button class="btn secondary" id="ch-reveal">Show answer</button>
-        <button class="btn secondary" id="ch-next">Next chord →</button>
+      <div id="ch-before">
+        <p class="ch-step">Play it on the piano, then check yourself.</p>
+        <div class="actions">
+          <button class="btn primary big" id="ch-reveal">Show answer</button>
+        </div>
+        <div class="actions small-actions">
+          <button class="btn secondary small" id="ch-skip">Skip this chord</button>
+        </div>
       </div>
-      <div class="actions small-actions">
-        <button class="btn secondary small" id="ch-got">✓ I got it</button>
-        <button class="btn secondary small" id="ch-missed">✗ I missed it</button>
-        <button class="btn secondary small" id="ch-hear">🔊 Hear it</button>
-      </div>
-      <p class="error" id="ch-error" hidden></p>
 
-      <div class="ch-answer" id="ch-answer" hidden>
-        <div id="ch-keys"></div>
-        <p class="ch-notes" id="ch-notes"></p>
+      <div id="ch-after" hidden>
+        <div class="ch-answer" id="ch-answer" hidden>
+          <div id="ch-keys"></div>
+          <p class="ch-notes" id="ch-notes"></p>
+          <p class="ch-bass" id="ch-bass"></p>
+        </div>
+        <p class="ch-step">Did you play that? <span class="ch-time" id="ch-time"></span></p>
+        <div class="actions ch-mark">
+          <button class="btn good-btn" id="ch-got">✓ I got it</button>
+          <button class="btn bad-btn" id="ch-missed">✗ I didn't</button>
+        </div>
+        <div class="actions small-actions">
+          <button class="btn secondary small" id="ch-hear">🔊 Hear it</button>
+        </div>
       </div>
 
       <p class="en-summary" id="ch-session"></p>
@@ -439,7 +437,7 @@
         <table class="ch-table"><thead><tr><th>Chord</th><th class="num">Right</th><th class="num">Speed</th></tr></thead><tbody id="ch-stats-body"></tbody></table>
         <div class="actions left"><button class="btn secondary small" id="ch-reset">Clear chord stats</button></div>
       </div>
-      <p class="hint">The microphone listens for all the notes at once and the lowest one decides the inversion. Hold the chord for a moment. A MIDI keyboard is exact (Chrome or Edge on a computer, or Android; not iPhone). If it can't hear you properly, use "I got it" or "I missed it".</p>
+      <p class="hint">Any voicing counts: the bass (lowest) note decides the inversion, and the other notes can be in any order or octave. Chords you miss come back two chords later. Speed is how long you took before showing the answer. On a computer: Space shows the answer, then Y or → for got it, N or ← for didn't.</p>
     </section>
 
     <!-- Tuner -->
@@ -466,7 +464,7 @@
     <button class="btn primary small" id="load-error-reload">Reload</button>
   </p>
   <script>
-    window.APP_VERSION = '2.2';
+    window.APP_VERSION = '2.3';
     // If the app hasn't started after a few seconds, offer a fresh reload.
     setTimeout(function () {
       if (window.appReady) return;
@@ -477,6 +475,6 @@
       };
     }, 4000);
   </script>
-  <script type="module" src="js/app.js?v=2.2"></script>
+  <script type="module" src="js/app.js?v=2.3"></script>
 </body>
 </html>

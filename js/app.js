@@ -1,17 +1,17 @@
 // UI controller: navigation, the long-tone exercise, results, and the tuner.
 
-import { RECORDERS, recorderNotes, writtenMidi, detectionRange } from './recorders.js?v=2.2';
-import { noteInfo, midiToFreq, freqToMidi, describeInterval } from './music.js?v=2.2';
-import { PitchListener, playReferenceTone } from './audio.js?v=2.2';
-import { PitchSmoother } from './pitch.js?v=2.2';
-import { LongToneSession, IN_TUNE_CENTS } from './longtone.js?v=2.2';
-import { staffSvg } from './staff.js?v=2.2';
-import { drawPitchChart } from './chart.js?v=2.2';
-import { loadState, saveState, recordAttempt, noteHistory } from './storage.js?v=2.2';
-import { initRhythmView } from './rhythm-view.js?v=2.2';
-import { initEndlessView } from './endless-view.js?v=2.2';
-import { initCalibration } from './calibration.js?v=2.2';
-import { initChordsView } from './chords-view.js?v=2.2';
+import { RECORDERS, recorderNotes, writtenMidi, detectionRange } from './recorders.js?v=2.3';
+import { noteInfo, midiToFreq, freqToMidi, describeInterval } from './music.js?v=2.3';
+import { PitchListener, playReferenceTone } from './audio.js?v=2.3';
+import { PitchSmoother } from './pitch.js?v=2.3';
+import { LongToneSession, IN_TUNE_CENTS } from './longtone.js?v=2.3';
+import { staffSvg } from './staff.js?v=2.3';
+import { drawPitchChart } from './chart.js?v=2.3';
+import { loadState, saveState, recordAttempt, noteHistory } from './storage.js?v=2.3';
+import { initRhythmView } from './rhythm-view.js?v=2.3';
+import { initEndlessView } from './endless-view.js?v=2.3';
+import { initCalibration } from './calibration.js?v=2.3';
+import { initChordsView } from './chords-view.js?v=2.3';
 
 const $ = (id) => document.getElementById(id);
 const state = loadState();
@@ -523,13 +523,7 @@ const calibration = initCalibration({
   },
 });
 
-const chordsView = initChordsView({
-  $,
-  state,
-  save: () => saveState(state),
-  showMicError,
-  beforeListening: () => listener.stop(),
-});
+const chordsView = initChordsView({ $, state, save: () => saveState(state) });
 
 // Rhythm Reading has two tabs: Endless (adaptive) and Practice (pick a level).
 function showRhythmTab(tab) {

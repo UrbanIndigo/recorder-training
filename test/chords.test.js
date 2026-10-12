@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { makeChord, spellChord, voicing, checkChord, CHORD_TYPES, inversionsOf, nextChord, recordChord, newChordStats, ALL_ROOTS } from '../js/chords.js';
+import { makeChord, spellChord, voicing, CHORD_TYPES, inversionsOf, nextChord, recordChord, newChordStats, ALL_ROOTS } from '../js/chords.js';
 
 const names = (rootPc, type) => spellChord(rootPc, type).map((t) => t.name).join(' ');
 
@@ -35,26 +35,10 @@ test('inversions put the right note in the bass', () => {
       const v = voicing(c);
       assert.equal(v[0] % 12, c.bass.pc, `${type} ${inv}`);
       assert.ok(v.every((m, i) => i === 0 || m > v[i - 1]));
-      assert.equal(checkChord(c, v).correct, true, `${c.symbol} voicing should check as correct`);
+      // Every chord note is shown, and nothing else.
+      assert.deepEqual(new Set(v.map((m) => m % 12)), new Set(c.tones.map((t) => t.pc)), c.symbol);
     }
   }
-});
-
-test('checking says what is wrong', () => {
-  const g1 = makeChord(7, 'major', 1); // G/B
-  assert.equal(checkChord(g1, [59, 62, 67]).correct, true); // B D G
-  assert.equal(checkChord(g1, [47, 59, 62, 67, 71]).correct, true); // doubled, spread out
-  const rootPos = checkChord(g1, [55, 59, 62]); // G B D: root position
-  assert.equal(rootPos.correct, false);
-  assert.match(rootPos.message, /wrong inversion/);
-  assert.match(rootPos.message, /root position/);
-  const missing = checkChord(g1, [59, 67]);
-  assert.match(missing.message, /missing D/);
-  const extra = checkChord(g1, [59, 62, 65, 67]);
-  assert.match(extra.message, /F/);
-  assert.equal(checkChord(g1, [59, 62, 65, 67], { allowExtra: 1 }).correct, true);
-  // The 5th of a 9 chord may be left out.
-  assert.equal(checkChord(makeChord(7, 'dom9', 0), [43, 59, 65, 69]).correct, true); // G B F A
 });
 
 test('missed chords come back two chords later; weak ones come up more', () => {

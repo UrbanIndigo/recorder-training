@@ -428,8 +428,6 @@ body { overflow-anchor: none; } /* rows updating shouldn't make the page jump */
   border-radius: var(--radius); padding: 18px 16px 12px; box-shadow: var(--shadow); margin-top: 12px;
   transition: border-color 200ms, background 200ms;
 }
-.ch-prompt.solved { border-color: var(--good); background: color-mix(in srgb, var(--good) 8%, var(--surface)); }
-.ch-prompt.missed { border-color: var(--bad); }
 .ch-name { font-size: 2rem; font-weight: 800; line-height: 1.15; }
 .ch-inversion { font-size: 1.2rem; font-weight: 600; color: var(--accent); margin-top: 2px; }
 .ch-symbol { color: var(--text-muted); font-family: Georgia, "Times New Roman", serif; font-size: 1.05rem; margin-top: 4px; }
@@ -437,12 +435,6 @@ body { overflow-anchor: none; } /* rows updating shouldn't make the page jump */
 .ch-about-box { margin-top: 8px; color: var(--text-muted); font-size: 0.9rem; }
 .ch-about-box summary { cursor: pointer; }
 .ch-about-box p { margin: 6px 0 0; }
-.ch-feedback { text-align: center; min-height: 1.5em; font-weight: 600; margin: 14px 0 4px; }
-.ch-feedback.good { color: var(--good); }
-.ch-feedback.bad { color: var(--bad); }
-.ch-feedback.warn { color: var(--warn); }
-.ch-heard-row { justify-content: center; }
-.ch-heard { min-width: 0; text-align: left; }
 .small-actions { margin-top: 8px; }
 .ch-answer { margin-top: 18px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
 .ch-notes { text-align: center; margin: 8px 0 0; font-weight: 600; }
@@ -457,3 +449,13 @@ body { overflow-anchor: none; } /* rows updating shouldn't make the page jump */
 .ch-table th { text-align: left; color: var(--text-muted); font-weight: 600; padding: 4px 0; border-bottom: 1px solid var(--border); }
 .ch-table td { padding: 5px 0; border-bottom: 1px solid var(--border); }
 .ch-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; padding-left: 10px; }
+.ch-prompt { cursor: pointer; }
+.ch-prompt.revealed { cursor: default; border-color: var(--accent); }
+.ch-time { font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.ch-time:not(:empty)::before { content: "· took "; }
+.ch-step { text-align: center; color: var(--text-muted); margin: 16px 0 0; }
+.btn.big { font-size: 1.1rem; padding: 14px 32px; }
+.ch-bass { text-align: center; color: var(--text-muted); font-size: 0.88rem; margin: 4px 0 0; }
+.ch-mark .btn { flex: 1 1 140px; max-width: 220px; font-size: 1.05rem; padding: 13px 18px; }
+.btn.good-btn { background: var(--good); color: var(--accent-contrast); }
+.btn.bad-btn { background: var(--surface-2); color: var(--bad); border-color: var(--bad); }

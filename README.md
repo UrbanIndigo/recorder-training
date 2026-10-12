@@ -81,7 +81,7 @@ With more than one note, wrong pitches are marked too. The music uses ledger lin
 **Timing calibration:** phones and Bluetooth headphones add a delay between the click and the mic. If you keep being told you're late, open *Timing calibration* and play 8 short notes on the clicks. The app measures the delay and allows for it.
 
 ### Piano Chords
-Asks for a chord, like **G major, 1st inversion (G/B)**, and listens while you play it on the piano. It tells you when you've got it, or what's wrong: a missing note, an extra one, or the wrong inversion ("Right notes, wrong inversion: that's root position…"). Afterwards it shows the chord on a keyboard, with the bass note marked and the note names, and "Hear it" plays it.
+Asks for a chord, like **G major, 1st inversion (G/B)**. You play it on the piano, tap **Show answer** to compare (keyboard picture with the bass note marked, note names, and **Hear it** to listen), then mark yourself honestly: **I got it** or **I didn't**. Then straight on to the next chord.
 
 - **Chord types:**
   - triads: major, minor, diminished, augmented
@@ -90,11 +90,8 @@ Asks for a chord, like **G major, 1st inversion (G/B)**, and listens while you p
   - ninths: 9, major 9, minor 9
 - **Inversions and roots:** every inversion, from all 12 roots, spelled properly (E♭ minor is E♭ G♭ B♭; G♯° rather than A♭°).
 - **What to practise:** pick a ready-made set (major triads → triad inversions → 7th chords → … → everything) or choose your own chord types, inversions and roots.
-- **Listening:**
-  - a **MIDI keyboard** is exact (Chrome or Edge on a computer, or Android; not iPhone)
-  - the **microphone** works anywhere: it hears all the notes at once, removes each note's overtones so they aren't mistaken for extra notes, and takes the lowest note as the bass
-  - "I got it" / "I missed it" buttons for when it can't tell
-- **Adapts:** missed chords come back two chords later, weaker chord types and inversions come up more often, and a table shows your accuracy and speed for each.
+- **Adapts:** missed chords come back two chords later, and weaker chord types and inversions come up more often. A table shows your accuracy and speed (time until you revealed the answer) for each.
+- **On a computer:** Space shows the answer, then Y/→ for got it, N/← for didn't.
 
 ### Tuner
 Play anything and see the note, frequency and cents offset.
@@ -131,7 +128,6 @@ Code layout (`js/`):
 - `notation.js`: draws rhythm exercises as sheet music (beams, ties, triplets, rests, counting)
 - `calibration.js`: measures the click-to-mic delay
 - `chords.js`: chord types, spelling, inversions, checking, and which chord to practise next (no DOM code, unit tested)
-- `chord-detect.js`: hearing several notes at once from the mic (overtone removal), and MIDI keyboard input
 - `keyboard.js`, `chords-view.js`: the keyboard picture and the Piano Chords screen
 - `progression.js`: endless-mode curriculum, skill tracking, retries, review and tempo changes (no DOM code, unit tested)
 - `endless-view.js`: the Endless screen (scrolling score, one bar at a time)
