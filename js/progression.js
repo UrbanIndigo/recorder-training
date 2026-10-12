@@ -2,7 +2,7 @@
 // the player gets them right, retries and reviews of rhythms they found
 // hard, and tempo that rises once everything is unlocked. No DOM code.
 
-import { generateFromCells, cellFitsMeter } from './rhythm.js?v=1.8';
+import { generateFromCells, cellFitsMeter } from './rhythm.js?v=1.9';
 
 /** Each step unlocks one new rhythm pattern or time signature, in teaching order. */
 export const CURRICULUM = [
@@ -40,9 +40,20 @@ export const CURRICULUM = [
   { cell: 'c_dottedQuarterRest', title: '6/8: dotted quarter rests', text: 'A dotted quarter rest is a whole beat of silence in 6/8: three eighths’ worth.', count: '(1 2 3) 4 5 6' },
   { cell: 'c_sixteenths', title: '6/8: sixteenths', text: 'Two sixteenths then two eighths in one beat: "1 + 2 3". Keep the sixteenths light and quick.', count: '1 + 2 3' },
   { cell: 'c_siciliano', title: '6/8: siciliano rhythm', text: 'Dotted eighth, sixteenth, eighth: a lilting, rocking rhythm found in lots of baroque recorder music.', count: '1 (+) 2 3' },
+  { cells: ['tripletRestMiddle', 'tripletRestFirst'], title: 'Triplets with rests', text: 'A rest can take one third of a triplet. Keep the three even in your head — "1 trip let" — and leave the rest silent.', count: '1 (trip) let · (1) trip let' },
+  { cell: 'sixteenthTriplet', title: 'Sixteenth-note triplets', text: 'Three sixteenths squeezed into half a beat (marked 3), then an eighth. Quick and even: "1-trip-let +".', count: '1-trip-let +' },
+  { cell: 'quintuplet', title: 'Quintuplets', text: 'Five even notes in one beat, marked 5. Don’t count them — feel the beat and spread five notes evenly across it.', count: '1 · · · · | 2' },
+  { cell: 'c_duplet', title: '6/8: duplets', text: 'In 6/8, a "2" over two eighths means two even notes across the dotted-quarter beat — like a march slipping into the dance.', count: '1 (2) + (3)' },
+  { cell: 'thirtySeconds', title: 'Thirty-second notes', text: 'Three beams: four thirty-second notes fit in half a beat. Here an eighth is followed by a quick run of four. Tongue lightly ("tu-ku" if you double-tongue).', count: '1 + e + a' },
+  { cell: 'dottedSixteenth32', title: 'Dotted sixteenth + thirty-second', text: 'A sharp, French-overture snap: long–short twice in each beat. The short note is very quick, right before the next one.', count: '1 (e) + (a)' },
+  { cell: 'doubleDottedQuarter', title: 'Double-dotted quarter + sixteenth', text: 'Two dots add a half and then a quarter of the value: a double-dotted quarter lasts 1¾ beats, and the sixteenth slips in just before beat 3.', count: '1 (2 + a)' },
+  { cell: 'doubleDottedHalf', title: 'Double-dotted half + eighth', text: 'A double-dotted half lasts 3½ beats; the eighth fills the last half of beat 4.', count: '1 (2 3 4) +' },
+  { cells: ['dottedQuarterRestEighth', 'eighthRestQuarterEighth'], restStart: true, title: 'Coming in after a rest', text: 'Rests on the beat: count through the silence and come in on the "+". Rhythms can now start with a rest too.', count: '(1 2) + | (1) + (2) +' },
+  { cells: ['eighthSixteenthRestSixteenth', 'sixteenthRestEighth'], title: 'Sixteenth rests in the middle', text: 'A tiny gap inside the beat: stop the air for a sixteenth, then play the next note exactly on time.', count: '1 + (e) a · 1 e (+) +' },
+  { cell: 'dottedEighthRestSixteenth', title: 'Dotted eighth rest + sixteenth', text: 'Silent for three quarters of the beat, then one quick note on the "a" leading into the next beat.', count: '(1 e +) a' },
 ];
 
-const CURRICULUM_VERSION = 3;
+const CURRICULUM_VERSION = 4;
 
 /** Bring saved progress up to date with the current curriculum. */
 export function migrateProgress(progress) {
@@ -51,7 +62,7 @@ export function migrateProgress(progress) {
     if (progress.stage >= 5) progress.stage++;
     progress.version = 2;
   }
-  // Version 3 only added stages at the end.
+  // Versions 3 and 4 only added stages at the end.
   progress.version = CURRICULUM_VERSION;
   return progress;
 }
@@ -118,22 +129,25 @@ export function chooseNext(progress, last, pitches, random = Math.random) {
   // Pick the time signature. A newly unlocked one, or one a newly unlocked
   // pattern needs, is used straight away for a few rhythms.
   const fresh = sinceUnlock < 4;
+  const newCells = newest.cell ? [newest.cell] : newest.timeSig ? [] : newest.cells || [];
   let meter;
   if (newest.timeSig && fresh) meter = newest.timeSig;
-  else if (newest.cell && fresh) {
-    const fit = timeSigs.filter((m) => cellFitsMeter(newest.cell, m));
+  else if (newCells.length && fresh) {
+    const fit = timeSigs.filter((m) => newCells.some((c) => cellFitsMeter(c, m)));
     meter = fit.includes('4/4') && random() < 0.5 ? '4/4' : fit[Math.floor(random() * fit.length)];
   } else meter = random() < 0.4 ? '4/4' : timeSigs[Math.floor(random() * timeSigs.length)];
   meter ||= '4/4';
 
+  const allowRestStart = CURRICULUM.slice(0, progress.stage + 1).some((st) => st.restStart);
+
   // Make sure a just-unlocked pattern actually appears in its first rhythms.
-  const mustInclude = fresh && newest.cell && cellFitsMeter(newest.cell, meter) ? newest.cell : null;
+  const mustInclude = fresh ? newCells.filter((c) => cellFitsMeter(c, meter)) : [];
   let exercise;
   for (let attempt = 0; attempt < 40; attempt++) {
-    exercise = generateFromCells({ cells: weights, meter, pitches, bars: PHRASE_BARS, random });
-    if (!mustInclude || exercise.events.some((e) => e.cell === mustInclude)) break;
+    exercise = generateFromCells({ cells: weights, meter, pitches, bars: PHRASE_BARS, random, allowRestStart });
+    if (!mustInclude.length || exercise.events.some((e) => mustInclude.includes(e.cell))) break;
   }
-  const hint = newest.cell != null && sinceUnlock < 2 && exercise.events.some((e) => e.cell === newest.cell);
+  const hint = newCells.length > 0 && sinceUnlock < 2 && exercise.events.some((e) => newCells.includes(e.cell));
   return { exercise, kind: 'new', hint, focus: null };
 }
 

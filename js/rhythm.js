@@ -1,7 +1,7 @@
 // Rhythm reading: exercise generation, note-onset tracking from the mic,
 // and scoring of a performance against the written rhythm. No DOM code.
 
-import { gradeFor } from './longtone.js?v=1.8';
+import { gradeFor } from './longtone.js?v=1.9';
 
 // ------------------------------------------------------------------ levels
 
@@ -78,6 +78,34 @@ const CELLS = {
   c_dottedQuarterRest: { compound: true, len: 1.5, fits: dottedBeat, events: [{ beats: 1.5, rest: true, dotted: true }] },
   c_sixteenths: { compound: true, len: 1.5, fits: dottedBeat, events: [{ beats: 0.25, beam: true }, { beats: 0.25, beam: true }, { beats: 0.5, beam: true }, { beats: 0.5, beam: true }] },
   c_siciliano: { compound: true, len: 1.5, fits: dottedBeat, events: [{ beats: 0.75, dotted: true, beam: true }, { beats: 0.25, beam: true }, { beats: 0.5, beam: true }] },
+  // Two notes across a dotted-quarter beat, written as eighths marked "2".
+  c_duplet: { compound: true, len: 1.5, fits: dottedBeat, events: [0, 1].map(() => ({ beats: 0.75, written: 0.5, beam: true, tuplet: 2 })) },
+
+  // Tuplets. `written` is the note value printed; `beats` is how long it really lasts.
+  tripletRestMiddle: { len: 1, fits: anyBeat, events: [{ beats: 1 / 3, written: 0.5, tuplet: 3 }, { beats: 1 / 3, written: 0.5, tuplet: 3, rest: true }, { beats: 1 / 3, written: 0.5, tuplet: 3 }] },
+  tripletRestFirst: { len: 1, fits: anyBeat, events: [{ beats: 1 / 3, written: 0.5, tuplet: 3, rest: true }, { beats: 1 / 3, written: 0.5, tuplet: 3, beam: true }, { beats: 1 / 3, written: 0.5, tuplet: 3, beam: true }] },
+  sixteenthTriplet: {
+    len: 1,
+    fits: anyBeat,
+    events: [...[0, 1, 2].map(() => ({ beats: 1 / 6, written: 0.25, beam: true, tuplet: 3 })), { beats: 0.5, beam: true }],
+  },
+  quintuplet: { len: 1, fits: anyBeat, events: [0, 1, 2, 3, 4].map(() => ({ beats: 0.2, written: 0.25, beam: true, tuplet: 5 })) },
+  // Fast notes.
+  thirtySeconds: { len: 1, fits: anyBeat, events: [{ beats: 0.5, beam: true }, ...[0, 1, 2, 3].map(() => ({ beats: 0.125, beam: true }))] },
+  dottedSixteenth32: {
+    len: 1,
+    fits: anyBeat,
+    events: [0, 1].flatMap(() => [{ beats: 0.375, dotted: true, beam: true }, { beats: 0.125, beam: true }]),
+  },
+  // Double-dotted notes: two dots add half, then a quarter, of the value.
+  doubleDottedQuarter: { len: 2, fits: strongBeat, events: [{ beats: 1.75, dots: 2 }, { beats: 0.25 }] },
+  doubleDottedHalf: { len: 4, fits: (pos, bpb) => bpb === 4 && pos === 0, events: [{ beats: 3.5, dots: 2 }, { beats: 0.5 }] },
+  // More rests.
+  dottedQuarterRestEighth: { len: 2, fits: strongBeat, events: [{ beats: 1.5, rest: true, dotted: true }, { beats: 0.5 }] },
+  eighthRestQuarterEighth: { len: 2, fits: strongBeat, events: [{ beats: 0.5, rest: true }, { beats: 1 }, { beats: 0.5 }] },
+  eighthSixteenthRestSixteenth: { len: 1, fits: anyBeat, events: [{ beats: 0.5, beam: true }, { beats: 0.25, rest: true }, { beats: 0.25, beam: true }] },
+  sixteenthRestEighth: { len: 1, fits: anyBeat, events: [{ beats: 0.25, beam: true }, { beats: 0.25, rest: true }, { beats: 0.5, beam: true }] },
+  dottedEighthRestSixteenth: { len: 1, fits: anyBeat, events: [{ beats: 0.75, rest: true, dotted: true }, { beats: 0.25 }] },
 };
 
 const cellLen = (name, bpb) => (CELLS[name].len === 'bar' ? bpb : CELLS[name].len);
@@ -141,7 +169,26 @@ export const LEVELS = [
     id: 10,
     name: '6/8 time',
     timeSigs: ['6/8'],
-    cells: { c_dottedQuarter: 2, c_threeEighths: 3, c_quarterEighth: 3, c_eighthQuarter: 2, c_dottedHalf: 0.7, c_dottedQuarterRest: 1, c_sixteenths: 1.5, c_siciliano: 1.5 },
+    cells: { c_dottedQuarter: 2, c_threeEighths: 3, c_quarterEighth: 3, c_eighthQuarter: 2, c_dottedHalf: 0.7, c_dottedQuarterRest: 1, c_sixteenths: 1.5, c_siciliano: 1.5, c_duplet: 1 },
+  },
+  {
+    id: 11,
+    name: 'Tuplets',
+    timeSigs: ['4/4', '3/4', '2/4'],
+    cells: { quarter: 1, eighths: 1, triplet: 1.5, tripletRestMiddle: 2, tripletRestFirst: 2, sixteenthTriplet: 2, quintuplet: 1.5, quarterTriplet: 1 },
+  },
+  {
+    id: 12,
+    name: 'Fast notes & double dots',
+    timeSigs: ['4/4', '3/4', '2/4'],
+    cells: { quarter: 1, eighths: 1, sixteenths: 1, thirtySeconds: 2, dottedSixteenth32: 2, doubleDottedQuarter: 2, doubleDottedHalf: 1, dottedEighthSixteenth: 1 },
+  },
+  {
+    id: 13,
+    name: 'Rests everywhere',
+    timeSigs: ['4/4', '3/4', '2/4'],
+    restStart: true,
+    cells: { quarter: 1.5, quarterRest: 1.5, eighthRest: 1, restEighth: 1, dottedQuarterRestEighth: 2, eighthRestQuarterEighth: 2, eighthSixteenthRestSixteenth: 2, sixteenthRestEighth: 2, dottedEighthRestSixteenth: 2, sixteenthRestThree: 1 },
   },
 ];
 
@@ -156,7 +203,7 @@ export const LEVELS = [
 export function generateExercise({ level, pitches, bars = 4, random = Math.random }) {
   const lvl = LEVELS.find((l) => l.id === level) || LEVELS[0];
   const meter = lvl.timeSigs[Math.floor(random() * lvl.timeSigs.length)];
-  return { ...generateFromCells({ cells: lvl.cells, meter, pitches, bars, random }), level: lvl.id };
+  return { ...generateFromCells({ cells: lvl.cells, meter, pitches, bars, random, allowRestStart: !!lvl.restStart }), level: lvl.id };
 }
 
 /** The rhythm patterns ("cells") exercises are built from. */
@@ -169,7 +216,7 @@ export const CELL_NAMES = Object.keys(CELLS);
  * @param {number} o.beatsPerBar
  * @param {number[]} o.pitches sounding MIDI notes to use (stepwise order)
  */
-export function generateFromCells({ cells, meter: meterId = '4/4', pitches, bars = 4, random = Math.random }) {
+export function generateFromCells({ cells, meter: meterId = '4/4', pitches, bars = 4, random = Math.random, allowRestStart = false }) {
   const meter = METERS[meterId];
   const bpb = meter.bpb;
   // Only cells that belong to this kind of time signature.
@@ -187,7 +234,7 @@ export function generateFromCells({ cells, meter: meterId = '4/4', pitches, bars
       ok =
         (notes.length > 0 || events[0].barRest) &&
         // Start on a note so there's a clear entry...
-        (b > 0 || !events[0].rest || events[0].barRest) &&
+        (b > 0 || !events[0].rest || events[0].barRest || allowRestStart) &&
         // ...and end on a note of at least a beat.
         (b < bars - 1 || (!events.at(-1).rest && !events.at(-1).tied && lastBeats >= 1));
     }
@@ -213,7 +260,12 @@ export function generateFromCells({ cells, meter: meterId = '4/4', pitches, bars
         const beats = e.beats === 'bar' ? bpb : e.beats;
         const ev = { beat, beats, rest: !!e.rest, dotted: !!e.dotted, bar: barIndex, cell: name, cellId: group };
         if (e.beam) ev.beamGroup = group;
-        if (e.tuplet) ev.tuplet = e.tuplet;
+        if (e.tuplet) {
+          ev.tuplet = e.tuplet;
+          ev.tupletId = group;
+        }
+        if (e.written) ev.written = e.written;
+        if (e.dots) ev.dots = e.dots;
         if (e.tieNext) ev.tieNext = true;
         if (e.tied) ev.tied = true; // continues the previous note: same pitch, no new tongue
         if (e.barRest) ev.barRest = true;

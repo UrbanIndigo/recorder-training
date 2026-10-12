@@ -2,8 +2,8 @@
 // printed music (short notes closer together, long notes with more room),
 // so the layout doesn't give the timing away.
 
-import { diatonicStep } from './music.js?v=1.8';
-import { meterOf, soundingNotes } from './rhythm.js?v=1.8';
+import { diatonicStep } from './music.js?v=1.9';
+import { meterOf, soundingNotes } from './rhythm.js?v=1.9';
 
 const GAP = 10; // staff line spacing
 const STAFF_TOP = 34; // within each line block (room above for bar badges)
@@ -146,6 +146,7 @@ export class RhythmSheet {
   }
 
   drawNotes() {
+    this.beamTips = new Map();
     const ex = this.exercise;
     const p = [];
     const handled = new Set();
@@ -162,7 +163,7 @@ export class RhythmSheet {
           p.push(`<g class="rest" data-idx="${idx}"><rect class="rest-fill" x="${cx - 6}" y="${top + GAP}" width="12" height="${GAP / 2}"/></g>`);
         } else {
           const dot = e.dotted ? `<circle class="dot" cx="${pos.x + 9}" cy="${mid - GAP / 2}" r="1.9"/>` : '';
-          p.push(`<g class="rest" data-idx="${idx}">${restGlyph(e.dotted ? e.beats / 1.5 : e.beats, pos.x, mid)}${dot}</g>`);
+          p.push(`<g class="rest" data-idx="${idx}">${restGlyph(writtenValue(e), pos.x, mid)}${dot}</g>`);
         }
         return;
       }
@@ -185,38 +186,36 @@ export class RhythmSheet {
     const avgStep = heads.reduce((s, h) => s + h.step, 0) / heads.length;
     const up = avgStep < MIDDLE_STEP;
     const tip = up ? Math.min(...heads.map((h) => h.y)) - STEM : Math.max(...heads.map((h) => h.y)) + STEM;
+    this.beamTips.set(group[0].g.beamGroup, { up, tip });
     const stemX = (h) => (up ? h.x + 5.6 : h.x - 5.6);
     const parts = heads.map((h) => {
-      const dot = h.e.dotted ? dotGlyph(h.x, h.y, h.step) : '';
+      const dot = dotsGlyph(h.e, h.x, h.y, h.step);
       return `<g class="note" data-idx="${h.i}">${head(h.x, h.y, true)}${ledgers(h.x, h.step, bottom)}${dot}<line class="stem" x1="${stemX(h)}" x2="${stemX(h)}" y1="${h.y}" y2="${tip}"/></g>`;
     });
-    // Primary beam across the group.
     const beamY = (level) => (up ? tip + level * 7 : tip - 4.5 - level * 7);
     const beam = (x1, x2, level) => `<rect class="beam" x="${x1 - 0.7}" y="${beamY(level)}" width="${x2 - x1 + 1.4}" height="4.5"/>`;
+    // Primary beam across the group.
     parts.push(beam(stemX(heads[0]), stemX(heads.at(-1)), 0));
-    // Second beam for sixteenths: joined across neighbours, or a short stub.
-    const isSixteenth = (h) => !h.e.dotted && h.e.beats <= 0.25 + 1e-9;
-    for (let k = 0; k < heads.length; ) {
-      if (!isSixteenth(heads[k])) {
-        k++;
-        continue;
+    // Extra beams for sixteenths (2) and thirty-seconds (3): joined across
+    // neighbours, or a short stub pointing towards the note it pairs with.
+    const levels = heads.map((h) => beamCount(writtenValue(h.e)));
+    for (let level = 2; level <= 3; level++) {
+      for (let k = 0; k < heads.length; ) {
+        if (levels[k] < level) {
+          k++;
+          continue;
+        }
+        let j = k;
+        while (j + 1 < heads.length && levels[j + 1] >= level) j++;
+        if (j > k) parts.push(beam(stemX(heads[k]), stemX(heads[j]), level - 1));
+        else {
+          const x = stemX(heads[k]);
+          const v = writtenValue(heads[k].e);
+          const pairedLeft = k === heads.length - 1 || (heads[k].e.beat % (2 * v)) >= v - 1e-6;
+          parts.push(pairedLeft && k > 0 ? beam(x - 8, x, level - 1) : beam(x, x + 8, level - 1));
+        }
+        k = j + 1;
       }
-      let j = k;
-      while (j + 1 < heads.length && isSixteenth(heads[j + 1])) j++;
-      if (j > k) parts.push(beam(stemX(heads[k]), stemX(heads[j]), 1));
-      else {
-        const x = stemX(heads[k]);
-        parts.push(k === heads.length - 1 ? beam(x - 8, x, 1) : beam(x, x + 8, 1));
-      }
-      k = j + 1;
-    }
-    // Triplet number.
-    if (heads[0].e.tuplet) {
-      const cx = (stemX(heads[0]) + stemX(heads.at(-1))) / 2;
-      // Above the group either way: over the beam, or over the noteheads when
-      // stems point down (keeps it clear of the counting underneath).
-      const y = up ? tip - 5 : Math.min(...heads.map((h) => h.y)) - 9;
-      parts.push(`<text class="tuplet" x="${cx}" y="${y}">${heads[0].e.tuplet}</text>`);
     }
     return `<g class="beam-group">${parts.join('')}</g>`;
   }
@@ -237,23 +236,40 @@ export class RhythmSheet {
     return out.join('');
   }
 
-  /** "3" with a bracket over triplets that aren't joined by a beam. */
+  /**
+   * Tuplet numbers: over the beam for notes beamed together, or with a
+   * bracket when the group isn't one beam (unbeamed notes, or a rest inside).
+   */
   drawTupletBrackets() {
     const out = [];
     const groups = new Map();
     this.exercise.events.forEach((e, i) => {
-      if (!e.tuplet || e.beamGroup != null) return;
-      if (!groups.has(e.cellId)) groups.set(e.cellId, []);
-      groups.get(e.cellId).push(i);
+      if (!e.tuplet) return;
+      const key = e.tupletId ?? e.cellId;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(i);
     });
     for (const idxs of groups.values()) {
+      const evs = idxs.map((i) => this.exercise.events[i]);
       const first = this.positions.get(idxs[0]);
       const last = this.positions.get(idxs.at(-1));
       if (first.line !== last.line) continue;
-      const line = this.lines[first.line];
-      const y = line.top + STAFF_TOP - 8;
-      const x1 = first.x - 6, x2 = last.x + 8, mx = (x1 + x2) / 2;
-      out.push(`<path class="bracket" d="M${x1} ${y + 5} V${y} H${mx - 7} M${mx + 7} ${y} H${x2} V${y + 5}"/><text class="tuplet" x="${mx}" y="${y + 4}">3</text>`);
+      const n = evs[0].tuplet;
+      const xOf = (i) => this.positions.get(i).x ?? this.positions.get(i).slotX + 7;
+      const beamed = evs.every((e) => !e.rest && e.beamGroup != null && e.beamGroup === evs[0].beamGroup);
+      if (beamed) {
+        const { up, tip } = this.beamTips.get(evs[0].beamGroup);
+        const cx = (xOf(idxs[0]) + xOf(idxs.at(-1))) / 2 + (up ? 5.6 : -5.6);
+        // Over the beam, or over the noteheads when stems point down
+        // (keeps it clear of the counting underneath).
+        const y = up ? tip - 5 : Math.min(...idxs.map((i) => this.headY(i))) - 9;
+        out.push(`<text class="tuplet" x="${cx}" y="${y}">${n}</text>`);
+      } else {
+        const line = this.lines[first.line];
+        const y = line.top + STAFF_TOP - 8;
+        const x1 = xOf(idxs[0]) - 6, x2 = xOf(idxs.at(-1)) + 8, mx = (x1 + x2) / 2;
+        out.push(`<path class="bracket" d="M${x1} ${y + 5} V${y} H${mx - 7} M${mx + 7} ${y} H${x2} V${y + 5}"/><text class="tuplet" x="${mx}" y="${y + 4}">${n}</text>`);
+      }
     }
     return out.join('');
   }
@@ -323,6 +339,7 @@ export class RhythmSheet {
       const beatInBar = e.beat - e.bar * bpb;
       const text = meterOf(ex).compound ? compoundSyllable(beatInBar) : countSyllable(beatInBar);
       const x = pos.x ?? pos.slotX + pos.slotW / 2;
+      if (!text) return; // fast notes between the syllables aren't labelled
       if (e.tied) label(e.beat, x, pos.line, `(${text})`, 'hold');
       else label(e.beat, x, pos.line, e.barRest ? `(${Array.from({ length: bpb }, (_, k) => k + 1).join(' ')})` : text, e.rest ? 'rest' : 'start');
       // Counts held through by long notes (beats; eighths in 6/8).
@@ -467,16 +484,11 @@ function countSyllable(beatInBar) {
   if (near(0.75)) return 'a';
   if (near(1 / 3)) return 'trip';
   if (near(2 / 3)) return 'let';
-  return '·';
+  return '';
 }
 
 function head(x, y, filled) {
   return `<ellipse class="${filled ? 'head' : 'head hollow'}" cx="${x}" cy="${y}" rx="6.2" ry="4.5" transform="rotate(-20 ${x} ${y})"/>`;
-}
-
-function dotGlyph(x, y, step) {
-  const onLine = (step - 30) % 2 === 0;
-  return `<circle class="dot" cx="${x + 11}" cy="${onLine ? y - GAP / 2 : y}" r="1.9"/>`;
 }
 
 function ledgers(x, step, bottom) {
@@ -492,23 +504,51 @@ function ledgers(x, step, bottom) {
   return out.join('');
 }
 
+/** The note value as printed (tuplets and dots aside), in quarters. */
+function writtenValue(e) {
+  if (e.written) return e.written;
+  if (e.dots === 2) return e.beats / 1.75;
+  if (e.dotted) return e.beats / 1.5;
+  return e.beats;
+}
+
+/** Beams (or flags) for a written value: 1 for eighths, 2 sixteenths, 3 thirty-seconds. */
+function beamCount(v) {
+  if (v <= 0.125 + 1e-9) return 3;
+  if (v <= 0.25 + 1e-9) return 2;
+  return 1;
+}
+
 function noteGlyph(e, x, y, step, bottom) {
-  const base = e.dotted ? e.beats / 1.5 : e.beats; // undotted value
-  const filled = base <= 1;
+  const v = writtenValue(e);
+  const filled = v <= 1;
   const out = [head(x, y, filled), ledgers(x, step, bottom)];
-  if (base < 4) {
+  if (v < 4) {
     const up = step < MIDDLE_STEP;
     const sx = up ? x + 5.6 : x - 5.6;
     const tip = up ? y - STEM : y + STEM;
     out.push(`<line class="stem" x1="${sx}" x2="${sx}" y1="${y}" y2="${tip}"/>`);
-    if (base <= 0.5 + 1e-9) {
-      out.push(up
-        ? `<path class="flag" d="M${sx} ${tip} c1 6 8 9 7.5 17 c2.5 -7 -3 -11 -7.5 -12 z"/>`
-        : `<path class="flag" d="M${sx} ${tip} c1 -6 8 -9 7.5 -17 c2.5 7 -3 11 -7.5 12 z"/>`);
+    if (v <= 0.5 + 1e-9) {
+      for (let f = 0; f < beamCount(v); f++) {
+        const t = up ? tip + f * 7 : tip - f * 7;
+        out.push(up
+          ? `<path class="flag" d="M${sx} ${t} c1 6 8 9 7.5 17 c2.5 -7 -3 -11 -7.5 -12 z"/>`
+          : `<path class="flag" d="M${sx} ${t} c1 -6 8 -9 7.5 -17 c2.5 7 -3 11 -7.5 12 z"/>`);
+      }
     }
   }
-  if (e.dotted) out.push(dotGlyph(x, y, step));
+  out.push(dotsGlyph(e, x, y, step));
   return out.join('');
+}
+
+/** One dot, or two for double-dotted notes. */
+function dotsGlyph(e, x, y, step) {
+  const n = e.dots || (e.dotted ? 1 : 0);
+  const onLine = (step - 30) % 2 === 0;
+  const cy = onLine ? y - GAP / 2 : y;
+  let out = '';
+  for (let k = 0; k < n; k++) out += `<circle class="dot" cx="${x + 11 + k * 5}" cy="${cy}" r="1.9"/>`;
+  return out;
 }
 
 function restGlyph(beats, x, mid) {

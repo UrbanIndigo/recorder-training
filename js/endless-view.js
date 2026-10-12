@@ -3,11 +3,11 @@
 // to read the next. Hard rhythms are repeated with counting shown, new
 // patterns unlock as the player improves, and the tempo adapts.
 
-import { CURRICULUM, newProgress, migrateProgress, chooseNext, recordResult, unlockProgress, cellTitle, topIssues } from './progression.js?v=1.8';
-import { OnsetTracker, scoreRhythm, generateFromCells, barVerdict, barVerdicts, resultMarks, playedBeats, meterOf, cellFitsMeter } from './rhythm.js?v=1.8';
-import { RhythmSheet } from './notation.js?v=1.8';
-import { playDemo, scheduleBarClicks, clicksPerBar, clickIndex } from './rhythm-play.js?v=1.8';
-import { writtenMidi } from './recorders.js?v=1.8';
+import { CURRICULUM, newProgress, migrateProgress, chooseNext, recordResult, unlockProgress, cellTitle, topIssues } from './progression.js?v=1.9';
+import { OnsetTracker, scoreRhythm, generateFromCells, barVerdict, barVerdicts, resultMarks, playedBeats, meterOf, cellFitsMeter } from './rhythm.js?v=1.9';
+import { RhythmSheet } from './notation.js?v=1.9';
+import { playDemo, scheduleBarClicks, clicksPerBar, clickIndex } from './rhythm-play.js?v=1.9';
+import { writtenMidi } from './recorders.js?v=1.9';
 
 const NOTE_SETS = { 1: [11], 3: [7, 9, 11], 5: [7, 9, 11, 12, 14] };
 

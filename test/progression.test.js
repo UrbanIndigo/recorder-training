@@ -21,7 +21,7 @@ test('a perfect player unlocks every pattern, then the tempo rises', () => {
   const unlocks = [];
   let last = null;
   let tempoUps = 0;
-  for (let i = 0; i < 700; i++) {
+  for (let i = 0; i < 1000; i++) {
     const next = chooseNext(p, last, [83], rand);
     assert.equal(next.kind, 'new');
     const { cells, timeSigs } = unlocked(p);
@@ -134,12 +134,13 @@ test('saved progress from before whole-bar rests moves up a stage', async () => 
 test('a newly unlocked pattern appears in its first rhythms', () => {
   for (let stage = 1; stage < CURRICULUM.length; stage++) {
     const step = CURRICULUM[stage];
-    if (!step.cell) continue;
+    const newCells = step.cell ? [step.cell] : step.timeSig ? [] : step.cells || [];
+    if (!newCells.length) continue;
     const p = { ...newProgress(70), stage, stageStartedAt: 0 };
     const rand = seeded(stage);
     for (let k = 0; k < 3; k++) {
       const n = chooseNext(p, null, [83], rand);
-      assert.ok(n.exercise.events.some((e) => e.cell === step.cell), `${step.title} missing`);
+      assert.ok(n.exercise.events.some((e) => newCells.includes(e.cell)), `${step.title} missing`);
     }
   }
 });

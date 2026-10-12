@@ -22,14 +22,14 @@ test('generated bars always add up and follow the level rules', () => {
           assert.ok(e.beat + e.beats <= (b + 1) * ex.beatsPerBar + 1e-9);
         }
       }
-      assert.ok(!ex.events[0].rest || ex.events[0].barRest);
+      assert.ok(!ex.events[0].rest || ex.events[0].barRest || lvl.restStart);
       assert.equal(ex.events.at(-1).rest, false);
       // Tied notes continue the same pitch.
       ex.events.forEach((e, i) => { if (e.tied) assert.equal(e.midi, ex.events[i - 1].midi); });
       if (lvl.id === 1) assert.ok(ex.events.every((e) => !e.rest && e.beats >= 1));
       // Every note starts on the subdivision grid of its time signature.
       for (const e of ex.events) {
-        const grid = [0.25, 1 / 3].some((g) => Math.abs(e.beat / g - Math.round(e.beat / g)) < 1e-6);
+        const grid = [0.125, 1 / 6, 0.2].some((g) => Math.abs(e.beat / g - Math.round(e.beat / g)) < 1e-6);
         assert.ok(grid, `odd position ${e.beat}`);
       }
       if (ex.meter === '6/8') {
@@ -223,4 +223,28 @@ test('bar verdicts name what went wrong in each bar', async () => {
     .map((e) => ({ start: e.beat + (e.bar === 1 ? -0.09 : 0), end: e.beat + 0.9 + (e.bar === 1 ? -0.09 : 0), midi: 83 }));
   const v = barVerdicts(ex, scoreRhythm(ex, played, 60));
   assert.deepEqual(v.map((x) => x.text), ['Great', 'Early', 'Missed a note']);
+});
+
+test('fast notes (thirty-seconds, quintuplets) are tracked and scored', () => {
+  for (const level of [11, 12]) {
+    const ex = generateExercise({ level, pitches: [83], random: seeded(21 + level) });
+    const { played, intended } = perform(ex, 60, { gapMs: 25 });
+    assert.equal(played.length, intended.length, `level ${level}`);
+    const r = scoreRhythm(ex, played, 60);
+    assert.equal(r.missed, 0, `level ${level}`);
+    assert.ok(r.overall >= 85, `level ${level} score ${r.overall}`);
+  }
+});
+
+test('double-dotted and tuplet notes keep their real lengths', () => {
+  const ex = generateExercise({ level: 12, pitches: [83], random: seeded(5) });
+  for (const e of ex.events) {
+    if (e.dots === 2) assert.ok([1.75, 3.5].some((v) => Math.abs(e.beats - v) < 1e-9));
+  }
+  const t = generateExercise({ level: 11, pitches: [83], random: seeded(8) });
+  for (const id of new Set(t.events.filter((e) => e.tuplet).map((e) => e.tupletId))) {
+    const g = t.events.filter((e) => e.tupletId === id);
+    const total = g.reduce((a, e) => a + e.beats, 0);
+    assert.ok([0.5, 1, 2].some((v) => Math.abs(total - v) < 1e-9), `tuplet group lasts ${total}`);
+  }
 });

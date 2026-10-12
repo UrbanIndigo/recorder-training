@@ -27,13 +27,16 @@ You also get tips based on the result. Your best score on each note is saved in 
 ### Rhythm Reading — Endless
 Rhythm training that keeps going until you stop. The metronome never stops or skips a beat. Each 2-bar rhythm is followed straight away by a bar of count-in (or two, if you set a longer reading time) while you read the next one. Even when a new pattern unlocks, the beat carries on: you get an extra bar to read it and the explanation appears alongside.
 
-- **Levels up on its own.** You start with quarter notes. 34 stages unlock one at a time once you're consistently scoring well:
+- **Levels up on its own.** You start with quarter notes. 45 stages unlock one at a time once you're consistently scoring well:
   - **basics:** half notes, whole notes, quarter, half and whole-bar rests, dotted halves, 3/4
   - **eighths:** eighths, off-beat eighths, dotted quarter + eighth, 2/4, syncopation, eighth rests, ties
   - **sixteenths and triplets:** sixteenths, eighth + two sixteenths, two sixteenths + eighth, dotted eighth + sixteenth, triplets
   - **harder syncopation:** quarter–half–quarter, eighth + dotted quarter, tied syncopation, off-beat quarters
   - **sixteenth variations:** sixteenth–eighth–sixteenth, Scotch snap, eighth rest + two sixteenths, sixteenth rests, quarter-note triplets
-  - **6/8 time:** dotted quarters, three eighths, quarter + eighth, eighth + quarter, dotted-quarter rests, sixteenths, and the siciliano rhythm Each new rhythm gets a short explanation card with how to count it, and you can hear an example. Once everything is unlocked, the tempo creeps up instead.
+  - **6/8 time:** dotted quarters, three eighths, quarter + eighth, eighth + quarter, dotted-quarter rests, sixteenths, and the siciliano rhythm
+  - **tuplets:** triplets with rests, sixteenth-note triplets, quintuplets, 6/8 duplets
+  - **fast notes and double dots:** thirty-second notes, dotted sixteenth + thirty-second, double-dotted quarter + sixteenth, double-dotted half + eighth
+  - **more kinds of rest:** coming in after a rest (rhythms can now start with one), sixteenth rests mid-beat, dotted eighth rest + sixteenth Each new rhythm gets a short explanation card with how to count it, and you can hear an example. Once everything is unlocked, the tempo creeps up instead.
 - **Repeats what you get wrong.** Score under 70 and the same rhythm comes straight back, with the counting shown, your last attempt coloured on the notes, and the tricky pattern named. Miss it again and it goes into a review list that comes back a few rhythms later.
 - **Targets your weak spots.** It tracks how well you do on each rhythm pattern and gives you the hard ones more often. If you're struggling, it slows down.
 - **A verdict for every bar.** As each bar finishes you get "Great", "Early", "Late", "Too short", "Missed a note" or "Played in a rest" above it while you carry on, plus a bar-by-bar summary after each rhythm.
@@ -42,7 +45,7 @@ Rhythm training that keeps going until you stop. The metronome never stops or sk
 - Progress is saved. Options let you jump ahead a stage, always show counting, or start over.
 
 ### Rhythm Reading — Practice
-Pick a level and practise reading rhythms. You get a random 4-bar rhythm in sheet music, at one of ten levels:
+Pick a level and practise reading rhythms. You get a random 4-bar rhythm in sheet music, at one of thirteen levels:
 1. Whole, half & quarter notes
 2. Rests & 3/4 time
 3. Eighth notes
@@ -53,6 +56,9 @@ Pick a level and practise reading rhythms. You get a random 4-bar rhythm in shee
 8. Advanced syncopation
 9. Tricky sixteenths
 10. 6/8 time
+11. Tuplets
+12. Fast notes & double dots
+13. Rests everywhere
 
 Press **Hear it** to hear how it goes. Press **Play it** to hear a one-bar count-in and then play along with the metronome. Afterwards each note is coloured by timing: green is within ±60 ms, yellow is a bit off, red is off the beat, and grey means missed. ◂ / ▸ marks show which way off notes were. You also get:
 - how many notes were on time
