@@ -256,3 +256,20 @@ test('whole-range rhythms use notes from the full range, mostly by step', () => 
   assert.ok(notes.every((m) => m >= 72 && m <= 98));
   assert.ok(new Set(notes).size > 5);
 });
+
+test('detached but on-time playing is not marked too short', async () => {
+  const { barVerdict } = await import('../js/rhythm.js');
+  const bpm = 120, beat = 60 / bpm;
+  // Quarter notes sounding for only half their length, slightly off the beat.
+  const quarters = { beatsPerBar: 4, bars: 1, totalBeats: 4, events: [0, 1, 2, 3].map((b) => ({ beat: b, beats: 1, rest: false, midi: 83, bar: 0 })) };
+  const played = [0, 1, 2, 3].map((b, i) => ({ start: b * beat + [0.02, -0.03, 0.04, -0.01][i], end: b * beat + 0.5 * beat, midi: 83 }));
+  const r = scoreRhythm(quarters, played, bpm);
+  assert.equal(r.shortNotes, 0);
+  assert.ok(r.overall >= 95, `score ${r.overall}`);
+  assert.equal(barVerdict(quarters, r, 0).text, 'Great');
+  // A half note held for 70% is fine; for 30% it's too short.
+  const half = { beatsPerBar: 4, bars: 1, totalBeats: 4, events: [{ beat: 0, beats: 2, rest: false, midi: 83, bar: 0 }, { beat: 2, beats: 2, rest: false, midi: 83, bar: 0 }] };
+  const ok = scoreRhythm(half, [{ start: 0, end: 0.7 * 2 * beat, midi: 83 }, { start: 2 * beat, end: 2 * beat + 0.3 * 2 * beat, midi: 83 }], bpm);
+  assert.equal(ok.notes[0].short, false);
+  assert.equal(ok.notes[1].short, true);
+});

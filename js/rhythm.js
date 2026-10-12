@@ -1,7 +1,7 @@
 // Rhythm reading: exercise generation, note-onset tracking from the mic,
 // and scoring of a performance against the written rhythm. No DOM code.
 
-import { gradeFor } from './longtone.js?v=2.3';
+import { gradeFor } from './longtone.js?v=2.4';
 
 // ------------------------------------------------------------------ levels
 
@@ -518,6 +518,17 @@ function median(arr) {
 // ------------------------------------------------------------------ scoring
 
 export const ON_TIME_MS = 60;
+
+/**
+ * How much of a note's written length it must sound for: nothing for
+ * quarter notes and shorter (separating them is normal), about half for a
+ * dotted quarter, 60% for half notes and longer.
+ */
+function lengthNeeded(beats) {
+  if (beats <= 1 + 1e-9) return 0;
+  if (beats < 2) return 0.45;
+  return 0.6;
+}
 export const CLOSE_MS = 120;
 
 /**
@@ -556,10 +567,14 @@ export function scoreRhythm(exercise, played, bpm, { checkPitch = false } = {}) 
     const held = p.end - p.start;
     const lengthRatio = held / expectedDur;
 
-    const timingScore = clamp(1 - (Math.abs(errorMs) - 30) / 170, 0, 1);
-    const lengthScore = clamp(lengthRatio / 0.75, 0, 1);
+    // Full marks within 50 ms of the beat, fading to nothing at 250 ms.
+    const timingScore = clamp(1 - (Math.abs(errorMs) - 50) / 200, 0, 1);
+    // Detached (tongued, slightly separated) playing is fine: quarter notes
+    // and shorter don't need holding, longer notes about half their length.
+    const lengthNeed = lengthNeeded(beats);
+    const lengthScore = lengthNeed ? clamp(lengthRatio / lengthNeed, 0, 1) : 1;
     const wrongPitch = checkPitch && p.midi != null && Math.round(p.midi) !== e.midi;
-    let score = 0.7 * timingScore + 0.3 * lengthScore;
+    let score = 0.85 * timingScore + 0.15 * lengthScore;
     if (wrongPitch) score *= 0.5;
 
     const timing = Math.abs(errorMs) <= ON_TIME_MS ? 'good' : Math.abs(errorMs) <= CLOSE_MS ? 'close' : 'off';
@@ -569,7 +584,7 @@ export function scoreRhythm(exercise, played, bpm, { checkPitch = false } = {}) 
       status: timing,
       errorMs,
       lengthRatio,
-      short: lengthRatio < 0.7,
+      short: lengthNeed > 0 && lengthRatio < lengthNeed,
       wrongPitch,
       score,
     };

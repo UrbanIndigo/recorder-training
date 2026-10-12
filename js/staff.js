@@ -1,6 +1,6 @@
 // Draws a single written note on a five-line staff as inline SVG.
 
-import { noteInfo, diatonicStep } from './music.js?v=2.3';
+import { noteInfo, diatonicStep } from './music.js?v=2.4';
 
 // Diatonic step of the bottom staff line: E4 in treble clef, G2 in bass clef.
 const BOTTOM_LINE = { treble: 30, bass: 18 };
