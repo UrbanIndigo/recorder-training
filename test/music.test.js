@@ -34,3 +34,28 @@ test('interval descriptions', () => {
   assert.equal(describeInterval(-1), '1 semitone lower');
   assert.equal(describeInterval(12), 'an octave higher');
 });
+
+test('rhythm note sets cover the whole recorder range', async () => {
+  const { rhythmPitches, RECORDERS: R } = await import('../js/recorders.js');
+  const s = R.soprano;
+  assert.deepEqual(rhythmPitches(s, '3').map((m) => noteInfo(writtenMidi(s, m)).name), ['G', 'A', 'B']);
+  const octave = rhythmPitches(s, 'octave').map((m) => noteInfo(writtenMidi(s, m)).label);
+  assert.deepEqual(octave, ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5']);
+  const range = rhythmPitches(s, 'range');
+  assert.equal(range[0], s.lowest);
+  assert.equal(range.at(-1), s.highest);
+  assert.ok(range.every((m) => noteInfo(m).natural));
+  assert.equal(rhythmPitches(s, 'chromatic').length, 27);
+  // Alto (in F): its bottom octave of naturals starts on F.
+  const alto = rhythmPitches(R.alto, 'octave').map((m) => noteInfo(m).name);
+  assert.equal(alto[0], 'F');
+});
+
+test('accidentals follow the bar rules', async () => {
+  const { accidentalsFor } = await import('../js/notation.js');
+  // F, F#, F#, F (natural), | F#  (written pitches, C recorder at pitch)
+  const ev = (beat, midi, bar) => ({ beat, beats: 1, rest: false, midi, bar });
+  const ex = { events: [ev(0, 65, 0), ev(1, 66, 0), ev(2, 66, 0), ev(3, 65, 0), ev(4, 66, 1)] };
+  const acc = accidentalsFor(ex, (m) => m);
+  assert.deepEqual([...acc.entries()], [[1, '♯'], [3, '♮'], [4, '♯']]);
+});

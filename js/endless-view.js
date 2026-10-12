@@ -3,13 +3,12 @@
 // to read the next. Hard rhythms are repeated with counting shown, new
 // patterns unlock as the player improves, and the tempo adapts.
 
-import { CURRICULUM, newProgress, migrateProgress, chooseNext, recordResult, unlockProgress, cellTitle, topIssues } from './progression.js?v=1.9';
-import { OnsetTracker, scoreRhythm, generateFromCells, barVerdict, barVerdicts, resultMarks, playedBeats, meterOf, cellFitsMeter } from './rhythm.js?v=1.9';
-import { RhythmSheet } from './notation.js?v=1.9';
-import { playDemo, scheduleBarClicks, clicksPerBar, clickIndex } from './rhythm-play.js?v=1.9';
-import { writtenMidi } from './recorders.js?v=1.9';
+import { CURRICULUM, newProgress, migrateProgress, chooseNext, recordResult, unlockProgress, cellTitle, topIssues } from './progression.js?v=2.0';
+import { OnsetTracker, scoreRhythm, generateFromCells, barVerdict, barVerdicts, resultMarks, playedBeats, meterOf, cellFitsMeter } from './rhythm.js?v=2.0';
+import { RhythmSheet } from './notation.js?v=2.0';
+import { playDemo, scheduleBarClicks, clicksPerBar, clickIndex } from './rhythm-play.js?v=2.0';
+import { writtenMidi, rhythmPitches, checksPitch } from './recorders.js?v=2.0';
 
-const NOTE_SETS = { 1: [11], 3: [7, 9, 11], 5: [7, 9, 11, 12, 14] };
 
 export function initEndlessView(d) {
   const { $, state } = d;
@@ -28,7 +27,7 @@ export function initEndlessView(d) {
 
   $('en-notes').value = String(state.rhythmNotes);
   $('en-notes').addEventListener('change', (e) => {
-    state.rhythmNotes = Number(e.target.value);
+    state.rhythmNotes = e.target.value;
     d.save();
     if (!run) newRhythm();
   });
@@ -102,7 +101,7 @@ export function initEndlessView(d) {
 
   function pitches() {
     const r = d.recorder();
-    return NOTE_SETS[state.rhythmNotes].map((o) => r.lowest + o);
+    return rhythmPitches(r, String(state.rhythmNotes));
   }
 
   function renderStage() {
@@ -122,7 +121,7 @@ export function initEndlessView(d) {
 
   function show(next) {
     current = next;
-    sheet = new RhythmSheet($('en-sheet'), next.exercise, (m) => writtenMidi(d.recorder(), m));
+    sheet = new RhythmSheet($('en-sheet'), next.exercise, (m) => writtenMidi(d.recorder(), m), d.recorder().clef);
     sheet.setCounting(state.alwaysCount || next.hint);
     if (next.kind === 'retry' && last) {
       sheet.setResults(last.statuses, last.offsets);
@@ -331,7 +330,7 @@ export function initEndlessView(d) {
       .snapshot(now)
       .map((n) => ({ start: relS(n.start), end: provisional && n.open ? endSec : Math.min(relS(n.end), endSec + 0.2), midi: n.midi }))
       .filter((n) => n.start >= -0.5 * cycle.beat && n.start < endSec);
-    const result = scoreRhythm(ex, played, 60 / cycle.beat, { checkPitch: state.rhythmNotes > 1 });
+    const result = scoreRhythm(ex, played, 60 / cycle.beat, { checkPitch: checksPitch(state.rhythmNotes) });
     return { result, ...resultMarks(ex, result), played: playedBeats(result, played, cycle.beat) };
   }
 

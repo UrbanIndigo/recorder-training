@@ -66,7 +66,14 @@ Press **Hear it** to hear how it goes. Press **Play it** to hear a one-bar count
 - whether notes were held for their full length
 - missed and extra notes, including playing through a rest
 
-You can play on one note (B) or use 3 or 5 easy left-hand notes. With more than one note, wrong pitches are marked too. Tempo goes from 40 to 140 bpm.
+**Notes to play** (both Endless and Practice):
+- one note (B)
+- 3 or 5 easy left-hand notes
+- one octave
+- the whole range of your recorder in naturals
+- the whole range with sharps and flats
+
+With more than one note, wrong pitches are marked too. The music uses ledger lines for high and low notes, and sharps, flats and naturals that last to the end of the bar. Beams slope with the melody, and bass recorder reads in bass clef. Tempo goes from 40 to 140 bpm.
 
 **Timing calibration:** phones and Bluetooth headphones add a delay between the click and the mic. If you keep being told you're late, open *Timing calibration* and play 8 short notes on the clicks. The app measures the delay and allows for it.
 

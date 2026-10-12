@@ -1,7 +1,7 @@
 // Long-tone exercise: wait for the player to start, record pitch for a fixed
 // duration, then score it. No DOM code here, so it can be unit tested.
 
-import { noteInfo, describeInterval } from './music.js?v=1.9';
+import { noteInfo, describeInterval } from './music.js?v=2.0';
 
 /** Pitch readings in the first moment of a note are unsettled; skip them when judging tuning. */
 export const SETTLE_SECONDS = 0.3;

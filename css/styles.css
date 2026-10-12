@@ -381,3 +381,5 @@ h3 { margin: 28px 0 8px; font-size: 1.05rem; }
 .sheet .strip-played.s-good { fill: var(--good); }
 .sheet .strip-played.s-close { fill: var(--warn); }
 .sheet .strip-played.s-off, .sheet .strip-played.s-wrong { fill: var(--bad); }
+.sheet .accidental { font: 18px "Noto Music", "Segoe UI Symbol", "Apple Symbols", serif; fill: currentColor; text-anchor: middle; }
+.sheet .clef-bass { fill: var(--text); }

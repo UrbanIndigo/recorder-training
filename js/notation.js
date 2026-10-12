@@ -2,13 +2,13 @@
 // printed music (short notes closer together, long notes with more room),
 // so the layout doesn't give the timing away.
 
-import { diatonicStep } from './music.js?v=1.9';
-import { meterOf, soundingNotes } from './rhythm.js?v=1.9';
+import { diatonicStep, noteInfo } from './music.js?v=2.0';
+import { meterOf, soundingNotes } from './rhythm.js?v=2.0';
 
 const GAP = 10; // staff line spacing
-const STAFF_TOP = 34; // within each line block (room above for bar badges)
+const STAFF_TOP = 34; // within each line block (room above for bar badges); more for high notes
 const STEM = 3.3 * GAP;
-const MIDDLE_STEP = 34; // B4, the middle line of the treble staff
+const MIDDLE = 4; // staff position of the middle line (0 = bottom line)
 const PREFIX_FIRST = 62; // clef + time signature
 const PREFIX = 40; // clef
 const RIGHT = 8;
@@ -23,11 +23,14 @@ export class RhythmSheet {
    * @param {HTMLElement} container
    * @param {object} exercise from generateExercise
    * @param {(soundingMidi: number) => number} toWritten
+   * @param {'treble'|'bass'} [clef]
    */
-  constructor(container, exercise, toWritten) {
+  constructor(container, exercise, toWritten, clef = 'treble') {
     this.container = container;
     this.exercise = exercise;
     this.toWritten = toWritten;
+    this.clef = clef;
+    this.bottomStep = clef === 'bass' ? 18 : 30; // G2 or E4 on the bottom line
     this.statuses = null;
     this.offsets = null;
     this.barLabels = null;
@@ -37,13 +40,25 @@ export class RhythmSheet {
 
   // ------------------------------------------------------------- layout
 
+  /** Staff position of a note: 0 = bottom line, 4 = middle line, 8 = top line. */
+  staffPos(midi) {
+    return diatonicStep(this.toWritten(midi)) - this.bottomStep;
+  }
+
   layout(width) {
     const ex = this.exercise;
+    // Make room above the staff for high notes (stems down, ledger lines).
+    const positions = ex.events.filter((e) => !e.rest).map((e) => this.staffPos(e.midi));
+    const highest = Math.max(8, ...positions);
+    this.staffTop = STAFF_TOP + Math.max(0, (highest - 8) * (GAP / 2) + (highest > 8 ? 6 : 0));
+    const lowest = Math.min(0, ...positions);
+    this.belowExtra = Math.max(0, (-lowest - 2) * (GAP / 2));
+    this.accidentals = accidentalsFor(ex, this.toWritten);
     const bars = [];
     for (let b = 0; b < ex.bars; b++) {
       const events = ex.events.map((e, i) => ({ e, i })).filter(({ e }) => e.bar === b);
       // Triplet notes get a little extra room for their "trip let" counting.
-      const widths = events.map(({ e }) => (e.barRest ? naturalWidth(2) : naturalWidth(e.beats) + (e.tuplet ? 5 : 0)));
+      const widths = events.map(({ e, i }) => (e.barRest ? naturalWidth(2) : naturalWidth(e.beats) + (e.tuplet ? 5 : 0) + (this.accidentals.has(i) ? 9 : 0)));
       bars.push({ index: b, events, widths, natural: widths.reduce((a, c) => a + c, 0) + 8 });
     }
     // Fill lines with as many bars as fit (squeezing up to 15% if needed).
@@ -65,7 +80,7 @@ export class RhythmSheet {
     // Place everything, stretching each line to the full width.
     this.positions = new Map(); // event index -> { x, line }
     // Extra room under the staff for counting and for the "what you played" strip.
-    this.lineHeight = 112 + (this.counting ? 18 : 0) + (this.played ? 26 : 0);
+    this.lineHeight = this.staffTop + 78 + this.belowExtra + (this.counting ? 18 : 0) + (this.played ? 26 : 0);
     lines.forEach((line, li) => {
       line.top = li * this.lineHeight;
       const scale = (width - line.prefix - RIGHT) / line.natural;
@@ -76,7 +91,7 @@ export class RhythmSheet {
         x += 8 * scale; // space after the bar line
         bar.events.forEach(({ e, i }, k) => {
           const w = bar.widths[k] * scale;
-          const headX = e.barRest ? null : x + 7;
+          const headX = e.barRest ? null : x + 7 + (this.accidentals.has(i) ? 8 : 0);
           this.positions.set(i, { x: headX, slotX: x, slotW: w, line: li });
           line.anchors.push([e.beat, x + 7]);
           x += w;
@@ -115,12 +130,14 @@ export class RhythmSheet {
 
   drawLine(line, first) {
     const p = [];
-    const top = line.top + STAFF_TOP;
+    const top = line.top + this.staffTop;
     const xEnd = line.bars.at(-1).endX;
     for (let k = 0; k < 5; k++) {
       p.push(`<line class="staff-line" x1="4" x2="${xEnd}" y1="${top + k * GAP}" y2="${top + k * GAP}"/>`);
     }
-    p.push(`<text class="clef clef-treble" x="6" y="${top + GAP * 3.35}" style="font-size:52px">𝄞</text>`);
+    p.push(this.clef === 'bass'
+      ? `<text class="clef clef-bass" x="8" y="${top + GAP * 2.1}" style="font-size:34px">𝄢</text>`
+      : `<text class="clef clef-treble" x="6" y="${top + GAP * 3.35}" style="font-size:52px">𝄞</text>`);
     if (first) {
       const m = meterOf(this.exercise);
       p.push(`<text class="timesig" x="46" y="${top + GAP * 1.85}">${m.num}</text>`);
@@ -141,8 +158,8 @@ export class RhythmSheet {
   headY(i) {
     const e = this.exercise.events[i];
     const line = this.lines[this.positions.get(i).line];
-    const bottom = line.top + STAFF_TOP + 4 * GAP;
-    return bottom - (diatonicStep(this.toWritten(e.midi)) - 30) * (GAP / 2);
+    const bottom = line.top + this.staffTop + 4 * GAP;
+    return bottom - (this.staffPos(e.midi)) * (GAP / 2);
   }
 
   drawNotes() {
@@ -154,7 +171,7 @@ export class RhythmSheet {
       if (handled.has(idx)) return;
       const pos = this.positions.get(idx);
       const line = this.lines[pos.line];
-      const top = line.top + STAFF_TOP;
+      const top = line.top + this.staffTop;
       const mid = top + 2 * GAP;
       if (e.rest) {
         if (e.barRest) {
@@ -173,27 +190,47 @@ export class RhythmSheet {
         p.push(this.drawBeamGroup(group, top + 4 * GAP));
         return;
       }
-      const step = diatonicStep(this.toWritten(e.midi));
-      p.push(`<g class="note" data-idx="${idx}">${noteGlyph(e, pos.x, this.headY(idx), step, top + 4 * GAP)}</g>`);
+      const step = this.staffPos(e.midi);
+      p.push(`<g class="note" data-idx="${idx}">${this.accGlyph(idx, pos.x, this.headY(idx))}${noteGlyph(e, pos.x, this.headY(idx), step, top + 4 * GAP)}</g>`);
     });
     p.push(this.drawTies());
     p.push(this.drawTupletBrackets());
     return p.join('');
   }
 
+  accGlyph(idx, x, y) {
+    const a = this.accidentals.get(idx);
+    return a ? `<text class="accidental" x="${x - 15}" y="${y + 5}">${a}</text>` : '';
+  }
+
   drawBeamGroup(group, bottom) {
-    const heads = group.map(({ g, i }) => ({ i, e: g, step: diatonicStep(this.toWritten(g.midi)), x: this.positions.get(i).x, y: this.headY(i) }));
+    const heads = group.map(({ g, i }) => ({ i, e: g, step: this.staffPos(g.midi), x: this.positions.get(i).x, y: this.headY(i) }));
     const avgStep = heads.reduce((s, h) => s + h.step, 0) / heads.length;
-    const up = avgStep < MIDDLE_STEP;
-    const tip = up ? Math.min(...heads.map((h) => h.y)) - STEM : Math.max(...heads.map((h) => h.y)) + STEM;
-    this.beamTips.set(group[0].g.beamGroup, { up, tip });
+    const up = avgStep < MIDDLE;
     const stemX = (h) => (up ? h.x + 5.6 : h.x - 5.6);
+    // The beam slopes gently with the melody (at most a staff space), and
+    // sits so that every stem is at least a normal length.
+    const first = heads[0], last = heads.at(-1);
+    const dx = stemX(last) - stemX(first) || 1;
+    const rise = Math.max(-GAP, Math.min(GAP, last.y - first.y));
+    const slope = heads.length > 1 ? rise / dx : 0;
+    const along = (h) => slope * (stemX(h) - stemX(first));
+    const offset = up
+      ? Math.min(...heads.map((h) => h.y - STEM - along(h)))
+      : Math.max(...heads.map((h) => h.y + STEM - along(h)));
+    const tipAt = (x) => offset + slope * (x - stemX(first));
+    this.beamTips.set(group[0].g.beamGroup, { up, tip: up ? Math.min(...heads.map((h) => tipAt(stemX(h)))) : Math.max(...heads.map((h) => tipAt(stemX(h)))) });
     const parts = heads.map((h) => {
       const dot = dotsGlyph(h.e, h.x, h.y, h.step);
-      return `<g class="note" data-idx="${h.i}">${head(h.x, h.y, true)}${ledgers(h.x, h.step, bottom)}${dot}<line class="stem" x1="${stemX(h)}" x2="${stemX(h)}" y1="${h.y}" y2="${tip}"/></g>`;
+      return `<g class="note" data-idx="${h.i}">${this.accGlyph(h.i, h.x, h.y)}${head(h.x, h.y, true)}${ledgers(h.x, h.step, bottom)}${dot}<line class="stem" x1="${stemX(h)}" x2="${stemX(h)}" y1="${h.y}" y2="${tipAt(stemX(h))}"/></g>`;
     });
-    const beamY = (level) => (up ? tip + level * 7 : tip - 4.5 - level * 7);
-    const beam = (x1, x2, level) => `<rect class="beam" x="${x1 - 0.7}" y="${beamY(level)}" width="${x2 - x1 + 1.4}" height="4.5"/>`;
+    // A beam is a sloped band; extra levels stack towards the noteheads.
+    const beam = (x1, x2, level) => {
+      const shift = up ? level * 7 : -level * 7 - 4.5;
+      const a = x1 - 0.7, b = x2 + 0.7;
+      const ya = tipAt(a) + shift, yb = tipAt(b) + shift;
+      return `<polygon class="beam" points="${a},${ya} ${b},${yb} ${b},${yb + 4.5} ${a},${ya + 4.5}"/>`;
+    };
     // Primary beam across the group.
     parts.push(beam(stemX(heads[0]), stemX(heads.at(-1)), 0));
     // Extra beams for sixteenths (2) and thirty-seconds (3): joined across
@@ -228,7 +265,7 @@ export class RhythmSheet {
       const b = this.positions.get(i + 1);
       if (!b || a.line !== b.line) return;
       const y = this.headY(i);
-      const below = diatonicStep(this.toWritten(e.midi)) < MIDDLE_STEP; // stems up, so tie underneath
+      const below = this.staffPos(e.midi) < MIDDLE; // stems up, so tie underneath
       const dy = below ? 1 : -1;
       const x1 = a.x + 5, x2 = b.x - 5, mx = (x1 + x2) / 2;
       out.push(`<path class="tie" data-idx="${i}" d="M${x1} ${y + dy * 6} Q${mx} ${y + dy * 14} ${x2} ${y + dy * 6} Q${mx} ${y + dy * 11} ${x1} ${y + dy * 6} Z"/>`);
@@ -266,7 +303,7 @@ export class RhythmSheet {
         out.push(`<text class="tuplet" x="${cx}" y="${y}">${n}</text>`);
       } else {
         const line = this.lines[first.line];
-        const y = line.top + STAFF_TOP - 8;
+        const y = line.top + this.staffTop - 8;
         const x1 = xOf(idxs[0]) - 6, x2 = xOf(idxs.at(-1)) + 8, mx = (x1 + x2) / 2;
         out.push(`<path class="bracket" d="M${x1} ${y + 5} V${y} H${mx - 7} M${mx + 7} ${y} H${x2} V${y + 5}"/><text class="tuplet" x="${mx}" y="${y + 4}">${n}</text>`);
       }
@@ -303,7 +340,7 @@ export class RhythmSheet {
     for (const bar of this.bars) {
       if (bar.index > upTo) continue;
       const line = this.lines.find((ln) => ln.bars.includes(bar));
-      const y = line.top + STAFF_TOP + 4 * GAP + (this.counting ? 50 : 30);
+      const y = line.top + this.staffTop + 4 * GAP + this.belowExtra + (this.counting ? 50 : 30);
       const b0 = bar.index * m.bpb;
       const x0 = bar.startX + 6, x1 = bar.endX - 4;
       const x = (beat) => x0 + ((beat - b0) / m.bpb) * (x1 - x0);
@@ -331,7 +368,7 @@ export class RhythmSheet {
     const bpb = ex.beatsPerBar;
     const out = [];
     const label = (beat, x, li, text, cls) => {
-      const y = this.lines[li].top + STAFF_TOP + 4 * GAP + 30;
+      const y = this.lines[li].top + this.staffTop + 4 * GAP + this.belowExtra + 30;
       out.push(`<text class="count ${cls}" x="${x}" y="${y}">${text}</text>`);
     };
     ex.events.forEach((e, i) => {
@@ -401,7 +438,7 @@ export class RhythmSheet {
         if (s !== 'close' && s !== 'off') continue;
         const pos = this.positions.get(idx);
         const line = this.lines[pos.line];
-        const y = line.top + STAFF_TOP + 4 * GAP + (this.counting ? 42 : 22);
+        const y = line.top + this.staffTop + 4 * GAP + this.belowExtra + (this.counting ? 42 : 22);
         marks.push(`<text class="marker s-${s}" x="${pos.x}" y="${y}">${ms < 0 ? '◂' : '▸'}</text>`);
       }
     }
@@ -459,10 +496,35 @@ export class RhythmSheet {
     }
     this.cursor.setAttribute('x1', x);
     this.cursor.setAttribute('x2', x);
-    this.cursor.setAttribute('y1', line.top + STAFF_TOP - 12);
-    this.cursor.setAttribute('y2', line.top + STAFF_TOP + 4 * GAP + 12);
+    this.cursor.setAttribute('y1', line.top + this.staffTop - 12);
+    this.cursor.setAttribute('y2', line.top + this.staffTop + 4 * GAP + 12);
     this.cursor.setAttribute('visibility', 'visible');
   }
+}
+
+/**
+ * Which notes need a sharp, flat or natural sign. No key signature; an
+ * accidental lasts until the end of the bar for that line or space, and a
+ * natural cancels it. Tied continuations never repeat the sign.
+ * @returns {Map<number, string>} event index -> '♯' | '♭' | '♮'
+ */
+export function accidentalsFor(exercise, toWritten) {
+  const out = new Map();
+  let bar = -1;
+  let inForce = new Map();
+  exercise.events.forEach((e, i) => {
+    if (e.bar !== bar) {
+      bar = e.bar;
+      inForce = new Map();
+    }
+    if (e.rest || e.tied) return;
+    const info = noteInfo(toWritten(e.midi));
+    const key = `${info.letter}${info.octave}`;
+    const current = inForce.get(key) || '';
+    if (info.acc !== current) out.set(i, info.acc || '♮');
+    inForce.set(key, info.acc);
+  });
+  return out;
 }
 
 /** 6/8 is counted in eighths, "1 2 3 4 5 6", with "+" for sixteenths. */
@@ -493,12 +555,12 @@ function head(x, y, filled) {
 
 function ledgers(x, step, bottom) {
   const out = [];
-  for (let s = 28; s >= step; s -= 2) {
-    const y = bottom - (s - 30) * (GAP / 2);
+  for (let s = -2; s >= step; s -= 2) {
+    const y = bottom - s * (GAP / 2);
     out.push(`<line class="staff-line" x1="${x - 10}" x2="${x + 10}" y1="${y}" y2="${y}"/>`);
   }
-  for (let s = 40; s <= step; s += 2) {
-    const y = bottom - (s - 30) * (GAP / 2);
+  for (let s = 10; s <= step; s += 2) {
+    const y = bottom - s * (GAP / 2);
     out.push(`<line class="staff-line" x1="${x - 10}" x2="${x + 10}" y1="${y}" y2="${y}"/>`);
   }
   return out.join('');
@@ -524,7 +586,7 @@ function noteGlyph(e, x, y, step, bottom) {
   const filled = v <= 1;
   const out = [head(x, y, filled), ledgers(x, step, bottom)];
   if (v < 4) {
-    const up = step < MIDDLE_STEP;
+    const up = step < MIDDLE;
     const sx = up ? x + 5.6 : x - 5.6;
     const tip = up ? y - STEM : y + STEM;
     out.push(`<line class="stem" x1="${sx}" x2="${sx}" y1="${y}" y2="${tip}"/>`);
@@ -544,7 +606,7 @@ function noteGlyph(e, x, y, step, bottom) {
 /** One dot, or two for double-dotted notes. */
 function dotsGlyph(e, x, y, step) {
   const n = e.dots || (e.dotted ? 1 : 0);
-  const onLine = (step - 30) % 2 === 0;
+  const onLine = ((step % 2) + 2) % 2 === 0;
   const cy = onLine ? y - GAP / 2 : y;
   let out = '';
   for (let k = 0; k < n; k++) out += `<circle class="dot" cx="${x + 11 + k * 5}" cy="${cy}" r="1.9"/>`;

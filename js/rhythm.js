@@ -1,7 +1,7 @@
 // Rhythm reading: exercise generation, note-onset tracking from the mic,
 // and scoring of a performance against the written rhythm. No DOM code.
 
-import { gradeFor } from './longtone.js?v=1.9';
+import { gradeFor } from './longtone.js?v=2.0';
 
 // ------------------------------------------------------------------ levels
 
@@ -273,8 +273,12 @@ export function generateFromCells({ cells, meter: meterId = '4/4', pitches, bars
           ev.midi = events.at(-1).midi;
         } else if (!ev.rest) {
           if (pitches.length > 1 && events.some((x) => !x.rest)) {
-            const step = [-2, -1, -1, 0, 1, 1, 2][Math.floor(random() * 7)];
-            pitchIdx = Math.max(0, Math.min(pitches.length - 1, pitchIdx + step));
+            // Mostly steps, with the odd leap when there are lots of notes.
+            let step = [-2, -1, -1, 0, 1, 1, 2][Math.floor(random() * 7)];
+            if (pitches.length > 7 && random() < 0.2) step = (random() < 0.5 ? -1 : 1) * (3 + Math.floor(random() * 3));
+            pitchIdx = pitchIdx + step;
+            if (pitchIdx < 0 || pitchIdx >= pitches.length) pitchIdx = pitchIdx - 2 * step; // bounce off the ends
+            pitchIdx = Math.max(0, Math.min(pitches.length - 1, pitchIdx));
           }
           ev.midi = pitches[pitchIdx];
         }

@@ -248,3 +248,11 @@ test('double-dotted and tuplet notes keep their real lengths', () => {
     assert.ok([0.5, 1, 2].some((v) => Math.abs(total - v) < 1e-9), `tuplet group lasts ${total}`);
   }
 });
+
+test('whole-range rhythms use notes from the full range, mostly by step', () => {
+  const pitches = Array.from({ length: 27 }, (_, i) => 72 + i);
+  const ex = generateExercise({ level: 3, pitches, random: seeded(4), bars: 8 });
+  const notes = ex.events.filter((e) => !e.rest).map((e) => e.midi);
+  assert.ok(notes.every((m) => m >= 72 && m <= 98));
+  assert.ok(new Set(notes).size > 5);
+});

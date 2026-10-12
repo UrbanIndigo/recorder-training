@@ -1,15 +1,14 @@
 // Rhythm Reading screen: show a rhythm, play it back, count in, listen to
 // the player, and show how their timing compared.
 
-import { LEVELS, generateExercise, OnsetTracker, meterOf, scoreRhythm, barVerdicts, resultMarks, playedBeats, ON_TIME_MS } from './rhythm.js?v=1.9';
-import { RhythmSheet } from './notation.js?v=1.9';
-import { playDemo, scheduleBarClicks, clicksPerBar, clickIndex } from './rhythm-play.js?v=1.9';
-import { writtenMidi } from './recorders.js?v=1.9';
+import { LEVELS, generateExercise, OnsetTracker, meterOf, scoreRhythm, barVerdicts, resultMarks, playedBeats, ON_TIME_MS } from './rhythm.js?v=2.0';
+import { RhythmSheet } from './notation.js?v=2.0';
+import { playDemo, scheduleBarClicks, clicksPerBar, clickIndex } from './rhythm-play.js?v=2.0';
+import { writtenMidi, rhythmPitches, checksPitch } from './recorders.js?v=2.0';
 
 // Easy left-hand notes, as semitones above the recorder's lowest note. On a
 // C recorder these are written G A B C D; on an F recorder, C D E F G — the
 // same fingerings either way.
-const NOTE_SETS = { 1: [11], 3: [7, 9, 11], 5: [7, 9, 11, 12, 14] };
 const MIN_BPM = 40;
 const MAX_BPM = 140;
 
@@ -31,7 +30,7 @@ export function initRhythmView(d) {
 
   $('rh-notes').value = String(state.rhythmNotes);
   $('rh-notes').addEventListener('change', (e) => {
-    state.rhythmNotes = Number(e.target.value);
+    state.rhythmNotes = e.target.value;
     d.save();
     newExercise();
   });
@@ -72,7 +71,7 @@ export function initRhythmView(d) {
 
   function pitches() {
     const r = d.recorder();
-    return NOTE_SETS[state.rhythmNotes].map((o) => r.lowest + o);
+    return rhythmPitches(r, String(state.rhythmNotes));
   }
 
   function newExercise() {
@@ -82,8 +81,11 @@ export function initRhythmView(d) {
   }
 
   function showExercise() {
-    sheet = new RhythmSheet($('rh-sheet'), exercise, (m) => writtenMidi(d.recorder(), m));
-    const names = [...new Set(pitches().map((m) => d.writtenInfo(m).name))].join(' ');
+    sheet = new RhythmSheet($('rh-sheet'), exercise, (m) => writtenMidi(d.recorder(), m), d.recorder().clef);
+    const ps = pitches();
+    const names = ps.length > 5
+      ? `${d.writtenInfo(ps[0]).label}–${d.writtenInfo(ps.at(-1)).label}`
+      : [...new Set(ps.map((m) => d.writtenInfo(m).name))].join(' ');
     const best = state.rhythmBest[state.rhythmLevel];
     $('rh-meta').textContent = `${exercise.bars} bars of ${meterOf(exercise).id} · notes: ${names}${best != null ? ` · best on this level: ${best}` : ''}`;
     $('rh-results').hidden = true;
@@ -201,7 +203,7 @@ export function initRhythmView(d) {
     const ex = exercise;
     stop();
 
-    const result = scoreRhythm(ex, played, state.bpm, { checkPitch: state.rhythmNotes > 1 });
+    const result = scoreRhythm(ex, played, state.bpm, { checkPitch: checksPitch(state.rhythmNotes) });
     const { statuses, offsets } = resultMarks(ex, result);
     sheet.setResults(statuses, offsets);
     sheet.setBarLabels(barVerdicts(ex, result));
