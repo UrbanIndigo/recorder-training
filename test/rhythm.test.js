@@ -273,3 +273,27 @@ test('detached but on-time playing is not marked too short', async () => {
   assert.equal(ok.notes[0].short, false);
   assert.equal(ok.notes[1].short, true);
 });
+
+test('taps on the button become notes with exact starts and ends', () => {
+  // The tap listener turns each press/release into a level step at its exact time.
+  const tr = new OnsetTracker();
+  const taps = [[0.5, 0.62], [1.0, 1.06], [1.5, 1.9], [2.0, 2.3]]; // includes a very quick 60 ms tap
+  let t = 0;
+  const frame = 1 / 60;
+  const events = taps.flatMap(([a, b]) => [{ t: a, rms: 1 }, { t: b, rms: 0 }]);
+  let pressed = false;
+  for (; t < 2.6; t += frame) {
+    const blocks = [];
+    while (events.length && events[0].t <= t) blocks.push(events.shift());
+    for (const b of blocks) pressed = b.rms === 1;
+    blocks.push({ t: Math.max(t, (blocks.at(-1)?.t ?? 0) + 0.005), rms: pressed ? 1 : 0 });
+    const tonal = blocks.some((b) => b.rms === 1) || pressed;
+    for (const b of blocks) tr.push(b.t, b.rms, 0.5, null, tonal);
+  }
+  const notes = tr.finish(t);
+  assert.equal(notes.length, taps.length);
+  notes.forEach((n, i) => {
+    assert.ok(Math.abs(n.start - taps[i][0]) < 1e-6, `start ${n.start}`);
+    assert.ok(Math.abs(n.end - taps[i][1]) < 1e-6, `end ${n.end}`);
+  });
+});

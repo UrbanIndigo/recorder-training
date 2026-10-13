@@ -1,7 +1,7 @@
 // Rhythm reading: exercise generation, note-onset tracking from the mic,
 // and scoring of a performance against the written rhythm. No DOM code.
 
-import { gradeFor } from './longtone.js?v=2.4';
+import { gradeFor } from './longtone.js?v=2.5';
 
 // ------------------------------------------------------------------ levels
 

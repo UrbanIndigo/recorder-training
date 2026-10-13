@@ -78,6 +78,8 @@ Press **Hear it** to hear how it goes. Press **Play it** to hear a one-bar count
 
 With more than one note, wrong pitches are marked too. The music uses ledger lines for high and low notes, and sharps, flats and naturals that last to the end of the bar. Beams slope with the melody, and bass recorder reads in bass clef. Tempo goes from 40 to 140 bpm.
 
+**Play with the microphone or a tap button:** in Endless options, or next to the level in Practice, choose **Tap button** to hold a big pad (or the Space bar on a computer) for each note instead of playing into the mic. Press when a note starts and let go when it ends, so it judges both timing and note length. It uses each touch's exact time and allows for the speaker's delay. Pitch isn't checked in this mode.
+
 **Timing calibration:** phones and Bluetooth headphones add a delay between the click and the mic. If you keep being told you're late, open *Timing calibration* and play 8 short notes on the clicks. The app measures the delay and allows for it.
 
 ### Piano Chords
@@ -127,6 +129,7 @@ Code layout (`js/`):
 - `rhythm.js`: rhythm generation by level, note start/stop tracking, and timing scoring (no DOM code, unit tested)
 - `notation.js`: draws rhythm exercises as sheet music (beams, ties, triplets, rests, counting)
 - `calibration.js`: measures the click-to-mic delay
+- `tap-input.js`: the tap button / Space bar input for rhythm reading
 - `chords.js`: chord types, spelling, inversions, checking, and which chord to practise next (no DOM code, unit tested)
 - `keyboard.js`, `chords-view.js`: the keyboard picture and the Piano Chords screen
 - `progression.js`: endless-mode curriculum, skill tracking, retries, review and tempo changes (no DOM code, unit tested)

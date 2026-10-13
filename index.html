@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1f6f5c">
   <title>Recorder Trainer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="css/styles.css?v=2.4">
+  <link rel="stylesheet" href="css/styles.css?v=2.5">
 </head>
 <body>
   <header class="topbar">
@@ -61,7 +61,7 @@
           <small>Turn it up if your playing isn't picked up, down if background noise is. The Mic bar shows the level: it turns green when it hears you, and the line marks the cut-off.</small>
         </div>
       </details>
-      <p class="hint version">Version 2.4</p>
+      <p class="hint version">Version 2.5</p>
     </section>
 
     <!-- Long tone: choose note -->
@@ -205,7 +205,7 @@
           <p id="en-intro-text"></p>
           <div class="en-intro-count">Count: <span id="en-intro-count"></span></div>
           <div class="actions left">
-            <button class="btn primary" id="en-continue">Continue</button>
+            <button class="btn primary" id="en-continue">Got it</button>
             <button class="btn secondary" id="en-intro-hear">🔊 Hear an example</button>
           </div>
         </div>
@@ -232,7 +232,8 @@
           </div>
         </div>
 
-        <div class="level-row"><span>Mic</span><div class="level" id="en-mic" title="Microphone level"><div class="level-fill"></div><div class="level-gate"></div></div><span class="heard-note" id="en-heard" title="The note the app hears">—</span></div>
+        <button class="tap-pad" id="en-tap" hidden aria-label="Hold for each note">Hold for each note<small>or hold the Space bar</small></button>
+        <div class="level-row" id="en-mic-row"><span>Mic</span><div class="level" id="en-mic" title="Microphone level"><div class="level-fill"></div><div class="level-gate"></div></div><span class="heard-note" id="en-heard" title="The note the app hears">—</span></div>
 
         <p class="error" id="en-error" hidden></p>
 
@@ -247,6 +248,13 @@
 
         <details class="settings">
           <summary>Endless options</summary>
+          <div class="setting">
+            <label for="en-input">Play with</label>
+            <select id="en-input">
+              <option value="mic">Microphone (play your recorder)</option>
+              <option value="tap">Tap button (hold for each note)</option>
+            </select>
+          </div>
           <div class="setting">
             <label for="en-notes">Notes to play</label>
             <select id="en-notes">
@@ -295,6 +303,12 @@
             <button class="icon-btn" id="rh-faster" aria-label="Faster">+</button>
           </div>
         </div>
+        <label class="rh-field">Play with
+          <select id="rh-input">
+            <option value="mic">Microphone</option>
+            <option value="tap">Tap button</option>
+          </select>
+        </label>
         <label class="toggle"><input type="checkbox" id="rh-click"> Click while playing</label>
         <label class="toggle"><input type="checkbox" id="rh-playhead"> Show where you are</label>
       </div>
@@ -313,7 +327,8 @@
 
       <div class="beat-row" id="rh-beats" aria-hidden="true"></div>
       <p class="rh-status" id="rh-status" aria-live="polite"></p>
-      <div class="level-row"><span>Mic</span><div class="level" id="rh-mic" title="Microphone level"><div class="level-fill"></div><div class="level-gate"></div></div><span class="heard-note" id="rh-heard" title="The note the app hears">—</span></div>
+      <button class="tap-pad" id="rh-tap" hidden aria-label="Hold for each note">Hold for each note<small>or hold the Space bar</small></button>
+      <div class="level-row" id="rh-mic-row"><span>Mic</span><div class="level" id="rh-mic" title="Microphone level"><div class="level-fill"></div><div class="level-gate"></div></div><span class="heard-note" id="rh-heard" title="The note the app hears">—</span></div>
 
       <div class="actions">
         <button class="btn primary" id="rh-play">🎙 Play it</button>
@@ -464,7 +479,7 @@
     <button class="btn primary small" id="load-error-reload">Reload</button>
   </p>
   <script>
-    window.APP_VERSION = '2.4';
+    window.APP_VERSION = '2.5';
     // If the app hasn't started after a few seconds, offer a fresh reload.
     setTimeout(function () {
       if (window.appReady) return;
@@ -475,6 +490,6 @@
       };
     }, 4000);
   </script>
-  <script type="module" src="js/app.js?v=2.4"></script>
+  <script type="module" src="js/app.js?v=2.5"></script>
 </body>
 </html>

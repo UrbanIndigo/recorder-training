@@ -459,3 +459,17 @@ body { overflow-anchor: none; } /* rows updating shouldn't make the page jump */
 .ch-mark .btn { flex: 1 1 140px; max-width: 220px; font-size: 1.05rem; padding: 13px 18px; }
 .btn.good-btn { background: var(--good); color: var(--accent-contrast); }
 .btn.bad-btn { background: var(--surface-2); color: var(--bad); border-color: var(--bad); }
+
+/* Tap pad: hold for each note instead of playing into the mic */
+.tap-pad {
+  position: sticky; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 4;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  width: 100%; height: 96px; margin-top: 12px; border-radius: 22px;
+  font: inherit; font-size: 1.2rem; font-weight: 800; letter-spacing: 0.01em;
+  color: var(--accent-contrast); background: var(--accent); border: 0; cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18); touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  transition: transform 60ms, filter 60ms;
+}
+.tap-pad small { font-size: 0.75rem; font-weight: 600; opacity: 0.8; }
+.tap-pad.down { transform: scale(0.97); filter: brightness(1.25); }
+@media (hover: none) { .tap-pad small { display: none; } }

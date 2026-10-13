@@ -1,17 +1,18 @@
 // UI controller: navigation, the long-tone exercise, results, and the tuner.
 
-import { RECORDERS, recorderNotes, writtenMidi, detectionRange } from './recorders.js?v=2.4';
-import { noteInfo, midiToFreq, freqToMidi, describeInterval } from './music.js?v=2.4';
-import { PitchListener, playReferenceTone } from './audio.js?v=2.4';
-import { PitchSmoother } from './pitch.js?v=2.4';
-import { LongToneSession, IN_TUNE_CENTS } from './longtone.js?v=2.4';
-import { staffSvg } from './staff.js?v=2.4';
-import { drawPitchChart } from './chart.js?v=2.4';
-import { loadState, saveState, recordAttempt, noteHistory } from './storage.js?v=2.4';
-import { initRhythmView } from './rhythm-view.js?v=2.4';
-import { initEndlessView } from './endless-view.js?v=2.4';
-import { initCalibration } from './calibration.js?v=2.4';
-import { initChordsView } from './chords-view.js?v=2.4';
+import { RECORDERS, recorderNotes, writtenMidi, detectionRange } from './recorders.js?v=2.5';
+import { noteInfo, midiToFreq, freqToMidi, describeInterval } from './music.js?v=2.5';
+import { PitchListener, playReferenceTone } from './audio.js?v=2.5';
+import { PitchSmoother } from './pitch.js?v=2.5';
+import { LongToneSession, IN_TUNE_CENTS } from './longtone.js?v=2.5';
+import { staffSvg } from './staff.js?v=2.5';
+import { drawPitchChart } from './chart.js?v=2.5';
+import { loadState, saveState, recordAttempt, noteHistory } from './storage.js?v=2.5';
+import { initRhythmView } from './rhythm-view.js?v=2.5';
+import { initEndlessView } from './endless-view.js?v=2.5';
+import { initCalibration } from './calibration.js?v=2.5';
+import { initChordsView } from './chords-view.js?v=2.5';
+import { TapListener } from './tap-input.js?v=2.5';
 
 const $ = (id) => document.getElementById(id);
 const state = loadState();
@@ -470,43 +471,45 @@ function releaseWakeLock() {
   wakeLock = null;
 }
 
-// The rhythm screens and calibration share the mic: starting one stops the other.
+// Rhythm reading can listen with the mic or use a tap button. The rhythm
+// screens and calibration share the mic: starting one stops the other.
+const tapListener = new TapListener();
+const tapMode = () => state.rhythmInput === 'tap';
 const startRhythmMic = async () => {
   if (calibration.busy) calibration.stop();
-  await startMic();
+  if (tapMode()) {
+    listener.stop();
+    await tapListener.start();
+  } else {
+    tapListener.stop();
+    await startMic();
+  }
+};
+const rhythmDeps = {
+  $,
+  state,
+  save: () => saveState(state),
+  get listener() {
+    return tapMode() ? tapListener : listener;
+  },
+  tap: tapListener,
+  tapMode,
+  /** Delay to allow for: measured (mic), estimated (mic), or the speaker's (tap). */
+  rhythmLatency: () => (tapMode() ? tapListener.estimatedLatency() : state.latencyMs != null ? state.latencyMs / 1000 : listener.estimatedLatency()),
+  startMic: startRhythmMic,
+  showMicError,
+  recorder,
+  writtenInfo,
+  pitchToMidi,
+  setLevel,
+  scoreColor,
+  requestWakeLock,
+  releaseWakeLock,
 };
 
-const rhythmView = initRhythmView({
-  $,
-  state,
-  save: () => saveState(state),
-  listener,
-  startMic: startRhythmMic,
-  showMicError,
-  recorder,
-  writtenInfo,
-  pitchToMidi,
-  setLevel,
-  scoreColor,
-  requestWakeLock,
-  releaseWakeLock,
-});
+const rhythmView = initRhythmView(rhythmDeps);
 
-const endlessView = initEndlessView({
-  $,
-  state,
-  save: () => saveState(state),
-  listener,
-  startMic: startRhythmMic,
-  showMicError,
-  recorder,
-  writtenInfo,
-  pitchToMidi,
-  setLevel,
-  scoreColor,
-  requestWakeLock,
-  releaseWakeLock,
-});
+const endlessView = initEndlessView(rhythmDeps);
 
 const calibration = initCalibration({
   $,

@@ -1,10 +1,11 @@
 // Rhythm Reading screen: show a rhythm, play it back, count in, listen to
 // the player, and show how their timing compared.
 
-import { LEVELS, generateExercise, OnsetTracker, meterOf, scoreRhythm, barVerdicts, resultMarks, playedBeats, ON_TIME_MS } from './rhythm.js?v=2.4';
-import { RhythmSheet } from './notation.js?v=2.4';
-import { playDemo, scheduleBarClicks, clicksPerBar, clickIndex } from './rhythm-play.js?v=2.4';
-import { writtenMidi, rhythmPitches, checksPitch } from './recorders.js?v=2.4';
+import { LEVELS, generateExercise, OnsetTracker, meterOf, scoreRhythm, barVerdicts, resultMarks, playedBeats, ON_TIME_MS } from './rhythm.js?v=2.5';
+import { RhythmSheet } from './notation.js?v=2.5';
+import { playDemo, scheduleBarClicks, clicksPerBar, clickIndex } from './rhythm-play.js?v=2.5';
+import { writtenMidi, rhythmPitches, checksPitch } from './recorders.js?v=2.5';
+import { bindTapPad } from './tap-input.js?v=2.5';
 
 // Easy left-hand notes, as semitones above the recorder's lowest note. On a
 // C recorder these are written G A B C D; on an F recorder, C D E F G — the
@@ -48,6 +49,21 @@ export function initRhythmView(d) {
     state.showPlayhead = e.target.checked;
     d.save();
   });
+
+  // Play with the microphone or a tap button (shared by both rhythm tabs).
+  function syncInput() {
+    const tap = d.tapMode();
+    $('rh-input').value = state.rhythmInput || 'mic';
+    $('rh-tap').hidden = !tap;
+    $('rh-mic-row').hidden = tap;
+  }
+  $('rh-input').addEventListener('change', (e) => {
+    state.rhythmInput = e.target.value;
+    d.save();
+    syncInput();
+  });
+  bindTapPad($('rh-tap'), d.tap, () => d.tapMode() && active?.kind === 'perform');
+  syncInput();
 
   $('rh-click').checked = state.clickWhilePlaying;
   $('rh-click').addEventListener('change', (e) => {
@@ -114,7 +130,7 @@ export function initRhythmView(d) {
     $('rh-hear').hidden = busy;
     $('rh-new').hidden = busy;
     $('rh-stop').hidden = !busy;
-    for (const id of ['rh-level', 'rh-notes', 'rh-slower', 'rh-faster', 'rh-again', 'rh-next']) $(id).disabled = busy;
+    for (const id of ['rh-level', 'rh-notes', 'rh-slower', 'rh-faster', 'rh-again', 'rh-next', 'rh-input']) $(id).disabled = busy;
   }
 
   // ---------------------------------------------------------------- hear it
@@ -173,7 +189,7 @@ export function initRhythmView(d) {
     if (state.clickWhilePlaying) {
       scheduleBarClicks(ctx, m, start, beat, exercise.bars, 0.7);
     }
-    const latency = state.latencyMs != null ? state.latencyMs / 1000 : d.listener.estimatedLatency();
+    const latency = d.rhythmLatency();
 
     const run = { kind: 'perform', tracker: new OnsetTracker(), start, beat, latency, cancelled: false };
     active = run;
@@ -203,7 +219,7 @@ export function initRhythmView(d) {
     const ex = exercise;
     stop();
 
-    const result = scoreRhythm(ex, played, state.bpm, { checkPitch: checksPitch(state.rhythmNotes) });
+    const result = scoreRhythm(ex, played, state.bpm, { checkPitch: checksPitch(state.rhythmNotes) && !d.tapMode() });
     const { statuses, offsets } = resultMarks(ex, result);
     sheet.setResults(statuses, offsets);
     sheet.setBarLabels(barVerdicts(ex, result));
@@ -287,6 +303,7 @@ export function initRhythmView(d) {
 
   return {
     enter() {
+      syncInput();
       $('rh-playhead').checked = !!state.showPlayhead;
       if (!exercise) newExercise();
       else sheet.render();

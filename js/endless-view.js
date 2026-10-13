@@ -5,16 +5,19 @@
 // fail comes back two bars later (the bar right below you never changes).
 // New patterns unlock and the tempo adapts as you go.
 
-import { CURRICULUM, newProgress, migrateProgress, chooseNext, recordResult, unlockProgress, topIssues } from './progression.js?v=2.4';
-import { OnsetTracker, scoreRhythm, generateFromCells, barVerdict, resultMarks, meterOf, cellFitsMeter, soundingNotes } from './rhythm.js?v=2.4';
-import { RhythmSheet } from './notation.js?v=2.4';
-import { playDemo, scheduleBarClicks, clicksPerBar, clickIndex } from './rhythm-play.js?v=2.4';
-import { writtenMidi, rhythmPitches, checksPitch } from './recorders.js?v=2.4';
-import { diatonicStep } from './music.js?v=2.4';
+import { CURRICULUM, newProgress, migrateProgress, chooseNext, recordResult, unlockProgress, topIssues } from './progression.js?v=2.5';
+import { OnsetTracker, scoreRhythm, generateFromCells, barVerdict, resultMarks, meterOf, cellFitsMeter, soundingNotes } from './rhythm.js?v=2.5';
+import { RhythmSheet } from './notation.js?v=2.5';
+import { playDemo, scheduleBarClicks, clicksPerBar, clickIndex } from './rhythm-play.js?v=2.5';
+import { writtenMidi, rhythmPitches, checksPitch } from './recorders.js?v=2.5';
+import { bindTapPad } from './tap-input.js?v=2.5';
+import { diatonicStep } from './music.js?v=2.5';
 
 const PASS = 70; // bars scoring below this come back
 const WINDOW = 6; // bars that must go well before the next unlock
-const ROWS_BEHIND = 2; // finished bars kept in view above the current one
+// Finished bars kept in view above the current one (one fewer in tap mode,
+// to leave room for the tap button).
+const rowsBehind = (d) => (d.tapMode() ? 1 : 2);
 
 export function initEndlessView(d) {
   const { $, state } = d;
@@ -37,6 +40,23 @@ export function initEndlessView(d) {
     d.save();
     if (!run) resetPreview();
   });
+  // Play with the microphone or a tap button (shared by both rhythm tabs).
+  function syncInput() {
+    const tap = d.tapMode();
+    $('en-input').value = state.rhythmInput || 'mic';
+    $('en-tap').hidden = !tap;
+    measureRows();
+    placeRows();
+    $('en-mic-row').hidden = tap;
+  }
+  $('en-input').addEventListener('change', (e) => {
+    state.rhythmInput = e.target.value;
+    d.save();
+    syncInput();
+  });
+  bindTapPad($('en-tap'), d.tap, () => d.tapMode() && !!run);
+  syncInput();
+
   $('en-click').checked = state.clickWhilePlaying;
   $('en-click').addEventListener('change', (e) => {
     state.clickWhilePlaying = e.target.checked;
@@ -146,7 +166,7 @@ export function initEndlessView(d) {
     rows.push(row);
     bar.row = row;
     // Keep the page light: forget rows well out of view.
-    while (rows.length > ROWS_BEHIND + 6) rows.shift().el.remove();
+    while (rows.length > 8) rows.shift().el.remove();
     measureRows();
     placeRows();
     return row;
@@ -155,7 +175,7 @@ export function initEndlessView(d) {
   function measureRows() {
     const first = rows[0]?.el;
     if (first) rowHeight = first.offsetHeight + 6;
-    $('en-stream').style.height = `${Math.round(rowHeight * (ROWS_BEHIND + 2.45))}px`;
+    $('en-stream').style.height = `${Math.round(rowHeight * (rowsBehind(d) + 2.45))}px`;
   }
 
   /** Position rows, and scroll so the current bar sits third from the top. */
@@ -169,7 +189,7 @@ export function initEndlessView(d) {
     const lastId = rows.at(-1)?.bar.id ?? 0;
     $('en-placeholder').style.top = `${(lastId + 1) * rowHeight}px`;
     $('en-placeholder').style.height = `${rowHeight - 6}px`;
-    $('en-track').style.transform = `translateY(${-Math.max(0, id - ROWS_BEHIND) * rowHeight}px)`;
+    $('en-track').style.transform = `translateY(${-Math.max(0, id - rowsBehind(d)) * rowHeight}px)`;
   }
 
   function clearRows() {
@@ -224,6 +244,7 @@ export function initEndlessView(d) {
     $('en-start').hidden = busy;
     $('en-stop').hidden = !busy;
     $('en-notes').disabled = busy;
+    $('en-input').disabled = busy;
     $('en-jump').disabled = busy;
     $('en-intro-hear').hidden = busy;
   }
@@ -254,11 +275,22 @@ export function initEndlessView(d) {
     $('en-feedback').hidden = false;
   }
 
+  /**
+   * A new pattern was unlocked. While playing, a one-line note keeps the
+   * score where it is; the full explanation card appears when you stop.
+   */
   function showIntro(step) {
     $('en-intro-title').textContent = step.title;
     $('en-intro-text').textContent = step.text;
     $('en-intro-count').textContent = step.count;
-    $('en-intro').hidden = false;
+    if (run) {
+      run.pendingIntro = true;
+      $('en-feedback-text').textContent = `New: ${step.title} — count ${step.count}`;
+      $('en-chip').textContent = 'NEW';
+      $('en-chip').style.background = 'var(--accent)';
+    } else {
+      $('en-intro').hidden = false;
+    }
   }
 
   // ------------------------------------------------------------- running
@@ -275,7 +307,7 @@ export function initEndlessView(d) {
     }
     session = { count: 0, total: 0, unlocked: [] };
     const ctx = d.listener.ctx;
-    const latency = state.latencyMs != null ? state.latencyMs / 1000 : d.listener.estimatedLatency();
+    const latency = d.rhythmLatency();
     run = { ctx, latency, tracker: new OnsetTracker(), bars: [], currentId: -1, retryQueue: [] };
     if (preview.length !== 2) resetPreview();
     const [b0, b1] = preview;
@@ -378,7 +410,7 @@ export function initEndlessView(d) {
       .snapshot(now)
       .filter((n) => n.start - lat >= bar.windowStart && n.start - lat < bar.windowEnd)
       .map((n) => ({ start: n.start - lat - bar.start, end: Math.min(n.end - lat - bar.start, endSec + 0.2), midi: n.midi }));
-    const result = scoreRhythm(ex, played, 60 / bar.beat, { checkPitch: checksPitch(state.rhythmNotes) });
+    const result = scoreRhythm(ex, played, 60 / bar.beat, { checkPitch: checksPitch(state.rhythmNotes) && !d.tapMode() });
     const { statuses, offsets } = resultMarks(ex, result);
     const verdict = barVerdict(ex, result, 0);
     if (bar.row?.el.isConnected) {
@@ -419,7 +451,9 @@ export function initEndlessView(d) {
   function stop(byUser = false) {
     stopDemo();
     const wasRunning = !!run;
+    const pendingIntro = run?.pendingIntro;
     endRun();
+    if (pendingIntro) $('en-intro').hidden = false;
     if (byUser && wasRunning) {
       setStatus('Stopped. Press Start for a fresh run.');
       if (session?.count) {
@@ -454,12 +488,13 @@ export function initEndlessView(d) {
 
   return {
     enter() {
+      syncInput();
       $('en-playhead').checked = !!state.showPlayhead;
       renderStage();
       renderIssues();
       if (!run) {
         resetPreview();
-        setStatus(`Press Start. After one bar of clicks, play each bar as it reaches the highlighted row. Tempo ${progress().bpm} bpm.`);
+        setStatus(`Press Start. After one bar of clicks, play each bar as it reaches the highlighted row${d.tapMode() ? ' (hold the button for each note)' : ''}. Tempo ${progress().bpm} bpm.`);
       }
     },
     leave() {
