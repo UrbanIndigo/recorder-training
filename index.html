@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1f6f5c">
   <title>Recorder Trainer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="css/styles.css?v=3.1">
+  <link rel="stylesheet" href="css/styles.css?v=3.2">
 </head>
 <body>
   <header class="topbar">
@@ -66,7 +66,7 @@
           <small>Turn it up if your playing isn't picked up, down if background noise is. The Mic bar shows the level: it turns green when it hears you, and the line marks the cut-off.</small>
         </div>
       </details>
-      <p class="hint version">Version 3.1</p>
+      <p class="hint version">Version 3.2</p>
     </section>
 
     <!-- Long tone: choose note -->
@@ -444,8 +444,20 @@
           <small id="game-bpm-pct"></small>
         </div>
         <p class="game-blurb" id="game-blurb"></p>
+        <div class="game-bpm-row">
+          <span>HANDS</span>
+          <button class="game-btn game-hands" id="game-hands-1">✋ 1 HAND</button>
+          <button class="game-btn game-hands" id="game-hands-2">✋✋ 2 HANDS</button>
+        </div>
         <button class="game-btn primary big" id="game-play">▶ PLAY</button>
         <button class="game-btn" id="game-tutorial">? TUTORIAL FOR THIS WARD</button>
+        <div class="game-endless-box">
+          <div class="game-endless-row">
+            <button class="game-btn primary" id="game-endless">∞ UNLIMITED</button>
+            <button class="game-btn" id="game-endless-hands">✋ 1 HAND</button>
+          </div>
+          <small id="game-endless-best"></small>
+        </div>
         <div class="game-offset">
           <span>AUDIO OFFSET</span>
           <button class="game-btn" id="game-offset-down" aria-label="Earlier">−</button>
@@ -544,7 +556,7 @@
     <button class="btn primary small" id="load-error-reload">Reload</button>
   </p>
   <script>
-    window.APP_VERSION = '3.1';
+    window.APP_VERSION = '3.2';
     // If the app hasn't started after a few seconds, offer a fresh reload.
     setTimeout(function () {
       if (window.appReady) return;
@@ -555,6 +567,6 @@
       };
     }, 4000);
   </script>
-  <script type="module" src="js/app.js?v=3.1"></script>
+  <script type="module" src="js/app.js?v=3.2"></script>
 </body>
 </html>

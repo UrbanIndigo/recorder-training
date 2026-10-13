@@ -2,7 +2,7 @@
 // for each rhythm a ward brings in (what it's called, how to count it).
 // No DOM code.
 
-import { introductions } from './song.js?v=3.1';
+import { introductions } from './song.js?v=3.2';
 
 /** What each ward is about, shown first in its tutorial. */
 export const WARD_INTROS = {

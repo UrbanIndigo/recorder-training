@@ -107,6 +107,13 @@ A pixel-art rhythm game and boss rush that trains you to read real sheet music. 
   - Code Blue does both.
 - **A tutorial for every ward:** the first time you play a ward, it opens with a card on what's new, then a lesson for each new rhythm. Each lesson shows four bars of the rhythm with the counting written under the notes ("1 e + a", T/L for triplet "trip-let"). **Hear it** plays it for you; **Try it** is your go, with feedback (notes on time, early or late, long notes let go too soon, extra taps). Replay it any time with **Tutorial for this ward** in the menu.
 - **Easing in during the song:** new rhythms arrive one at a time, and the counting is pencilled in under each new rhythm's first few bars.
+- **Unlimited mode (∞):** an endless, adaptive run.
+  - **Placement first:** the opening lines jump you up a ladder of 21 rhythms (quarter notes up to triplets and tied syncopations) until you start to struggle. The patient can't be hurt during placement, and you're told "YOUR LEVEL: n".
+  - **Then it adapts line by line:** two clean lines in a row add the next rhythm, announced as **NEW: …** with its counting under its first bars. A bad line eases off. Rhythms you play badly come up more often.
+  - **Rounds:** play comes in rounds of six lines. After a good round the tempo goes up (more once every rhythm is in play); after a bad one it comes down.
+  - **The run:** one germ after another, until the patient flatlines. The results show your level, the hardest rhythm you reached, top tempo, germs beaten and the rhythms to work on. Your best run is saved.
+- **One or two hands, for everything:** every ward (and Unlimited) has a 1 hand / 2 hands choice. One-hand wards played with two hands add a simple left-hand bass part on its own staff; two-hand wards can be played right hand only.
+- **Ties across the bar line:** from ward 3 (and in Unlimited, once syncopation is in play), a note is sometimes tied over the bar line into the next bar. Hold it through.
 - **Eight wards**, from quarter notes at 84 BPM up to sixteenths, dotted rhythms, triplets and 6/8 at 124 BPM. Any ward can be played at any time.
 - **BPM control:** set any tempo for a ward (40–200 BPM) with the slider or the −/+ buttons. New wards start at 70% of their tempo so you can learn the new rhythms, and each win nudges the BPM up by 15% until full tempo. A ✓ marks wards beaten at full tempo.
 - **Fresh rhythms every play:** each song keeps its key, chords, tempo and verse/chorus shape, but its rhythms are generated anew each time (verses repeat with variations), so you read them rather than memorise them.
@@ -154,6 +161,7 @@ Code layout (`js/`):
 - `chords.js`: chord types, spelling, inversions, checking, and which chord to practise next (no DOM code, unit tested)
 - `keyboard.js`, `chords-view.js`: the keyboard picture and the Piano Chords screen
 - `game/song.js`: Beat Ward levels, song generation (seeded) and judging (no DOM code, unit tested)
+- `game/endless.js`: Unlimited mode's skill model: placement, adapting, weak spots, tempo (unit tested)
 - `game/lessons.js`: the tutorials: ward introductions, a card for each rhythm, counting (unit tested)
 - `game/score.js`: pixel notation with engraved spacing (layout and spacing are unit tested)
 - `game/art.js`, `game/game.js`: the pixel art and bosses, synth and game loop

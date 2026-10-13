@@ -38,10 +38,13 @@ export function layoutScore(events, bpb) {
     dots: e.barRest ? 0 : e.dots || (e.dotted ? 1 : 0),
     flags: 0,
     noteId: e.noteId,
+    tied: !!e.tied, // continues the note before (no new press)
     tieTo: null,
+    tieOut: false, // tied across the bar line to the next bar's first note
   }));
   events.forEach((e, i) => {
     if (e.tieNext && events[i + 1]) glyphs[i].tieTo = i + 1;
+    else if (e.tieNext) glyphs[i].tieOut = true;
   });
 
   // Beam groups: neighbouring notes of a cell marked for beaming, broken by rests.
@@ -209,12 +212,7 @@ export function drawScore(ctx, layout, y, xOf, colorOf, { minX = -Infinity, maxX
     }
     for (let k = 0; k < gl.dots; k++) px(ctx, x + 5 + k * 3, y - 3, 2, 2);
     // A tie: a shallow arc under the heads to the next note.
-    if (gl.tieTo != null) {
-      const x2 = Math.round(xOf(glyphs[gl.tieTo].beat));
-      px(ctx, x, y + 4);
-      px(ctx, x + 1, y + 5, Math.max(1, x2 - x - 1), 1);
-      px(ctx, x2, y + 4);
-    }
+    if (gl.tieTo != null) drawTie(ctx, x, Math.round(xOf(glyphs[gl.tieTo].beat)), y);
   });
 
   for (const b of beams) {
@@ -290,4 +288,11 @@ const BIG = {
 };
 function bigDigit(ctx, d, x, y) {
   rows(ctx, BIG[d] || BIG[4], x, y);
+}
+
+/** A tie: a shallow arc under two noteheads (also used across bar lines). */
+export function drawTie(ctx, x1, x2, y) {
+  px(ctx, x1, y + 4);
+  px(ctx, x1 + 1, y + 5, Math.max(1, x2 - x1 - 1), 1);
+  px(ctx, x2, y + 4);
 }

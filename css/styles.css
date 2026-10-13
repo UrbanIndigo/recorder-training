@@ -546,3 +546,8 @@ body { overflow-anchor: none; } /* rows updating shouldn't make the page jump */
 .game-lesson .game-row { justify-content: flex-start; }
 .gls-skip { background: none; border: none; color: var(--g-dim); text-decoration: underline; font-size: 0.75rem; margin-top: 0.6rem; cursor: pointer; padding: 0; }
 #game-tutorial { width: 100%; margin-bottom: 0.6rem; font-size: 0.8rem; }
+.game-hands.sel { border-color: var(--g-pink); box-shadow: inset 0 0 0 2px var(--g-pink); }
+.game-endless-box { border-top: 2px dashed var(--g-edge); margin: 0.4rem 0 0.8rem; padding-top: 0.8rem; }
+.game-endless-row { display: flex; gap: 0.5rem; }
+#game-endless { flex: 1; font-size: 1rem; padding: 0.6rem; background: #4fc3ff; border-color: #b8e8ff; }
+#game-endless-best { display: block; margin-top: 0.4rem; color: var(--g-dim); font-size: 0.75rem; }

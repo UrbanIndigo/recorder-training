@@ -2,7 +2,7 @@
 // chords, sections, tempo) but its rhythms are generated fresh on every
 // play, so a song can't simply be memorised. No DOM or audio code.
 
-import { generateFromCells, METERS } from '../rhythm.js?v=3.1';
+import { generateFromCells, METERS } from '../rhythm.js?v=3.2';
 
 /**
  * The wards, easiest first. `cells` are rhythm patterns from rhythm.js.
@@ -103,6 +103,48 @@ export function introductions(level) {
   return new Map(fresh.map((c, i) => [c, 4 + Math.floor((i * 12) / fresh.length)]));
 }
 
+/**
+ * Add one bar of a hand's rhythm to a score (as it's drawn) and its
+ * sounding notes to `notes` (tied notes join into one). Score events point
+ * at their note through `note`.
+ */
+export function writeBar(notes, score, lane, events, barStart, pitchOf) {
+  let last = null;
+  for (const e of events) {
+    const ev = { beat: barStart + e.beat, beats: e.beats, cell: e.cell, rest: e.rest, dotted: e.dotted, dots: e.dots, written: e.written, tuplet: e.tuplet, tupletId: e.tupletId != null ? `${barStart}:${e.tupletId}` : undefined, beamGroup: e.beamGroup != null ? `${barStart}:${e.beamGroup}` : undefined, tieNext: e.tieNext, tied: e.tied, barRest: e.barRest };
+    if (!e.rest) {
+      // A tie can come in from the previous bar.
+      if (e.tied && !last) last = notes.findLast((n) => n.lane === lane) || null;
+      if (e.tied && last) {
+        last.dur += e.beats;
+      } else {
+        last = { beat: barStart + e.beat, lane, midi: pitchOf(e), dur: e.beats, cell: e.cell };
+        notes.push(last);
+      }
+      ev.note = last;
+    }
+    score[lane].push(ev);
+  }
+}
+
+/**
+ * Tie the last note of one bar across the bar line to the first note of
+ * the next (copies; the originals are untouched). Returns null when the
+ * bars don't allow it (a rest either side, tuplets, or a tie already there).
+ */
+export function tieAcross(barA, barB) {
+  const a = barA.at(-1);
+  const b = barB[0];
+  const ok = (e) => e && !e.rest && !e.tuplet && !e.barRest;
+  if (!ok(a) || !ok(b) || a.tieNext || b.tied || a.beats > 2 || b.beats > 2) return null;
+  return [[...barA.slice(0, -1), { ...a, tieNext: true }], [{ ...b, tied: true }, ...barB.slice(1)]];
+}
+
+/** A simple left-hand part for wards written for one hand, when played with two. */
+export function defaultLeft(level) {
+  return level.meter === '6/8' ? { c_dottedQuarter: 4, c_quarterEighth: 1, c_dottedQuarterRest: 1 } : { half: 3, quarter: 2, halfRest: 1 };
+}
+
 /** A small, fast, seedable random number generator. */
 export function seededRandom(seed) {
   let a = seed >>> 0;
@@ -131,7 +173,7 @@ function chordTones(level, root) {
  * @returns {{level, bpm, beatSec, meter, bars, countInBars, notes, score, drums, bass, chords, length}}
  *   notes: [{time, beat, lane: 'R'|'L', midi, dur}] times in seconds from the song start
  */
-export function makeSong(level, seed = Date.now(), { speed = 1, bpm: chosenBpm = null, lesson = null } = {}) {
+export function makeSong(level, seed = Date.now(), { speed = 1, bpm: chosenBpm = null, lesson = null, hands: chosenHands = null } = {}) {
   const random = seededRandom(seed);
   const meter = METERS[level.meter];
   const bpb = meter.bpb;
@@ -173,7 +215,16 @@ export function makeSong(level, seed = Date.now(), { speed = 1, bpm: chosenBpm =
   // The intro gently brings the right hand in on simple beats.
   for (let i = 0; i < 4; i++) plan[i].right = i < 2 ? null : bar({ quarter: 3, half: 1 });
   // A tutorial lesson: a few bars practising one rhythm (or both hands) instead of a song.
-  const hands = lesson ? lesson.hands : level.hands;
+  const hands = lesson ? lesson.hands : chosenHands ?? level.hands;
+  const leftCells = level.left || defaultLeft(level);
+  // From ward 3, now and then a note is tied across the bar line (within a line of two bars).
+  if (!lesson && level.id >= 3) {
+    for (let b = 4; b + 1 < plan.length; b += 2) {
+      if (random() > 0.25 || !plan[b].right || !plan[b + 1].right) continue;
+      const tied = tieAcross(plan[b].right, plan[b + 1].right);
+      if (tied) [plan[b].right, plan[b + 1].right] = tied;
+    }
+  }
   if (lesson) {
     plan.length = 0;
     for (let i = 0; i < lesson.bars; i++) plan.push({ section: 'lesson', right: bar(lesson.right), left: lesson.left ? bar(lesson.left) : null });
@@ -181,23 +232,7 @@ export function makeSong(level, seed = Date.now(), { speed = 1, bpm: chosenBpm =
 
   const notes = [];
   const score = { R: [], L: [] }; // the written rhythm for each hand, as it's drawn
-  // Add one bar of events to a hand's score, and its sounding notes to `notes`.
-  const addBar = (lane, events, barStart, pitchOf) => {
-    let last = null;
-    for (const e of events) {
-      const ev = { beat: barStart + e.beat, beats: e.beats, cell: e.cell, rest: e.rest, dotted: e.dotted, dots: e.dots, written: e.written, tuplet: e.tuplet, tupletId: e.tupletId != null ? `${barStart}:${e.tupletId}` : undefined, beamGroup: e.beamGroup != null ? `${barStart}:${e.beamGroup}` : undefined, tieNext: e.tieNext, tied: e.tied, barRest: e.barRest };
-      if (!e.rest) {
-        if (e.tied && last) {
-          last.dur += e.beats;
-        } else {
-          last = { beat: barStart + e.beat, lane, midi: pitchOf(e), dur: e.beats };
-          notes.push(last);
-        }
-        ev.note = last;
-      }
-      score[lane].push(ev);
-    }
-  };
+  const addBar = (lane, events, barStart, pitchOf) => writeBar(notes, score, lane, events, barStart, pitchOf);
   const barRest = (bpb) => [{ beat: 0, beats: bpb, rest: true, barRest: true }];
   const drums = [];
   const bass = [];
@@ -222,7 +257,7 @@ export function makeSong(level, seed = Date.now(), { speed = 1, bpm: chosenBpm =
     });
     // Left hand (two-handed levels): the bassline, from the verse on.
     if (hands === 2) {
-      const left = p.section === 'intro' ? barRest(bpb) : p.left || bar(level.left);
+      const left = p.section === 'intro' ? barRest(bpb) : p.left || bar(leftCells);
       addBar('L', left, barStart, (e) => keyBase - 24 + root + (e.beat % 2 === 0 ? 0 : 7));
     }
     // Backing: drums every bar, plus a quiet bass on one-hand levels.

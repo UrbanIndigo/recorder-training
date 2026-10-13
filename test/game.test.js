@@ -205,3 +205,28 @@ test('every ward has a tutorial, with a lesson for each new rhythm', async () =>
   assert.deepEqual([0, 0.25, 0.5, 0.75, 1, 1 / 3, 2 / 3].map((b) => countLabel(b, false)), ['1', 'e', '+', 'a', '2', 'trip', 'let']);
   assert.deepEqual([0, 0.5, 1, 1.5, 2, 2.5].map((b) => countLabel(b, true)), ['1', '+', 'a', '2', '+', 'a']);
 });
+
+test('notes are sometimes tied across the bar line, and held through it', async () => {
+  const { tieAcross, defaultLeft } = await import('../js/game/song.js');
+  let found = 0;
+  for (let seed = 1; seed <= 30; seed++) {
+    const s = makeSong(LEVELS[3], seed);
+    s.score.R.forEach((e, i) => {
+      const next = s.score.R[i + 1];
+      if (!e.tieNext || !next || Math.floor(next.beat / 4) === Math.floor(e.beat / 4)) return;
+      found++;
+      assert.ok(next.tied && Math.abs(next.beat % 4) < 1e-9, 'tied into the first note of the next bar');
+      const note = s.notes[e.noteId];
+      assert.equal(next.noteId, e.noteId);
+      assert.ok(Math.abs(note.beat + note.dur - (next.beat + next.beats)) < 1e-9, 'one note lasting through both');
+    });
+  }
+  assert.ok(found > 5, `found ${found} ties across bar lines`);
+  assert.equal(tieAcross([{ beat: 3, beats: 1, rest: true }], [{ beat: 0, beats: 1 }]), null);
+  // Any ward can be played with two hands.
+  const two = makeSong(LEVELS[0], 3, { hands: 2 });
+  assert.equal(two.hands, 2);
+  assert.ok(two.notes.some((n) => n.lane === 'L'));
+  assert.ok(defaultLeft(LEVELS[0]).half);
+  assert.equal(makeSong(LEVELS[5], 3, { hands: 1 }).notes.filter((n) => n.lane === 'L').length, 0);
+});

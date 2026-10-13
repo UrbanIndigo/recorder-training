@@ -4,11 +4,14 @@
 // note to play the tune; every hit blasts the germ boss. Later wards add a
 // second staff for the left hand.
 
-import { LEVELS, makeSong, judgeTap, grade, WINDOWS, MIN_BPM, MAX_BPM, nextBpm } from './song.js?v=3.1';
-import { W, H, PAL, text, sprite, HEART, DOCTOR, DOCTOR_COLORS, drawWard, drawMonitor, drawBoss, drawScene } from './art.js?v=3.1';
-import { layoutScore, drawScore, engraveBar, drawStaff, drawBarline, drawClefAndTime } from './score.js?v=3.1';
-import { tutorialFor, lessonCells, countLabel } from './lessons.js?v=3.1';
-import { introductions } from './song.js?v=3.1';
+import { LEVELS, makeSong, judgeTap, grade, WINDOWS, MIN_BPM, MAX_BPM, nextBpm } from './song.js?v=3.2';
+import { W, H, PAL, text, sprite, HEART, DOCTOR, DOCTOR_COLORS, drawWard, drawMonitor, drawBoss, drawScene } from './art.js?v=3.2';
+import { layoutScore, drawScore, engraveBar, drawStaff, drawBarline, drawClefAndTime, drawTie } from './score.js?v=3.2';
+import { newSkill, makeLine, lineResult, updateSkill, endRound, weakest, unlocked, LADDER, LINES_PER_ROUND } from './endless.js?v=3.2';
+import { CELL_INFO } from './lessons.js?v=3.2';
+import { METERS, generateFromCells } from '../rhythm.js?v=3.2';
+import { tutorialFor, lessonCells, countLabel } from './lessons.js?v=3.2';
+import { introductions, writeBar, tieAcross, seededRandom } from './song.js?v=3.2';
 
 const SCENE_H = 48; // the strip above the page: doctor, heart, boss
 const PAGE = { x: 2, y: 50, w: 252, h: 156 };
@@ -19,7 +22,7 @@ const LINE_X1 = 250;
 // page a line starts, in lines, so the line you're playing stays in view
 // as the page scrolls and the next is there to read ahead.
 const LINE_ONE = { h: 46, staves: { R: 24 }, lead: 0.75 };
-const LINE_TWO = { h: 66, staves: { R: 22, L: 50 }, lead: 0.88 };
+const LINE_TWO = { h: 72, staves: { R: 22, L: 56 }, lead: 0.88 };
 const HOLD_FROM = 1; // notes this many beats or longer must be held
 const HOLD_SHARE = 0.6; // ...for at least this share of their length (or all but 0.25 s, whichever is shorter)
 const BARS_PER_LINE = 2;
@@ -56,6 +59,9 @@ export function initGameView(d) {
     for (const [id, k] of Object.entries(gs().cleared || {})) gs().wonAt[id] = Math.round(levelById(id).bpm * steps[k]);
   }
   gs().bpm ||= {};
+  gs().hands ||= {};
+  gs().endless ||= { hands: 1, best: null };
+  const handsOf = (lvl) => gs().hands[lvl.id] ?? lvl.hands;
   gs().tutorial ||= Object.fromEntries(Object.keys(gs().wonAt).map((id) => [id, true])); // wards already beaten skip it
   const bpmOf = (lvl) => gs().bpm[lvl.id] ?? nextBpm(lvl, gs().wonAt[lvl.id]);
   const done = (lvl) => gs().wonAt[lvl.id] >= lvl.bpm;
@@ -92,6 +98,10 @@ export function initGameView(d) {
       }),
     );
     const lvl = LEVELS[selected];
+    for (const [id, n] of [['game-hands-1', 1], ['game-hands-2', 2]]) $(id).classList.toggle('sel', handsOf(lvl) === n);
+    $('game-endless-hands').textContent = gs().endless.hands === 2 ? '✋✋ 2 HANDS' : '✋ 1 HAND';
+    const eb = gs().endless.best;
+    $('game-endless-best').textContent = eb ? `BEST: LEVEL ${eb.peak} · ${eb.lines} LINES · ${eb.bpm} BPM` : 'Finds your level, then keeps pushing it.';
     const bpm = bpmOf(lvl);
     $('game-bpm').value = bpm;
     $('game-bpm-num').textContent = bpm;
@@ -111,8 +121,21 @@ export function initGameView(d) {
   $('game-bpm').addEventListener('input', (e) => setBpm(+e.target.value));
   $('game-bpm-down').addEventListener('click', () => setBpm(bpmOf(LEVELS[selected]) - 2));
   $('game-bpm-up').addEventListener('click', () => setBpm(bpmOf(LEVELS[selected]) + 2));
+  for (const [id, n] of [['game-hands-1', 1], ['game-hands-2', 2]]) {
+    $(id).addEventListener('click', () => {
+      gs().hands[LEVELS[selected].id] = n;
+      d.save();
+      renderMenu();
+    });
+  }
+  $('game-endless-hands').addEventListener('click', () => {
+    gs().endless.hands = gs().endless.hands === 2 ? 1 : 2;
+    d.save();
+    renderMenu();
+  });
+  $('game-endless').addEventListener('click', () => startEndless());
   $('game-play').addEventListener('click', () => playWard(LEVELS[selected]));
-  $('game-retry').addEventListener('click', () => startLevel(run?.level || LEVELS[selected]));
+  $('game-retry').addEventListener('click', () => (lastMode === 'endless' ? startEndless() : startLevel(LEVELS[selected])));
   $('game-next').addEventListener('click', () => {
     // After a win below full speed, go again faster; otherwise on to the next ward.
     if (!done(LEVELS[selected])) return startLevel(LEVELS[selected]);
@@ -121,7 +144,8 @@ export function initGameView(d) {
   });
   $('game-menu-btn').addEventListener('click', showMenu);
   $('game-quit').addEventListener('click', () => {
-    const inLesson = run && run.mode !== 'fight' && tut;
+    const inLesson = run && isLesson() && tut;
+    if (run?.mode === 'endless') endless = null;
     endRun();
     if (inLesson) showStep();
     else showMenu();
@@ -299,8 +323,10 @@ export function initGameView(d) {
   }
 
   function startLevel(level) {
+    lastMode = 'fight';
+    endless = null;
     selected = LEVELS.indexOf(level);
-    return startRun(level, makeSong(level, Date.now(), { bpm: bpmOf(level) }), 'fight');
+    return startRun(level, makeSong(level, Date.now(), { bpm: bpmOf(level), hands: handsOf(level) }), 'fight');
   }
 
   /** The state of one run through a song, before any audio starts. */
@@ -338,7 +364,7 @@ export function initGameView(d) {
     };
   }
 
-  async function startRun(level, song, mode) {
+  async function startRun(level, song, mode, prep = null) {
     endRun();
     cancelAnimationFrame(idleRaf);
     const audio = makeAudio();
@@ -366,6 +392,7 @@ export function initGameView(d) {
     $('game-pads').hidden = mode === 'demo';
     $('game-pads').classList.toggle('two', song.hands === 2);
     document.body.classList.add('game-playing'); // full screen in landscape
+    prep?.(run);
     loop();
   }
 
@@ -398,7 +425,7 @@ export function initGameView(d) {
       n.missAt = t;
       run.counts.miss++;
       run.combo = 0;
-      if (run.mode === 'fight') run.health = Math.max(0, run.health - (inAttack(n.beat) ? 12 : 9));
+      if (isBattle() && !placing()) run.health = Math.max(0, run.health - (inAttack(n.beat) ? 12 : 9));
       run.shake = 4;
       popup(n.lane, 'MISS', PAL.miss);
       run.audio.miss(run.audio.ctx.currentTime);
@@ -407,8 +434,9 @@ export function initGameView(d) {
       const h = run.holding[lane];
       if (h && !h.note.holdOk && t - h.note.pressAt >= holdNeeded(h.note)) h.note.holdOk = true;
     }
-    if (run.health <= 0) return finish(true);
-    if (t > run.song.length + 0.4) return run.mode === 'fight' ? finish(false) : endLesson();
+    if (run.mode === 'endless' && endlessTick(t)) return;
+    if (run.health <= 0) return run.mode === 'endless' ? finishEndless() : finish(true);
+    if (t > run.song.length + 0.4) return run.mode === 'fight' ? finish(false) : run.mode === 'endless' ? endlessRoundOver() : endLesson();
     render(t);
     requestAnimationFrame(loop);
   }
@@ -431,7 +459,8 @@ export function initGameView(d) {
       if (t > run.song.countInBars * run.song.meter.bpb * run.song.beatSec - 0.3) {
         run.counts.extra++;
         run.combo = 0;
-        if (run.mode === 'fight') run.health = Math.max(0, run.health - 4);
+        if (isBattle() && !placing()) run.health = Math.max(0, run.health - 4);
+        run.extraBeats?.push(t / run.song.beatSec);
         run.damage = Math.max(0, run.damage - 0.5);
         popup(lane, 'EXTRA', PAL.miss);
       }
@@ -451,7 +480,7 @@ export function initGameView(d) {
     run.health = Math.min(100, run.health + (r.judgement === 'perfect' ? 3 : r.judgement === 'good' ? 1.5 : 0.5));
     run.damage += DAMAGE[r.judgement];
     run.bolts.push({ lane, x: HEART_X + 10, color: PAL[r.judgement], big: r.judgement === 'perfect' });
-    if (run.mode === 'fight' && run.koAt == null && run.damage >= run.bossHp - 1e-9) {
+    if (isBattle() && run.koAt == null && run.damage >= run.bossHp - 1e-9) {
       run.koAt = t;
       run.shake = 6;
       run.audio.ko(run.audio.ctx.currentTime);
@@ -482,30 +511,36 @@ export function initGameView(d) {
    * first), notes engraved and justified, both hands aligned.
    */
   function engravePage(song, lanes, allCounts) {
-    const { bpb } = song.meter;
     const intro = introductions(song.level);
     const out = [];
     for (let b = 0; b < song.bars; b++) {
-      const start = (song.countInBars + b) * bpb;
-      const line = Math.floor(b / BARS_PER_LINE);
-      const clefW = line === 0 ? 17 : 8;
-      const x0 = LINE_X0 + 3 + clefW + 3;
-      const w = (LINE_X1 - x0) / BARS_PER_LINE;
-      const x = x0 + (b % BARS_PER_LINE) * w;
-      const events = Object.fromEntries(lanes.map((l) => [l, song.score[l].filter((e) => e.beat >= start - 1e-9 && e.beat < start + bpb - 1e-9)]));
-      out.push({
-        bar: b,
-        line,
-        start,
-        x,
-        w,
-        xOf: engraveBar(Object.values(events), start, bpb, x, w),
-        // Counting is pencilled in under lessons, and under a new rhythm's first few bars in a song.
-        counts: Object.fromEntries(lanes.map((l) => [l, allCounts || events[l].some((e) => intro.has(e.cell) && b >= intro.get(e.cell) && b - intro.get(e.cell) < 4)])),
-        layouts: Object.fromEntries(lanes.map((l) => [l, layoutScore(events[l], bpb)])),
-      });
+      out.push(engraveOne(song, b, lanes, (events) =>
+        allCounts || events.some((e) => intro.has(e.cell) && b >= intro.get(e.cell) && b - intro.get(e.cell) < 4)));
     }
     return out;
+  }
+
+  /** One bar as it sits on the page. `countsFor(events)` says whether to pencil in the counting. */
+  function engraveOne(song, b, lanes, countsFor) {
+    const { bpb } = song.meter;
+    const start = (song.countInBars + b) * bpb;
+    const line = Math.floor(b / BARS_PER_LINE);
+    const clefW = line === 0 ? 17 : 8;
+    const x0 = LINE_X0 + 3 + clefW + 3;
+    const w = (LINE_X1 - x0) / BARS_PER_LINE;
+    const x = x0 + (b % BARS_PER_LINE) * w;
+    const events = Object.fromEntries(lanes.map((l) => [l, song.score[l].filter((e) => e.beat >= start - 1e-9 && e.beat < start + bpb - 1e-9)]));
+    return {
+      bar: b,
+      line,
+      start,
+      x,
+      w,
+      xOf: engraveBar(Object.values(events), start, bpb, x, w),
+      // Counting is pencilled in under lessons, and under a new rhythm's first few bars.
+      counts: Object.fromEntries(lanes.map((l) => [l, countsFor(events[l])])),
+      layouts: Object.fromEntries(lanes.map((l) => [l, layoutScore(events[l], bpb)])),
+    };
   }
 
   /**
@@ -513,11 +548,15 @@ export function initGameView(d) {
    * line for every line of music played.
    */
   function scrollPosition(beat) {
-    if (run.mode !== 'fight') return run.line === LINE_TWO ? -0.25 : -0.5; // lessons fit on the page: no scrolling
+    if (isLesson()) return run.line === LINE_TWO ? -0.12 : -0.5; // lessons fit on the page: no scrolling
     const { bpb } = run.song.meter;
     const pos = (beat - run.song.countInBars * bpb) / (bpb * BARS_PER_LINE);
     return pos - run.line.lead;
   }
+
+  const isLesson = () => run.mode === 'demo' || run.mode === 'try' || run.mode === 'still';
+  const isBattle = () => run.mode === 'fight' || run.mode === 'endless';
+  const placing = () => run.mode === 'endless' && endless?.skill.assessing; // unlimited's placement test: no harm done
 
   /** Bars (counting from the first after the count-in) where the boss attacks. */
   function attackBars(song) {
@@ -561,7 +600,7 @@ export function initGameView(d) {
   function drawCounts(pb, lane, y) {
     const compound = run.song.meter.compound;
     for (const gl of pb.layouts[lane].glyphs) {
-      if (gl.rest) continue;
+      if (gl.rest || gl.tied) continue;
       let label = countLabel(gl.beat - pb.start, compound);
       label = { trip: 'T', let: 'L' }[label] || label;
       if (label) text(g, label, Math.round(pb.xOf(gl.beat)), y, '#6d5f8f', { align: 'center' });
@@ -602,14 +641,14 @@ export function initGameView(d) {
 
   /** Where the boss is drawn: one germ, or twins side by side. */
   function bossSpots() {
-    return run.level.boss.twin ? [[208, BOSS_Y + 1], [238, BOSS_Y - 1]] : [[BOSS_X, BOSS_Y]];
+    return (run.boss || run.level.boss).twin ? [[208, BOSS_Y + 1], [238, BOSS_Y - 1]] : [[BOSS_X, BOSS_Y]];
   }
 
   // ---------------------------------------------------------------- render
 
   function render(t) {
     const { song, level } = run;
-    const boss = level.boss;
+    const boss = run.boss || level.boss;
     const { bpb } = song.meter;
     const beat = t / song.beatSec;
     const bar = barAt(beat);
@@ -659,6 +698,15 @@ export function initGameView(d) {
         drawStaff(g, LINE_X0, LINE_X1, y, INK);
         const clefColor = song.hands === 2 ? (lane === 'L' ? PAL.leftDark : PAL.rightDark) : INK;
         drawClefAndTime(g, LINE_X0 + 3, y, clefColor, song.meter.id, line === 0);
+        bars.forEach((pb, k) => {
+          // A tie across the bar line, to the next bar's first note.
+          const out = pb.layouts[lane].glyphs.find((gl) => gl.tieOut);
+          const next = bars[k + 1]?.layouts[lane].glyphs[0];
+          if (out && next) {
+            g.fillStyle = colorOf(out);
+            drawTie(g, Math.round(pb.xOf(out.beat)), Math.round(bars[k + 1].xOf(next.beat)), y);
+          }
+        });
         for (const pb of bars) {
           drawScore(g, pb.layouts[lane], y, pb.xOf, colorOf);
           drawBarline(g, Math.round(pb.x + pb.w), y, INK, pb.bar === song.bars - 1);
@@ -721,11 +769,11 @@ export function initGameView(d) {
     run.bolts = run.bolts.filter((b) => b.x < bossLeft);
     // The boss (lessons have none: just what's happening).
     const mood = ko ? 'ko' : run.bossFlash > 0 ? 'hurt' : attack || nextAttack ? 'angry' : 'idle';
-    if (run.mode !== 'fight') {
+    if (isLesson()) {
       const label = { demo: 'LISTEN...', try: 'YOUR TURN', still: 'LESSON' }[run.mode];
       text(g, label, 236, 24, run.mode === 'try' ? PAL.good : PAL.text, { scale: 2, align: 'right', shadow: PAL.night });
     }
-    if (run.mode === 'fight') bossSpots().forEach(([bx, by], i) => {
+    if (isBattle()) bossSpots().forEach(([bx, by], i) => {
       const bob = ko ? Math.round(Math.sin(t * 3 + i) * 2) : beat >= 0 && (beat + i * 0.5) % 1 < 0.5 ? 0 : 1;
       const jitter = attack && !ko ? Math.round((Math.random() - 0.5) * 2) : 0;
       drawBoss(g, boss, bx + jitter, by + bob, { frame: Math.floor(beat * (attack ? 2 : 1)) + i, mood, flash: run.bossFlash === 3 && !ko, scale: 2 });
@@ -762,11 +810,12 @@ export function initGameView(d) {
     // HUD: level and score; combo; health bars; progress.
     g.fillStyle = 'rgba(20,16,38,0.85)';
     g.fillRect(0, 0, W, 8);
-    text(g, `${level.id} ${level.name}`, 2, 2, PAL.dim);
+    if (run.mode === 'endless') text(g, `UNLIMITED · LEVEL ${Math.floor(endless.skill.k)} · ${song.bpm} BPM`, 2, 2, PAL.dim);
+    else text(g, `${level.id} ${level.name}`, 2, 2, PAL.dim);
     text(g, String(Math.round(run.score)).padStart(6, '0'), W - 2, 2, PAL.text, { align: 'right' });
     if (run.combo >= 4) text(g, `${run.combo} COMBO`, 60, 11, run.combo >= 20 ? PAL.perfect : PAL.good, { shadow: PAL.night });
-    if (run.mode === 'fight') {
-      text(g, ko ? `${boss.name} KO!` : boss.name, 202, 11, ko ? PAL.perfect : boss.light, { align: 'right', shadow: PAL.night });
+    if (isBattle()) {
+      text(g, ko ? `${boss.name} KO!` : run.mode === 'endless' ? `GERM ${endless.germ + 1}` : boss.name, 202, 11, ko ? PAL.perfect : boss.light, { align: 'right', shadow: PAL.night });
       g.fillStyle = PAL.lane;
       g.fillRect(60, 41, 62, 5);
       g.fillStyle = run.health > 30 ? PAL.perfect : PAL.miss;
@@ -780,7 +829,8 @@ export function initGameView(d) {
     g.fillStyle = PAL.trim;
     g.fillRect(0, SCENE_H, W, 1);
     g.fillStyle = PAL.text;
-    g.fillRect(0, SCENE_H, Math.max(0, Math.min(W, Math.round((t / song.length) * W))), 1);
+    const progress = run.mode === 'endless' ? (beat / bpb - song.countInBars) / (LINES_PER_ROUND * BARS_PER_LINE) : t / song.length;
+    g.fillRect(0, SCENE_H, Math.max(0, Math.min(W, Math.round(progress * W))), 1);
 
     // Banners: count-in, attack warnings, the knockout.
     const countBeats = song.countInBars * bpb;
@@ -791,8 +841,12 @@ export function initGameView(d) {
       const k = Math.floor(beat / song.meter.click);
       const label = beat < 0 ? 'READY' : k < clicks ? String(k + 1) : 'GO!';
       text(g, label, 128, 16, PAL.text, { scale: 3, align: 'center', shadow: PAL.trim });
+      if (run.mode === 'endless' && run.banners?.[0]) text(g, run.banners[0].text, 128, 38, run.banners[0].color, { align: 'center', shadow: PAL.night });
+    } else if (run.banners?.some((bn) => beat >= bn.from && beat < bn.to)) {
+      const bn = run.banners.find((x) => beat >= x.from && beat < x.to);
+      text(g, bn.text, 128, 18, bn.color, { scale: bn.text.length > 14 ? 1 : 2, align: 'center', shadow: PAL.night });
     } else if (ko && t - run.koAt < 2.5) {
-      text(g, 'BOSS DOWN!', 128, 18, PAL.perfect, { scale: 2, align: 'center', shadow: PAL.night });
+      text(g, run.mode === 'endless' ? 'GERM DOWN!' : 'BOSS DOWN!', 128, 18, PAL.perfect, { scale: 2, align: 'center', shadow: PAL.night });
     } else if (nextAttack && beat % 1 < 0.6) {
       text(g, '! ATTACK !', 128, 18, PAL.miss, { scale: 2, align: 'center', shadow: PAL.night });
     }
@@ -855,12 +909,230 @@ export function initGameView(d) {
     run = null;
   }
 
+  // ------------------------------------------------------------- unlimited
+
+  // Unlimited: rounds of six lines, made up as you go from how you're
+  // playing. The first lines place you; after that it adds rhythms when
+  // you're doing well, eases off when you struggle, works on your weak
+  // spots, and changes the tempo from round to round. One germ after
+  // another, until the patient flatlines.
+  let endless = null;
+  const ENDLESS_LEVEL = { id: 0, name: 'UNLIMITED', meter: '4/4', key: 0, minor: false, prog: [0, 7, 9, 5], hands: 1, bpm: 72, cells: {}, chorus: {}, boss: LEVELS[0].boss };
+  const MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11];
+  const germHp = (n) => 18 + 5 * n;
+
+  function startEndless() {
+    lastMode = 'endless';
+    endless = {
+      skill: newSkill(),
+      random: seededRandom(Date.now()),
+      hands: gs().endless.hands,
+      health: 100, score: 0, combo: 0, maxCombo: 0,
+      counts: { perfect: 0, good: 0, ok: 0, miss: 0, extra: 0 },
+      early: 0, late: 0, short: 0,
+      germ: 0, damage: 0, germsBeaten: 0,
+      lines: 0, round: 1, maxBpm: 0, seen: new Set(['quarter', 'half']), firstLine: {}, melody: 3,
+      banners: [{ text: 'PLACEMENT: PLAY WHAT YOU CAN', color: PAL.good }],
+    };
+    startEndlessRound();
+  }
+
+  async function startEndlessRound() {
+    const bpm = endless.skill.bpm;
+    endless.maxBpm = Math.max(endless.maxBpm, bpm);
+    const meter = METERS['4/4'];
+    const beatSec = 60 / bpm;
+    const song = {
+      level: ENDLESS_LEVEL, hands: endless.hands, bpm, beatSec, meter, bars: 0, countInBars: 1,
+      notes: [], score: { R: [], L: [] }, bass: [], chords: [], sections: [], length: Infinity,
+      drums: [0, 1, 2, 3].map((k) => ({ beat: k, time: k * beatSec, type: 'stick' })),
+    };
+    await startRun(ENDLESS_LEVEL, song, 'endless', (run) => Object.assign(run, {
+      health: endless.health, score: endless.score, combo: endless.combo, maxCombo: endless.maxCombo,
+      counts: endless.counts, early: endless.early, late: endless.late, short: endless.short,
+      damage: endless.damage, bossHp: germHp(endless.germ), boss: LEVELS[endless.germ % LEVELS.length].boss,
+      evaluated: 0, extraBeats: [],
+      // Count-in message: placement first, then the round and tempo.
+      banners: [{ ...(endless.banners.shift() || { text: `ROUND ${endless.round} · ${bpm} BPM`, color: PAL.text }), from: -4, to: 4 }],
+    }));
+  }
+
+  /** Add the next line of music (two bars) to the page, the notes and the backing. */
+  function addEndlessLine() {
+    const { song } = run;
+    const { bpb } = song.meter;
+    const skill = endless.skill;
+    const L = song.bars / BARS_PER_LINE;
+    let right = makeLine(skill, endless.random);
+    if (skill.k > LADDER.indexOf('syncopation') && endless.random() < 0.25) right = tieAcross(right[0], right[1]) || right;
+    const leftCells = skill.k < 6 ? { half: 3, quarter: 1 } : skill.k < 12 ? { half: 2, quarter: 3, halfRest: 1 } : { quarter: 3, eighths: 2, half: 1, halfRest: 1 };
+    const fresh = [];
+    for (const e of right.flat()) {
+      if (e.cell && !endless.seen.has(e.cell)) {
+        endless.seen.add(e.cell);
+        endless.firstLine[e.cell] = L;
+        fresh.push(e.cell);
+      }
+    }
+    // Write both bars (right hand, then left), then put the notes in time order.
+    const added = [];
+    const scoreBefore = { R: song.score.R.length, L: song.score.L.length };
+    for (let i = 0; i < BARS_PER_LINE; i++) {
+      const barStart = (song.countInBars + song.bars + i) * bpb;
+      writeBar(added, song.score, 'R', right[i], barStart, () => {
+        endless.melody = Math.max(0, Math.min(9, endless.melody + [-2, -1, -1, 0, 1, 1, 2][Math.floor(endless.random() * 7)]));
+        return 72 + MAJOR_SCALE[endless.melody % 7] + 12 * Math.floor(endless.melody / 7);
+      });
+    }
+    if (song.hands === 2) {
+      for (let i = 0; i < BARS_PER_LINE; i++) {
+        const b = song.bars + i;
+        const barStart = (song.countInBars + b) * bpb;
+        const root = ENDLESS_LEVEL.prog[b % 4];
+        const left = generateLeft(leftCells);
+        writeBar(added, song.score, 'L', left, barStart, (e) => 36 + root + (e.beat % 2 === 0 ? 0 : 7));
+      }
+    }
+    added.sort((a, b) => a.beat - b.beat || (a.lane < b.lane ? -1 : 1));
+    for (const n of added) {
+      n.time = n.beat * song.beatSec;
+      n.id = run.notes.length;
+      n.line = L;
+      run.notes.push(n);
+    }
+    for (const lane of ['R', 'L']) {
+      for (const ev of song.score[lane].slice(scoreBefore[lane])) {
+        if (ev.note) ev.noteId = ev.note.id;
+        delete ev.note;
+      }
+    }
+    // Backing for the two bars.
+    const { audio, startAt } = run;
+    for (let i = 0; i < BARS_PER_LINE; i++) {
+      const b = song.bars;
+      const barStart = (song.countInBars + b) * bpb;
+      const root = ENDLESS_LEVEL.prog[b % 4];
+      for (let k = 0; k < bpb; k++) audio[k % 2 === 0 ? 'kick' : 'snare'](startAt + (barStart + k) * song.beatSec);
+      for (let h = 0; h < bpb; h += 0.5) audio.hat(startAt + (barStart + h) * song.beatSec);
+      if (song.hands === 1) audio.bass(startAt + barStart * song.beatSec, 36 + root, bpb * song.beatSec * 0.9);
+      const scale = MAJOR_SCALE;
+      const idx = scale.indexOf(root % 12);
+      audio.pad(startAt + barStart * song.beatSec, [0, 2, 4].map((k2) => 60 + scale[(idx + k2) % 7] + 12 * Math.floor((idx + k2) / 7)), bpb * song.beatSec * 0.95);
+      song.bars++;
+      const lanes = Object.keys(run.lanes);
+      run.pageBars.push(engraveOne(song, b, lanes, (events) => events.some((e) => endless.firstLine[e.cell] != null && L - endless.firstLine[e.cell] < 2 && LADDER.indexOf(e.cell) >= 2)));
+    }
+    // Tell the player about a rhythm they haven't seen yet, as its line comes up.
+    const lineBeat = (song.countInBars + L * BARS_PER_LINE) * bpb;
+    for (const c of fresh) {
+      if (LADDER.indexOf(c) < 2 || skill.assessing) continue;
+      const name = CELL_INFO[c]?.name || c;
+      run.banners.push({ text: `NEW: ${name}`, color: PAL.good, from: lineBeat - 2, to: lineBeat + 3 });
+    }
+    if (song.bars >= LINES_PER_ROUND * BARS_PER_LINE) song.length = (song.countInBars + song.bars) * bpb * song.beatSec;
+  }
+
+  function generateLeft(cells) {
+    return generateFromCells({ cells, meter: '4/4', pitches: [48], bars: 1, random: endless.random, standalone: false }).events;
+  }
+
+  /**
+   * Called every frame in unlimited: keep the music a few lines ahead, learn
+   * from each finished line, bring in the next germ. Returns true if the
+   * round has been handed over.
+   */
+  function endlessTick(t) {
+    const { song } = run;
+    const { bpb } = song.meter;
+    const beat = t / song.beatSec;
+    const bar = Math.floor(beat / bpb) - song.countInBars;
+    const total = LINES_PER_ROUND * BARS_PER_LINE;
+    while (song.bars < total && song.bars - Math.max(0, bar) < 5) addEndlessLine();
+    // A line is over once its last note's window has passed.
+    while (run.evaluated < song.bars / BARS_PER_LINE) {
+      const L = run.evaluated;
+      const end = (song.countInBars + (L + 1) * BARS_PER_LINE) * bpb;
+      if (beat < end + WINDOWS.ok / song.beatSec + 0.05) break;
+      const notes = run.notes.filter((n) => n.line === L);
+      const start = end - BARS_PER_LINE * bpb;
+      const extras = run.extraBeats.filter((b) => b >= start && b < end).length;
+      const msgs = updateSkill(endless.skill, lineResult(notes, extras));
+      endless.lines++;
+      run.evaluated++;
+      for (const m of msgs) {
+        if (m.kind === 'assessed') run.banners.push({ text: `YOUR LEVEL: ${Math.floor(endless.skill.k)}`, color: PAL.perfect, from: beat, to: beat + 4 });
+        if (m.kind === 'easier') run.banners.push({ text: 'EASING OFF A LITTLE', color: PAL.ok, from: beat, to: beat + 3 });
+      }
+    }
+    // The next germ, a moment after one is beaten.
+    if (run.koAt != null && t - run.koAt > 1.5) {
+      endless.germ++;
+      endless.germsBeaten++;
+      run.damage = 0;
+      run.koAt = null;
+      run.bossHp = germHp(endless.germ);
+      run.boss = LEVELS[endless.germ % LEVELS.length].boss;
+    }
+    return false;
+  }
+
+  /** Keep what carries over between rounds. */
+  function saveEndless() {
+    Object.assign(endless, {
+      health: run.health, score: run.score, combo: run.combo, maxCombo: run.maxCombo,
+      counts: run.counts, early: run.early, late: run.late, short: run.short, damage: run.damage,
+    });
+  }
+
+  function endlessRoundOver() {
+    saveEndless();
+    endless.health = Math.min(100, endless.health + 10); // a breather between rounds
+    const change = endRound(endless.skill);
+    endless.round++;
+    endless.banners.push({
+      text: `ROUND ${endless.round} · ${endless.skill.bpm} BPM${change > 0 ? ' (FASTER)' : change < 0 ? ' (SLOWER)' : ''}`,
+      color: change > 0 ? PAL.good : PAL.text,
+    });
+    startEndlessRound();
+  }
+
+  function finishEndless() {
+    saveEndless();
+    run.ended = true;
+    const audio = run.audio;
+    setTimeout(() => audio.ctx.close().catch(() => {}), 300);
+    run = null;
+    const sk = endless.skill;
+    const result = { peak: sk.peak, lines: endless.lines, bpm: endless.maxBpm, germs: endless.germsBeaten };
+    const prev = gs().endless.best;
+    const isBest = !prev || result.peak > prev.peak || (result.peak === prev.peak && result.lines > prev.lines);
+    if (isBest) gs().endless.best = result;
+    d.save();
+    document.body.classList.remove('game-playing');
+    $('game-pads').hidden = true;
+    $('game-quit').hidden = true;
+    $('game-results').hidden = false;
+    $('game-grade').textContent = String(sk.peak);
+    $('game-grade').className = 'game-grade g-A';
+    $('game-verdict').textContent = `FLATLINED AFTER ${endless.lines} LINES${isBest ? ' · NEW BEST!' : ''}`;
+    $('game-acc').textContent = `LEVEL ${sk.peak} · UP TO ${endless.maxBpm} BPM`;
+    const c = endless.counts;
+    $('game-counts').textContent = `PERFECT ${c.perfect} · GOOD ${c.good} · OK ${c.ok} · MISS ${c.miss} · EXTRA ${c.extra}`;
+    $('game-extra').textContent = `GERMS BEATEN ${endless.germsBeaten} · MAX COMBO ${endless.maxCombo} · TOO SHORT ${endless.short}`;
+    const hardest = CELL_INFO[LADDER[sk.peak - 1]]?.name || LADDER[sk.peak - 1];
+    const weak = weakest(sk).map((x) => CELL_INFO[x]?.name || x);
+    $('game-hint').textContent = `Hardest rhythm reached: ${hardest}.${weak.length ? ` Work on: ${weak.join(', ')}.` : ''}`;
+    $('game-next').hidden = true;
+    endless = null;
+  }
+
   // -------------------------------------------------------------- tutorial
 
   // A ward's tutorial: an introduction, then a lesson card for each new
   // rhythm. Each lesson can be heard (it plays itself, with the counting
   // written in) and tried (your go, with feedback), as often as you like.
   let tut = null;
+  let lastMode = 'fight';
 
   function openTutorial(level) {
     endRun();
@@ -1007,6 +1279,9 @@ export function initGameView(d) {
     e.preventDefault();
     input(lane, e);
   });
+
+  // For automated tests only: lets a simulated player see the notes (?debug in the URL).
+  if (typeof location !== 'undefined' && /[?&]debug\b/.test(location.search)) window.__beatWard = () => ({ run, endless });
 
   return {
     enter() {
