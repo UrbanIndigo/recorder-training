@@ -97,9 +97,9 @@ Asks for a chord, like **G major, 1st inversion (G/B)**. You play it on the pian
 
 ### Beat Ward (game)
 
-A pixel-art rhythm game and boss rush that trains you to read real sheet music. The music is on the doctor's clipboard: a five-line staff with a clef, time signature, bar lines and engraved spacing, plus all the notation (beams, flags, dots, ties, triplets, rests). The page doesn't move, just like a printed part. Keep time with the count-in and drums and tap each note as you'd play it. Each hit plays the tune and shoots the ward's germ boss.
+A pixel-art rhythm game and boss rush that trains you to read real sheet music. The music is on the doctor's clipboard: a five-line staff with a clef, time signature, bar lines and engraved spacing, plus all the notation (beams, flags, dots, ties, triplets, rests). The music stays still while you read it. Keep time with the count-in and drums and tap each note as you'd play it. Each hit plays the tune and shoots the ward's germ boss.
 
-- **A page that stays still:** there are two lines of two bars. When you finish the top line, it's replaced by the line after next while you play the bottom one, so there's always a line to read ahead. A soft highlight shows which bar you're in. Notes turn green, yellow or orange when you hit them, and red if you miss.
+- **A page that scrolls a line at a time:** you play the top line with the next one below to read ahead (two bars per line). As you reach the end of a line, the page glides up by one line; it never moves with the beat. A soft highlight shows which bar you're in. Notes turn green, yellow or orange when you hit them, and red if you miss.
 - **Boss fights:** your hits wear the boss down (Perfect does the most damage). Take its HP to zero to clear the ward and unlock the next; that's the same as 65% accuracy. Misses hurt the patient, and if their health runs out they flatline.
 - **Boss attacks:** each chorus is an attack, with a siren a bar before and red lights. Misses cost more during attacks, and some bosses have gimmicks:
   - Arrhythmia and Fever Bug jolt the clipboard on every bar.

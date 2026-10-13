@@ -4,9 +4,9 @@
 // note to play the tune; every hit blasts the germ boss. Later wards add a
 // second staff for the left hand.
 
-import { LEVELS, makeSong, judgeTap, grade, WINDOWS } from './song.js?v=2.7';
-import { W, H, PAL, text, sprite, HEART, DOCTOR, DOCTOR_COLORS, drawWard, drawMonitor, drawBoss, drawScene } from './art.js?v=2.7';
-import { layoutScore, drawScore, engraveBar, drawStaff, drawBarline, drawClefAndTime } from './score.js?v=2.7';
+import { LEVELS, makeSong, judgeTap, grade, WINDOWS } from './song.js?v=2.8';
+import { W, H, PAL, text, sprite, HEART, DOCTOR, DOCTOR_COLORS, drawWard, drawMonitor, drawBoss, drawScene } from './art.js?v=2.8';
+import { layoutScore, drawScore, engraveBar, drawStaff, drawBarline, drawClefAndTime } from './score.js?v=2.8';
 
 const SCENE_H = 48; // the strip above the page: doctor, heart, boss
 const PAGE = { x: 2, y: 50, w: 252, h: 140 };
@@ -374,6 +374,24 @@ export function initGameView(d) {
     return out;
   }
 
+  /**
+   * How far the page has scrolled, in lines. It holds still on each line
+   * and glides to the next over the half beat around the line change.
+   */
+  function scrollPosition(beat, lines) {
+    const { bpb } = run.song.meter;
+    const lineBeats = bpb * BARS_PER_LINE;
+    const pos = (beat - run.song.countInBars * bpb) / lineBeats;
+    const glide = 0.25 / lineBeats; // a quarter beat either side of the change
+    const base = Math.floor(pos);
+    const frac = pos - base;
+    const ease = (x) => x * x * (3 - 2 * x);
+    let at = base;
+    if (frac > 1 - glide) at = base + ease((frac - (1 - glide)) / (2 * glide));
+    else if (frac < glide) at = base - 1 + ease((frac + glide) / (2 * glide));
+    return Math.max(0, Math.min(lines - 1, at));
+  }
+
   /** Bars (counting from the first after the count-in) where the boss attacks. */
   function attackBars(song) {
     return song.sections.map((sec, b) => (sec === 'chorus' ? b : -1)).filter((b) => b >= 0);
@@ -406,10 +424,12 @@ export function initGameView(d) {
     const fog = boss.gimmick === 'fog' || boss.gimmick === 'both' ? boss.fog : 0;
     const ko = run.koAt != null;
 
-    // ---- the page: two lines of music that stay put. The line you're on
-    // and the next; when you finish a line it's replaced by the one after.
+    // ---- the page: the line you're on at the top, the next one below.
+    // As you reach the end of a line the page glides up by one line; it
+    // never moves in between, so you read still music.
     const lines = Math.ceil(song.bars / BARS_PER_LINE);
     const curLine = Math.max(0, Math.min(lines - 1, Math.floor(Math.max(0, bar) / BARS_PER_LINE)));
+    const scroll = scrollPosition(beat, lines);
     let jolt = 0;
     if (quake && attack && (beat % bpb) < 0.2) jolt = Math.round((Math.random() - 0.5) * 4);
     g.fillStyle = PAPER_EDGE;
@@ -423,9 +443,13 @@ export function initGameView(d) {
       }
       return INK;
     };
-    for (const line of [curLine, curLine + 1]) {
+    g.save();
+    g.beginPath();
+    g.rect(PAGE.x, PAGE.y + jolt, PAGE.w, PAGE.h);
+    g.clip();
+    for (let line = Math.floor(scroll); line <= Math.floor(scroll) + 2; line++) {
       if (line >= lines) continue;
-      const top = PAGE.y + (line % 2) * SLOT_H + jolt;
+      const top = Math.round(PAGE.y + (line - scroll) * SLOT_H) + jolt;
       const bars = run.pageBars.filter((pb) => pb.line === line);
       const lineStart = bars[0].start;
       // The bar you're in gets a soft highlight, so you don't lose your place.
@@ -463,6 +487,7 @@ export function initGameView(d) {
         text(g, `${boss.name} FOG!`, W / 2, top + SLOT_H / 2 - 2, PAL.text, { align: 'center' });
       }
     }
+    g.restore();
 
     // ---- the scene above the page.
     g.save();

@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1f6f5c">
   <title>Recorder Trainer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="css/styles.css?v=2.7">
+  <link rel="stylesheet" href="css/styles.css?v=2.8">
 </head>
 <body>
   <header class="topbar">
@@ -66,7 +66,7 @@
           <small>Turn it up if your playing isn't picked up, down if background noise is. The Mic bar shows the level: it turns green when it hears you, and the line marks the cut-off.</small>
         </div>
       </details>
-      <p class="hint version">Version 2.7</p>
+      <p class="hint version">Version 2.8</p>
     </section>
 
     <!-- Long tone: choose note -->
@@ -431,7 +431,7 @@
           <span id="game-offset">0 ms</span>
           <button class="game-btn" id="game-offset-up" aria-label="Later">+</button>
         </div>
-        <p class="game-help">Read the music on the clipboard and tap each note in time with the drums, like sight-reading from a real part. The page doesn’t move: when you finish a line, the next one appears in its place while you play the line below. Notes turn green, yellow or orange when you hit them, and red if you miss. Keys: Space or J for the right hand, F for the left. On a phone, use the pads (or tap the left and right halves of the screen). Rhythms are different every play. Beat the boss to unlock the next ward. If your hits are always early or late, nudge the audio offset.</p>
+        <p class="game-help">Read the music on the clipboard and tap each note in time with the drums, like sight-reading from a real part. You always read the top line, with the next line below to read ahead; the page scrolls up a line as you reach the end of each one. Notes turn green, yellow or orange when you hit them, and red if you miss. Keys: Space or J for the right hand, F for the left. On a phone, use the pads (or tap the left and right halves of the screen). Rhythms are different every play. Beat the boss to unlock the next ward. If your hits are always early or late, nudge the audio offset.</p>
       </div>
     </section>
 
@@ -523,7 +523,7 @@
     <button class="btn primary small" id="load-error-reload">Reload</button>
   </p>
   <script>
-    window.APP_VERSION = '2.7';
+    window.APP_VERSION = '2.8';
     // If the app hasn't started after a few seconds, offer a fresh reload.
     setTimeout(function () {
       if (window.appReady) return;
@@ -534,6 +534,6 @@
       };
     }, 4000);
   </script>
-  <script type="module" src="js/app.js?v=2.7"></script>
+  <script type="module" src="js/app.js?v=2.8"></script>
 </body>
 </html>
