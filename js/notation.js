@@ -2,8 +2,8 @@
 // printed music (short notes closer together, long notes with more room),
 // so the layout doesn't give the timing away.
 
-import { diatonicStep, noteInfo } from './music.js?v=2.5';
-import { meterOf, soundingNotes } from './rhythm.js?v=2.5';
+import { diatonicStep, noteInfo } from './music.js?v=2.6';
+import { meterOf, soundingNotes } from './rhythm.js?v=2.6';
 
 const GAP = 10; // staff line spacing
 const STAFF_TOP = 34; // within each line block (room above for bar badges); more for high notes

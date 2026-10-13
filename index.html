@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1f6f5c">
   <title>Recorder Trainer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="css/styles.css?v=2.5">
+  <link rel="stylesheet" href="css/styles.css?v=2.6">
 </head>
 <body>
   <header class="topbar">
@@ -38,6 +38,11 @@
           <span class="mode-title">Piano Chords</span>
           <span class="mode-desc">Play the chord it asks for, like G major in 1st inversion or Dsus4. Then reveal the answer, compare, and mark whether you got it.</span>
         </button>
+        <button class="mode-card" data-goto="game">
+          <span class="mode-icon" aria-hidden="true">🎮</span>
+          <span class="mode-title">Beat Ward</span>
+          <span class="mode-desc">A pixel-art rhythm game. Tap the notes as they reach the heart to play the tune. The rhythms change every time, the wards get faster, and later ones need both hands.</span>
+        </button>
         <button class="mode-card" data-goto="tuner">
           <span class="mode-icon" aria-hidden="true">🎯</span>
           <span class="mode-title">Tuner</span>
@@ -61,7 +66,7 @@
           <small>Turn it up if your playing isn't picked up, down if background noise is. The Mic bar shows the level: it turns green when it hears you, and the line marks the cut-off.</small>
         </div>
       </details>
-      <p class="hint version">Version 2.5</p>
+      <p class="hint version">Version 2.6</p>
     </section>
 
     <!-- Long tone: choose note -->
@@ -391,6 +396,44 @@
       </details>
     </section>
 
+    <!-- Beat Ward: pixel rhythm game -->
+    <section class="view" id="view-game" hidden>
+      <div class="game-wrap">
+        <canvas id="game-canvas" width="256" height="144" aria-label="Beat Ward game screen"></canvas>
+        <div class="game-results" id="game-results" hidden>
+          <div class="game-grade" id="game-grade">S</div>
+          <div class="game-verdict" id="game-verdict"></div>
+          <div class="game-acc" id="game-acc"></div>
+          <div class="game-small" id="game-counts"></div>
+          <div class="game-small" id="game-extra"></div>
+          <div class="game-hint" id="game-hint"></div>
+          <div class="game-row">
+            <button class="game-btn" id="game-retry">RETRY</button>
+            <button class="game-btn primary" id="game-next">NEXT WARD</button>
+            <button class="game-btn" id="game-menu-btn">MENU</button>
+          </div>
+        </div>
+      </div>
+      <button class="game-btn game-quit" id="game-quit" hidden>✕ QUIT</button>
+      <div class="game-pads" id="game-pads" hidden>
+        <button class="game-pad left" id="game-left">L<small>F</small></button>
+        <button class="game-pad right" id="game-right">R<small>J</small></button>
+        <button class="game-pad one" id="game-one">TAP<small>SPACE</small></button>
+      </div>
+      <div class="game-menu" id="game-menu">
+        <div class="game-levels" id="game-levels"></div>
+        <p class="game-blurb" id="game-blurb"></p>
+        <button class="game-btn primary big" id="game-play">▶ PLAY</button>
+        <div class="game-offset">
+          <span>AUDIO OFFSET</span>
+          <button class="game-btn" id="game-offset-down" aria-label="Earlier">−</button>
+          <span id="game-offset">0 ms</span>
+          <button class="game-btn" id="game-offset-up" aria-label="Later">+</button>
+        </div>
+        <p class="game-help">Tap as each note reaches the heart. Keys: Space or J for the right hand, F for the left. On a phone, use the pads (or tap the left and right halves of the screen). Rhythms are different every play. Score 65% or more to unlock the next ward. If your hits are always early or late, nudge the audio offset.</p>
+      </div>
+    </section>
+
     <!-- Piano chords -->
     <section class="view" id="view-chords" hidden>
       <h2>Piano Chords</h2>
@@ -479,7 +522,7 @@
     <button class="btn primary small" id="load-error-reload">Reload</button>
   </p>
   <script>
-    window.APP_VERSION = '2.5';
+    window.APP_VERSION = '2.6';
     // If the app hasn't started after a few seconds, offer a fresh reload.
     setTimeout(function () {
       if (window.appReady) return;
@@ -490,6 +533,6 @@
       };
     }, 4000);
   </script>
-  <script type="module" src="js/app.js?v=2.5"></script>
+  <script type="module" src="js/app.js?v=2.6"></script>
 </body>
 </html>

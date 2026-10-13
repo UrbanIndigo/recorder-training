@@ -473,3 +473,45 @@ body { overflow-anchor: none; } /* rows updating shouldn't make the page jump */
 .tap-pad small { font-size: 0.75rem; font-weight: 600; opacity: 0.8; }
 .tap-pad.down { transform: scale(0.97); filter: brightness(1.25); }
 @media (hover: none) { .tap-pad small { display: none; } }
+
+/* Beat Ward (pixel rhythm game) */
+#view-game { --g-bg: #141026; --g-panel: #221c3a; --g-edge: #4a3f7a; --g-text: #f4f1ff; --g-dim: #8a80b8; --g-pink: #ff5d8f; --g-blue: #4fc3ff; --g-green: #7dffb2; }
+#view-game, #view-game button { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; letter-spacing: 0.04em; }
+.game-wrap { position: relative; background: var(--g-bg); border: 4px solid var(--g-edge); border-radius: 4px; box-shadow: 0 6px 0 #0006; }
+#game-canvas { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; image-rendering: pixelated; image-rendering: crisp-edges; touch-action: none; user-select: none; -webkit-user-select: none; }
+.game-quit { display: block; margin: 0.5rem 0 0 auto; font-size: 0.75rem; padding: 0.25rem 0.7rem; color: var(--g-dim); }
+.game-results { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem; background: rgba(20, 16, 38, 0.86); color: var(--g-text); text-align: center; padding: 0.5rem; }
+.game-grade { font-size: clamp(2.5rem, 12vw, 5rem); font-weight: 900; line-height: 1; text-shadow: 4px 4px 0 #3d3266; }
+.game-grade.g-S { color: #ffe066; } .game-grade.g-A { color: var(--g-green); } .game-grade.g-B { color: var(--g-blue); }
+.game-grade.g-C { color: #ffb066; } .game-grade.g-D, .game-grade.g-X { color: #ff5d5d; }
+.game-verdict { font-weight: 800; font-size: clamp(0.8rem, 3.2vw, 1.1rem); }
+.game-acc { font-size: clamp(1rem, 4vw, 1.4rem); font-weight: 800; }
+.game-small { font-size: clamp(0.6rem, 2.4vw, 0.8rem); color: var(--g-dim); }
+.game-hint { font-size: clamp(0.65rem, 2.6vw, 0.85rem); color: #ffe066; min-height: 1em; }
+.game-row { display: flex; gap: 0.4rem; flex-wrap: wrap; justify-content: center; margin-top: 0.3rem; }
+.game-btn { background: var(--g-panel); color: var(--g-text); border: 2px solid var(--g-edge); box-shadow: 0 3px 0 #0008; padding: 0.4rem 0.8rem; font-weight: 800; cursor: pointer; border-radius: 0; }
+.game-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #0008; }
+.game-btn.primary { background: var(--g-pink); border-color: #ffb3c9; color: #1a0f1f; }
+.game-btn.big { width: 100%; font-size: 1.1rem; padding: 0.7rem; margin: 0.6rem 0; }
+.game-menu { margin-top: 0.8rem; background: var(--g-bg); color: var(--g-text); border: 4px solid var(--g-edge); padding: 0.8rem; }
+.game-levels { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.4rem; }
+.game-level { display: flex; align-items: center; gap: 0.5rem; background: var(--g-panel); color: var(--g-text); border: 2px solid var(--g-edge); padding: 0.45rem 0.5rem; text-align: left; cursor: pointer; font-size: 0.8rem; font-weight: 700; border-radius: 0; }
+.game-level.sel { border-color: var(--g-pink); box-shadow: inset 0 0 0 2px var(--g-pink); }
+.game-level.locked { opacity: 0.45; cursor: not-allowed; }
+.gl-num { background: var(--g-edge); min-width: 1.6em; text-align: center; padding: 0 0.2em; }
+.gl-name { flex: 1; }
+.gl-best { color: var(--g-green); font-size: 0.7rem; }
+.game-blurb { color: var(--g-dim); font-size: 0.85rem; margin: 0.6rem 0 0; min-height: 2.4em; }
+.game-offset { display: flex; align-items: center; gap: 0.5rem; justify-content: center; font-size: 0.75rem; color: var(--g-dim); }
+.game-offset .game-btn { padding: 0.15rem 0.6rem; }
+#game-offset { color: var(--g-text); min-width: 5em; text-align: center; }
+.game-help { color: var(--g-dim); font-size: 0.75rem; line-height: 1.5; margin: 0.7rem 0 0; }
+.game-pads { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.6rem; position: sticky; bottom: 0.5rem; }
+.game-pad { height: 6.5rem; border: 4px solid var(--g-edge); border-radius: 0; background: var(--g-panel); color: var(--g-text); font-size: 1.6rem; font-weight: 900; display: flex; flex-direction: column; align-items: center; justify-content: center; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; box-shadow: 0 5px 0 #0008; }
+.game-pad small { font-size: 0.65rem; color: var(--g-dim); }
+.game-pad.left { border-color: var(--g-blue); }
+.game-pad.right, .game-pad.one { border-color: var(--g-pink); }
+.game-pad.down { transform: translateY(3px); box-shadow: 0 2px 0 #0008; filter: brightness(1.4); }
+.game-pad.one { grid-column: 1 / -1; }
+.game-pads:not(.two) .left, .game-pads:not(.two) .right { display: none; }
+.game-pads.two .one { display: none; }

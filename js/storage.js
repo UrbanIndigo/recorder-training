@@ -19,6 +19,7 @@ const DEFAULTS = {
   rhythmInput: 'mic', // 'mic' or 'tap' (hold a button for each note)
   showPlayhead: false, // moving line and live note bars while playing rhythms
   endless: null, // endless-mode progress (see progression.js)
+  game: null, // Beat Ward progress (see game/game.js)
   chords: null, // piano chord settings and stats (see chords-view.js)
   history: {}, // { [recorderId]: { [midi]: { best, attempts: [{ score, meanCents, date }] } } }
 };

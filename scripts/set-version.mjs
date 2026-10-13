@@ -23,11 +23,12 @@ html = html
   .replace(/window\.APP_VERSION = '[\d.]+'/, `window.APP_VERSION = '${version}'`);
 writeFileSync(indexPath, html);
 
-const jsDir = join(root, 'js');
-for (const file of readdirSync(jsDir).filter((f) => f.endsWith('.js'))) {
-  const path = join(jsDir, file);
+// Every module under js/ (including subfolders like js/game/).
+const jsFiles = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+  e.isDirectory() ? jsFiles(join(dir, e.name)) : e.name.endsWith('.js') ? [join(dir, e.name)] : []);
+for (const path of jsFiles(join(root, 'js'))) {
   const src = readFileSync(path, 'utf8');
-  const out = src.replace(/(from\s+'\.\/[\w-]+\.js)(\?v=[\d.]+)?'/g, `$1?v=${version}'`);
+  const out = src.replace(/(from\s+'\.{1,2}\/(?:[\w-]+\/)*[\w-]+\.js)(\?v=[\d.]+)?'/g, `$1?v=${version}'`);
   if (out !== src) writeFileSync(path, out);
 }
 console.log(`Version set to ${version}`);

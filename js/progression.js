@@ -2,7 +2,7 @@
 // the player gets them right, retries and reviews of rhythms they found
 // hard, and tempo that rises once everything is unlocked. No DOM code.
 
-import { generateFromCells, cellFitsMeter } from './rhythm.js?v=2.5';
+import { generateFromCells, cellFitsMeter } from './rhythm.js?v=2.6';
 
 /** Each step unlocks one new rhythm pattern or time signature, in teaching order. */
 export const CURRICULUM = [

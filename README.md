@@ -95,6 +95,15 @@ Asks for a chord, like **G major, 1st inversion (G/B)**. You play it on the pian
 - **Adapts:** missed chords come back two chords later, and weaker chord types and inversions come up more often. A table shows your accuracy and speed (time until you revealed the answer) for each.
 - **On a computer:** Space shows the answer, then Y/→ for got it, N/← for didn't.
 
+### Beat Ward (game)
+
+A pixel-art rhythm game in a hospital ward. Notes slide along a track towards the patient's heart. Tap as each one arrives and you play the tune over the chiptune backing.
+
+- **Eight wards**, from quarter notes at 84 BPM up to sixteenths, dotted rhythms, triplets and 6/8 at 124 BPM. Score 65% or more to unlock the next one.
+- **Fresh rhythms every play:** each song keeps its key, chords, tempo and verse/chorus shape, but its rhythms are generated anew each time (verses repeat with variations), so you read them rather than memorise them.
+- **Two hands:** from ward 6 there is a second track. Left hand (blue, F key or the L pad) plays the bass; right hand (pink, J/Space or the R pad) plays the tune. They often land together.
+- **Judging:** Perfect within 45 ms, Good within 90 ms, OK within 140 ms. Each miss costs health, and if it runs out the patient flatlines. At the end you get a grade (S–D) plus counts of early and late hits. If your hits are always early or late, nudge the audio offset.
+
 ### Tuner
 Play anything and see the note, frequency and cents offset.
 
@@ -132,6 +141,8 @@ Code layout (`js/`):
 - `tap-input.js`: the tap button / Space bar input for rhythm reading
 - `chords.js`: chord types, spelling, inversions, checking, and which chord to practise next (no DOM code, unit tested)
 - `keyboard.js`, `chords-view.js`: the keyboard picture and the Piano Chords screen
+- `game/song.js`: Beat Ward levels, song generation (seeded) and judging (no DOM code, unit tested)
+- `game/art.js`, `game/game.js`: the pixel art, synth and game loop
 - `progression.js`: endless-mode curriculum, skill tracking, retries, review and tempo changes (no DOM code, unit tested)
 - `endless-view.js`: the Endless screen (scrolling score, one bar at a time)
 - `rhythm-view.js`: the Practice screen
