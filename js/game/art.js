@@ -3,7 +3,7 @@
 // whole-pixel rectangles on a small canvas that's scaled up crisply.
 
 export const W = 256;
-export const H = 144;
+export const H = 192;
 
 export const PAL = {
   night: '#141026',
@@ -110,33 +110,6 @@ export const HEART = [
   '....H....',
 ];
 
-export const NOTE = [
-  '..XXXX..',
-  '.XLLXXX.',
-  'XLLXXXXX',
-  'XLXXXXXX',
-  'XXXXXXXD',
-  '.XXXXXD.',
-  '..XDDD..',
-];
-
-/** The target each note must reach: a bracket around the hit spot. */
-export const TARGET = [
-  'XXX...XXX',
-  'X.......X',
-  'X.......X',
-  '.........',
-  '.........',
-  '.........',
-  '.........',
-  '.........',
-  '.........',
-  '.........',
-  'X.......X',
-  'X.......X',
-  'XXX...XXX',
-];
-
 // The doctor, two frames: standing, and tapping (arm out).
 export const DOCTOR = [
   [
@@ -222,6 +195,24 @@ export function drawWard(ctx, beatPhase) {
   ctx.fillRect(0, 95, W, 1);
 }
 
+/** The strip above the sheet music during play: ward wall and floor. */
+export function drawScene(ctx, beatPhase, height) {
+  ctx.fillStyle = PAL.wall;
+  ctx.fillRect(0, 0, W, height);
+  ctx.fillStyle = PAL.trim;
+  ctx.fillRect(0, 22, W, 1);
+  ctx.fillStyle = PAL.wallDark;
+  ctx.fillRect(0, 23, W, height - 33);
+  for (let y = height - 10; y < height; y += 5) {
+    for (let x = 0; x < W; x += 8) {
+      ctx.fillStyle = ((x / 8 + (y - height) / 5) & 1) ? PAL.floorA : PAL.floorB;
+      ctx.fillRect(x, y, 8, 5);
+    }
+  }
+  ctx.fillStyle = PAL.trim;
+  ctx.fillRect(0, height - 11, W, 1);
+}
+
 /** The heart monitor in the corner: a green trace that blips on every beat. */
 export function drawMonitor(ctx, songBeat, flat) {
   const x0 = 186, y0 = 8, w = 62, h = 34;
@@ -246,4 +237,100 @@ export function drawMonitor(ctx, songBeat, flat) {
     ctx.fillRect(x0 + i, mid + dy, 1, 1);
   }
   text(ctx, flat ? '---' : 'BPM', x0 + 3, y0 + 3, PAL.ecg);
+}
+
+// ----------------------------------------------------------------- bosses
+
+// A germ: 18x16, with spikes (S), body (B), shading (D) and a shine (L).
+const GERM = [
+  [
+    '....S...SS...S....',
+    '.....S.BBBB.S.....',
+    '..S.BBBBBBBBBB.S..',
+    '...BBBBBBBBBBBB...',
+    '..BBLLBBBBBBBBBB..',
+    '.BBLLBBBBBBBBBBBB.',
+    'SBBLBBBBBBBBBBBBBS',
+    '.BBBBBBBBBBBBBBBB.',
+    '.BBBBBBBBBBBBBBBB.',
+    'SBBBBBBBBBBBBBBBBS',
+    '.BBBBBBBBBBBBBBBD.',
+    '..BBBBBBBBBBBBBD..',
+    '...BBBBBBBBBBDD...',
+    '..S.DBBBBBBDD.S...',
+    '.....S.DDDD.S.....',
+    '....S...SS...S....',
+  ],
+  [
+    '...S....SS....S...',
+    '....SS.BBBB.SS....',
+    '....BBBBBBBBBB....',
+    '.S.BBBBBBBBBBBB.S.',
+    '..BBLLBBBBBBBBBB..',
+    'SBBLLBBBBBBBBBBBBS',
+    '.BBLBBBBBBBBBBBBB.',
+    '.BBBBBBBBBBBBBBBB.',
+    '.BBBBBBBBBBBBBBBB.',
+    '.BBBBBBBBBBBBBBBB.',
+    'SBBBBBBBBBBBBBBBDS',
+    '..BBBBBBBBBBBBBD..',
+    '.S.BBBBBBBBBBDD.S.',
+    '....DBBBBBBDD.....',
+    '....SS.DDDD.SS....',
+    '...S....SS....S...',
+  ],
+];
+
+/**
+ * Draw a boss centred on (cx, cy).
+ * @param mood 'idle' | 'angry' | 'hurt' | 'ko'
+ */
+export function drawBoss(ctx, boss, cx, cy, { frame = 0, mood = 'idle', flash = false, scale = boss.scale || 2 } = {}) {
+  const s = scale;
+  const x = Math.round(cx - 9 * s);
+  const y = Math.round(cy - 8 * s);
+  const ko = mood === 'ko';
+  const colors = flash
+    ? { S: PAL.white, B: PAL.white, D: PAL.white, L: PAL.white }
+    : ko
+      ? { S: '#3a3550', B: '#6e6890', D: '#4c4668', L: '#9a94b8' }
+      : { S: boss.dark, B: boss.body, D: boss.dark, L: boss.light };
+  sprite(ctx, GERM[((frame % 2) + 2) % 2], x, y, colors, s);
+  if (flash) return;
+  // Face, in germ pixels.
+  const P = (gx, gy, w = 1, h = 1, c = PAL.night) => {
+    ctx.fillStyle = c;
+    ctx.fillRect(x + gx * s, y + gy * s, w * s, h * s);
+  };
+  const eyeXs = boss.eyes === 1 ? [7] : boss.eyes === 3 ? [3, 7, 11] : [4, 10];
+  const ew = boss.eyes === 1 ? 4 : 3;
+  for (const ex of eyeXs) {
+    if (ko) {
+      // X eyes
+      P(ex, 5, 1, 1); P(ex + 2, 5, 1, 1); P(ex + 1, 6, 1, 1); P(ex, 7, 1, 1); P(ex + 2, 7, 1, 1);
+      continue;
+    }
+    if (mood === 'hurt') {
+      P(ex, 6, ew, 1);
+      continue;
+    }
+    P(ex, 5, ew, 3, PAL.white);
+    P(ex + Math.floor(ew / 2), 6, 1, 2, PAL.night);
+    if (mood === 'angry') {
+      // Brows slanting in towards the middle.
+      const inward = ex + ew / 2 < 9;
+      P(ex, inward ? 3 : 4, 1, 1);
+      P(ex + 1, 4, ew - 2 || 1, 1);
+      P(ex + ew - 1, inward ? 4 : 3, 1, 1);
+    }
+  }
+  // Mouth
+  if (ko) P(6, 10, 6, 1);
+  else if (mood === 'angry') {
+    P(5, 10, 8, 2);
+    P(6, 10, 1, 1, PAL.white); P(8, 10, 1, 1, PAL.white); P(10, 10, 1, 1, PAL.white);
+  } else if (mood === 'hurt') P(7, 10, 4, 2);
+  else {
+    P(6, 10, 1, 1); P(7, 11, 4, 1); P(11, 10, 1, 1);
+  }
 }

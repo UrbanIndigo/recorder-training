@@ -1,14 +1,36 @@
-// Beat Ward: a pixel-art rhythm game. Notes slide along a track to the
-// patient's heart; tap as each arrives and you play the tune. Later wards
-// add a second track for the left hand.
+// Beat Ward: a pixel-art rhythm game for reading rhythms. The music is on
+// the doctor's clipboard as real sheet music, two lines of two bars that
+// stay still like a printed page. Keep time with the drums and tap each
+// note to play the tune; every hit blasts the germ boss. Later wards add a
+// second staff for the left hand.
 
-import { LEVELS, makeSong, judgeTap, grade, WINDOWS } from './song.js?v=2.6';
-import { W, H, PAL, text, sprite, HEART, NOTE, TARGET, DOCTOR, DOCTOR_COLORS, drawWard, drawMonitor } from './art.js?v=2.6';
+import { LEVELS, makeSong, judgeTap, grade, WINDOWS } from './song.js?v=2.7';
+import { W, H, PAL, text, sprite, HEART, DOCTOR, DOCTOR_COLORS, drawWard, drawMonitor, drawBoss, drawScene } from './art.js?v=2.7';
+import { layoutScore, drawScore, engraveBar, drawStaff, drawBarline, drawClefAndTime } from './score.js?v=2.7';
 
-const HIT_X = 64; // where notes should be hit (the heart)
-const PX_PER_BEAT = 34; // the same spacing at every tempo, so rhythms always look alike
-const LANES_ONE = { R: 82 };
-const LANES_TWO = { L: 70, R: 102 };
+const SCENE_H = 48; // the strip above the page: doctor, heart, boss
+const PAGE = { x: 2, y: 50, w: 252, h: 140 };
+const SLOT_H = 70; // each line of music (a system of two bars)
+const LINE_X0 = 8;
+const LINE_X1 = 250;
+const STAVES_ONE = { R: 36 }; // middle-line offset of each staff within a line
+const STAVES_TWO = { R: 24, L: 55 };
+const BARS_PER_LINE = 2;
+const HEART_X = 42;
+const BOSS_X = 226;
+const BOSS_Y = 28;
+const INK = '#1d1830';
+const PAPER = '#f2e8cf';
+const PAPER_EDGE = '#b9a57a';
+const NOW_TINT = '#e8d9b0';
+const JUDGED = { perfect: '#169c46', good: '#c48a00', ok: '#e06a0c', miss: '#e03131' };
+const DAMAGE = { perfect: 1, good: 0.7, ok: 0.4 }; // same weights as the grade
+const PASS = 0.65; // the boss has this share of a perfect run's damage as health
+const GIMMICKS = {
+  quake: 'Its attacks jolt the clipboard on every bar.',
+  fog: 'Its attacks fog the next line until just before you play it: sight-read fast!',
+  both: 'Its attacks jolt the clipboard and fog the next line.',
+};
 const LEFT_KEYS = new Set(['KeyF', 'KeyD', 'KeyS', 'ArrowLeft']);
 const RIGHT_KEYS = new Set(['KeyJ', 'KeyK', 'KeyL', 'ArrowRight', 'Space', 'Enter']);
 
@@ -49,7 +71,7 @@ export function initGameView(d) {
       }),
     );
     const lvl = LEVELS[selected];
-    $('game-blurb').textContent = `${lvl.blurb} ${lvl.bpm} BPM · ${lvl.meter}${lvl.hands === 2 ? ' · TWO HANDS' : ''}`;
+    $('game-blurb').textContent = `${lvl.blurb} ${lvl.bpm} BPM · ${lvl.meter}${lvl.hands === 2 ? ' · TWO HANDS' : ''}. BOSS: ${lvl.boss.name}. ${GIMMICKS[lvl.boss.gimmick] || ''}`;
     $('game-offset').textContent = `${gs().offsetMs > 0 ? '+' : ''}${gs().offsetMs} ms`;
   }
 
@@ -73,6 +95,7 @@ export function initGameView(d) {
   }
 
   function showMenu() {
+    document.body.classList.remove('game-playing');
     $('game-menu').hidden = false;
     $('game-results').hidden = true;
     $('game-pads').hidden = true;
@@ -91,10 +114,17 @@ export function initGameView(d) {
       drawWard(g, beat);
       drawMonitor(g, beat, false);
       const pulse = beat % 1 < 0.15 ? 3 : 2;
-      sprite(g, HEART, HIT_X - (9 * pulse) / 2, 82 - (8 * pulse) / 2, { H: PAL.heart, L: PAL.heartLight }, pulse);
+      sprite(g, HEART, 64 - (9 * pulse) / 2, 82 - (8 * pulse) / 2, { H: PAL.heart, L: PAL.heartLight }, pulse);
       sprite(g, DOCTOR[beat % 2 < 1 ? 0 : 1], 14, 104 + (beat % 1 < 0.5 ? 0 : 1), DOCTOR_COLORS, 2);
       text(g, 'BEAT WARD', 160, 64, PAL.text, { scale: 3, align: 'center', shadow: PAL.trim });
       text(g, 'A RHYTHM CLINIC', 160, 84, PAL.dim, { align: 'center' });
+      const boss = LEVELS[selected].boss;
+      const bob = beat % 1 < 0.5 ? 0 : 1;
+      if (boss.twin) {
+        drawBoss(g, boss, 196, 114 + bob, { frame: Math.floor(beat) });
+        drawBoss(g, boss, 234, 114 - bob, { frame: Math.floor(beat) + 1 });
+      } else drawBoss(g, boss, 222, (boss.scale === 3 ? 108 : 114) + bob, { frame: Math.floor(beat) });
+      text(g, 'VS', 178, 100, PAL.miss, { shadow: PAL.night });
       idleRaf = requestAnimationFrame(frame);
     };
     frame();
@@ -170,6 +200,14 @@ export function initGameView(d) {
         tone(t, hz(midi), 'square', 0.06, Math.min(0.4, Math.max(0.15, dur)));
         tone(t, hz(midi) / 2, 'triangle', 0.2, Math.min(0.5, Math.max(0.2, dur)));
       },
+      ko(t) {
+        [76, 72, 67, 64, 60, 55].forEach((m, i) => tone(t + i * 0.07, hz(m), 'square', 0.08, 0.12));
+        noiseHit(t, 0.3, 0.6, 'lowpass', 900);
+      },
+      warn(t) {
+        tone(t, 880, 'square', 0.05, 0.08);
+        tone(t + 0.12, 880, 'square', 0.05, 0.08);
+      },
       miss(t) {
         const o = tone(t, 160, 'sawtooth', 0.05, 0.18);
         o.frequency.exponentialRampToValueAtTime(70, t + 0.18);
@@ -193,14 +231,25 @@ export function initGameView(d) {
       const t = startAt + (song.countInBars + c.bar) * song.meter.bpb * song.beatSec;
       audio.pad(t, c.tones.map((x) => 60 + level.key + x), song.meter.bpb * song.beatSec * 0.95);
     });
+    // A warning siren a bar before each boss attack (the choruses).
+    attackBars(song).forEach((b, i, all) => {
+      if (i === 0 || all[i - 1] !== b - 1) audio.warn(startAt + (song.countInBars + b - 1) * song.meter.bpb * song.beatSec);
+    });
+    const staves = level.hands === 2 ? STAVES_TWO : STAVES_ONE;
     run = {
       level,
       song,
+      pageBars: engravePage(song, Object.keys(staves)),
+      bossHp: PASS * song.notes.length,
+      damage: 0,
+      koAt: null,
+      bolts: [],
+      bossFlash: 0,
       audio,
       startAt,
       latency: (audio.ctx.outputLatency || 0) + (audio.ctx.baseLatency || 0),
       notes: song.notes.map((n) => ({ ...n })),
-      lanes: level.hands === 2 ? LANES_TWO : LANES_ONE,
+      lanes: staves,
       counts: { perfect: 0, good: 0, ok: 0, miss: 0 },
       early: 0,
       late: 0,
@@ -219,6 +268,7 @@ export function initGameView(d) {
     $('game-quit').hidden = false;
     $('game-pads').hidden = false;
     $('game-pads').classList.toggle('two', level.hands === 2);
+    document.body.classList.add('game-playing'); // full screen in landscape
     loop();
   }
 
@@ -238,7 +288,7 @@ export function initGameView(d) {
       n.missAt = t;
       run.counts.miss++;
       run.combo = 0;
-      run.health = Math.max(0, run.health - 9);
+      run.health = Math.max(0, run.health - (inAttack(n.beat) ? 12 : 9));
       run.shake = 4;
       popup(n.lane, 'MISS', PAL.miss);
       run.audio.miss(run.audio.ctx.currentTime);
@@ -264,10 +314,18 @@ export function initGameView(d) {
     run.maxCombo = Math.max(run.maxCombo, run.combo);
     run.score += { perfect: 300, good: 150, ok: 60 }[r.judgement] * (1 + Math.min(run.combo, 50) / 50);
     run.health = Math.min(100, run.health + (r.judgement === 'perfect' ? 3 : r.judgement === 'good' ? 1.5 : 0.5));
+    run.damage += DAMAGE[r.judgement];
+    run.bolts.push({ lane, x: HEART_X + 10, color: PAL[r.judgement], big: r.judgement === 'perfect' });
+    if (run.koAt == null && run.damage >= run.bossHp - 1e-9) {
+      run.koAt = t;
+      run.shake = 6;
+      run.audio.ko(run.audio.ctx.currentTime);
+      for (const [x, y] of bossSpots()) burstAt(x, y, 40, run.level.boss.body);
+    }
     if (r.judgement !== 'perfect') r.offset < 0 ? run.early++ : run.late++;
     const word = r.judgement === 'perfect' ? 'PERFECT' : `${r.judgement === 'good' ? 'GOOD' : 'OK'} ${r.offset < 0 ? 'EARLY' : 'LATE'}`;
     popup(lane, word, PAL[r.judgement]);
-    burst(lane, r.judgement === 'perfect' ? 14 : 8, lane === 'L' ? PAL.left : PAL.right);
+    burstAt(HEART_X, BOSS_Y, r.judgement === 'perfect' ? 14 : 8, lane === 'L' ? PAL.left : PAL.right);
     // You play the music: the note sounds when you hit it.
     const now = run.audio.ctx.currentTime;
     if (lane === 'R') run.audio.lead(now, n.midi, n.dur * run.song.beatSec);
@@ -279,81 +337,181 @@ export function initGameView(d) {
     run.popups.push({ lane, word, color, born: performance.now() });
   }
 
-  function burst(lane, count, color) {
-    const y = run.lanes[lane];
+  function burstAt(x, y, count, color) {
     for (let i = 0; i < count; i++) {
       const a = (Math.PI * 2 * i) / count + Math.random() * 0.4;
       const v = 0.6 + Math.random() * 1.2;
-      run.particles.push({ x: HIT_X, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 0.4, life: 24, color });
+      run.particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 0.4, life: 24, color });
     }
+  }
+
+  /**
+   * Lay out every bar of the song as it sits on the page: two bars to a
+   * line, a clef at the start of each line (and the time signature on the
+   * first), notes engraved and justified, both hands aligned.
+   */
+  function engravePage(song, lanes) {
+    const { bpb } = song.meter;
+    const out = [];
+    for (let b = 0; b < song.bars; b++) {
+      const start = (song.countInBars + b) * bpb;
+      const line = Math.floor(b / BARS_PER_LINE);
+      const clefW = line === 0 ? 17 : 8;
+      const x0 = LINE_X0 + 3 + clefW + 3;
+      const w = (LINE_X1 - x0) / BARS_PER_LINE;
+      const x = x0 + (b % BARS_PER_LINE) * w;
+      const events = Object.fromEntries(lanes.map((l) => [l, song.score[l].filter((e) => e.beat >= start - 1e-9 && e.beat < start + bpb - 1e-9)]));
+      out.push({
+        bar: b,
+        line,
+        start,
+        x,
+        w,
+        xOf: engraveBar(Object.values(events), start, bpb, x, w),
+        layouts: Object.fromEntries(lanes.map((l) => [l, layoutScore(events[l], bpb)])),
+      });
+    }
+    return out;
+  }
+
+  /** Bars (counting from the first after the count-in) where the boss attacks. */
+  function attackBars(song) {
+    return song.sections.map((sec, b) => (sec === 'chorus' ? b : -1)).filter((b) => b >= 0);
+  }
+
+  function barAt(beat) {
+    return Math.floor(beat / run.song.meter.bpb + 1e-9) - run.song.countInBars;
+  }
+
+  function inAttack(beat) {
+    return run.song.sections[barAt(beat)] === 'chorus';
+  }
+
+  /** Where the boss is drawn: one germ, or twins side by side. */
+  function bossSpots() {
+    return run.level.boss.twin ? [[208, BOSS_Y + 1], [238, BOSS_Y - 1]] : [[BOSS_X, BOSS_Y]];
   }
 
   // ---------------------------------------------------------------- render
 
   function render(t) {
-    const { song } = run;
+    const { song, level } = run;
+    const boss = level.boss;
+    const { bpb } = song.meter;
     const beat = t / song.beatSec;
+    const bar = barAt(beat);
+    const attack = beat >= 0 && inAttack(beat);
+    const nextAttack = !attack && beat >= 0 && song.sections[bar + 1] === 'chorus';
+    const quake = boss.gimmick === 'quake' || boss.gimmick === 'both';
+    const fog = boss.gimmick === 'fog' || boss.gimmick === 'both' ? boss.fog : 0;
+    const ko = run.koAt != null;
+
+    // ---- the page: two lines of music that stay put. The line you're on
+    // and the next; when you finish a line it's replaced by the one after.
+    const lines = Math.ceil(song.bars / BARS_PER_LINE);
+    const curLine = Math.max(0, Math.min(lines - 1, Math.floor(Math.max(0, bar) / BARS_PER_LINE)));
+    let jolt = 0;
+    if (quake && attack && (beat % bpb) < 0.2) jolt = Math.round((Math.random() - 0.5) * 4);
+    g.fillStyle = PAPER_EDGE;
+    g.fillRect(0, PAGE.y - 2, W, H - PAGE.y + 2);
+    g.fillStyle = PAPER;
+    g.fillRect(PAGE.x, PAGE.y + jolt, PAGE.w, PAGE.h);
+    const colorOf = (gl) => {
+      if (gl?.noteId != null) {
+        const j = run.notes[gl.noteId].judged;
+        if (j) return JUDGED[j];
+      }
+      return INK;
+    };
+    for (const line of [curLine, curLine + 1]) {
+      if (line >= lines) continue;
+      const top = PAGE.y + (line % 2) * SLOT_H + jolt;
+      const bars = run.pageBars.filter((pb) => pb.line === line);
+      const lineStart = bars[0].start;
+      // The bar you're in gets a soft highlight, so you don't lose your place.
+      for (const pb of bars) {
+        if (pb.bar === bar) {
+          g.fillStyle = NOW_TINT;
+          g.fillRect(Math.round(pb.x), top + 2, Math.round(pb.w), SLOT_H - 4);
+        }
+      }
+      const ys = Object.entries(run.lanes).map(([lane, dy]) => [lane, top + dy]);
+      for (const [lane, y] of ys) {
+        drawStaff(g, LINE_X0, LINE_X1, y, INK);
+        const clefColor = level.hands === 2 ? (lane === 'L' ? PAL.leftDark : PAL.rightDark) : INK;
+        drawClefAndTime(g, LINE_X0 + 3, y, clefColor, song.meter.id, line === 0);
+        for (const pb of bars) {
+          drawScore(g, pb.layouts[lane], y, pb.xOf, colorOf);
+          drawBarline(g, Math.round(pb.x + pb.w), y, INK, pb.bar === song.bars - 1);
+        }
+      }
+      // Lines that start the system: one joining the staves, and a brace for two hands.
+      g.fillStyle = INK;
+      g.fillRect(LINE_X0, ys[0][1] - 8, 1, ys.at(-1)[1] - ys[0][1] + 17);
+      if (ys.length > 1) {
+        g.fillRect(LINE_X0 - 3, ys[0][1] - 8, 2, ys.at(-1)[1] - ys[0][1] + 17);
+        for (const pb of bars) g.fillRect(Math.round(pb.x + pb.w), ys[0][1] + 8, 1, ys.at(-1)[1] - ys[0][1] - 16);
+      }
+      // Boss fog: the next line stays hidden until just before you reach it.
+      if (fog && line > curLine && inAttack(lineStart) && beat < lineStart - fog) {
+        for (let yy = top + 1; yy < top + SLOT_H - 1; yy++) {
+          for (let xx = PAGE.x; xx < PAGE.x + PAGE.w; xx++) {
+            g.fillStyle = (xx * 7 + yy * 3 + Math.floor(beat * 4)) % 11 === 0 ? '#7d6fa8' : (xx + yy) % 2 ? '#4a3f78' : '#3b3260';
+            g.fillRect(xx, yy, 1, 1);
+          }
+        }
+        text(g, `${boss.name} FOG!`, W / 2, top + SLOT_H / 2 - 2, PAL.text, { align: 'center' });
+      }
+    }
+
+    // ---- the scene above the page.
     g.save();
+    g.beginPath();
+    g.rect(0, 0, W, SCENE_H);
+    g.clip();
     if (run.shake > 0) {
       g.translate(Math.round((Math.random() - 0.5) * run.shake), Math.round((Math.random() - 0.5) * run.shake));
       run.shake *= 0.85;
       if (run.shake < 0.5) run.shake = 0;
     }
-    drawWard(g, beat);
-    drawMonitor(g, beat, false);
-
-    // Tracks, with a tick on every beat (brighter on bar lines).
-    for (const [lane, y] of Object.entries(run.lanes)) {
-      const color = lane === 'L' ? PAL.left : PAL.right;
-      g.fillStyle = PAL.laneEdge;
-      g.fillRect(HIT_X - 14, y - 8, W - HIT_X + 14, 17);
-      g.fillStyle = PAL.lane;
-      g.fillRect(HIT_X - 14, y - 7, W - HIT_X + 14, 15);
-      const firstBeat = Math.ceil(beat - 2);
-      for (let k = firstBeat; k < beat + (W - HIT_X) / PX_PER_BEAT + 1; k++) {
-        if (k < 0) continue;
-        const x = HIT_X + (k - beat) * PX_PER_BEAT;
-        const bar = Math.abs(k % song.meter.bpb) < 1e-9;
-        const click = Math.abs((k % song.meter.bpb) % song.meter.click) < 1e-9;
-        if (x < HIT_X - 12 || x > W) continue;
-        g.fillStyle = bar ? PAL.beatTick : PAL.tick;
-        if (click || bar) g.fillRect(Math.round(x), y - (bar ? 7 : 5), 1, bar ? 15 : 11);
-      }
-      // The hit marker, flashing when you tap.
-      const tapped = t - run.tapAt[lane] < 0.08;
-      sprite(g, TARGET, HIT_X - 4, y - 6, { X: tapped ? PAL.white : color });
-      if (run.level.hands === 2) text(g, lane, HIT_X - 22, y - 2, color);
+    drawScene(g, beat, SCENE_H);
+    if (attack) {
+      g.fillStyle = beat % 1 < 0.15 ? 'rgba(255,40,80,0.28)' : 'rgba(255,40,80,0.14)';
+      g.fillRect(0, 0, W, SCENE_H);
     }
-
-    // Notes.
-    for (const n of run.notes) {
-      const x = HIT_X + ((n.time - t) / song.beatSec) * PX_PER_BEAT;
-      if (x > W + 8) break;
-      if (x < HIT_X - 30) continue;
-      const y = run.lanes[n.lane];
-      if (n.judged && n.judged !== 'miss') continue;
-      const missed = n.judged === 'miss';
-      const color = missed ? PAL.dim : n.lane === 'L' ? PAL.left : PAL.right;
-      const light = missed ? PAL.tick : n.lane === 'L' ? PAL.leftLight : PAL.rightLight;
-      const dark = missed ? PAL.lane : n.lane === 'L' ? PAL.leftDark : PAL.rightDark;
-      sprite(g, NOTE, x - 4, y - 3 + (missed ? Math.round((t - n.missAt) * 20) : 0), { X: color, L: light, D: dark });
-    }
-
-    // The patient's heart, beating (bigger on each beat and when hit).
-    const lanes = Object.values(run.lanes);
-    const heartY = run.level.hands === 2 ? (lanes[0] + lanes[1]) / 2 : lanes[0];
+    // The patient's heart, beating with the music and when you hit a note.
     const f = beat - Math.floor(beat);
-    const hit = Math.min(...Object.keys(run.lanes).map((l) => t - run.tapAt[l]));
-    const big = beat >= 0 && (f < 0.12 || hit < 0.1);
-    const hs = big ? 3 : 2;
-    if (run.level.hands === 1) sprite(g, HEART, HIT_X - (9 * hs) / 2, heartY - (8 * hs) / 2 - 12, { H: PAL.heart, L: PAL.heartLight }, hs);
-    else sprite(g, HEART, HIT_X - 27 - (9 * hs) / 2, heartY - (8 * hs) / 2, { H: PAL.heart, L: PAL.heartLight }, hs);
-
-    // The doctor, tapping along.
-    const tapping = hit < 0.12;
-    sprite(g, DOCTOR[tapping ? 1 : 0], 6, 104 + (beat >= 0 && f > 0.5 ? 1 : 0), DOCTOR_COLORS, 2);
-
-    // Particles and pop-up words.
+    const hit = Math.min(t - run.tapAt.L, t - run.tapAt.R);
+    const hs = beat >= 0 && (f < 0.12 || hit < 0.1) ? 3 : 2;
+    sprite(g, HEART, HEART_X - (9 * hs) / 2, BOSS_Y - (8 * hs) / 2, { H: PAL.heart, L: PAL.heartLight }, hs);
+    sprite(g, DOCTOR[hit < 0.12 ? 1 : 0], 6, 14 + (beat >= 0 && f > 0.5 ? 1 : 0), DOCTOR_COLORS, 2);
+    // Your shots flying at the boss.
+    const bossLeft = (boss.twin ? 208 : BOSS_X) - 16;
+    for (const b of run.bolts) {
+      b.x += 7;
+      const y = BOSS_Y + (b.lane === 'L' ? 3 : -2);
+      g.fillStyle = b.color;
+      g.fillRect(Math.round(b.x), y, b.big ? 6 : 4, b.big ? 3 : 2);
+      g.fillStyle = PAL.white;
+      g.fillRect(Math.round(b.x) + (b.big ? 4 : 2), y, 2, 1);
+    }
+    if (run.bolts.some((b) => b.x >= bossLeft) && !ko) run.bossFlash = 3;
+    run.bolts = run.bolts.filter((b) => b.x < bossLeft);
+    // The boss.
+    const mood = ko ? 'ko' : run.bossFlash > 0 ? 'hurt' : attack || nextAttack ? 'angry' : 'idle';
+    bossSpots().forEach(([bx, by], i) => {
+      const bob = ko ? Math.round(Math.sin(t * 3 + i) * 2) : beat >= 0 && (beat + i * 0.5) % 1 < 0.5 ? 0 : 1;
+      const jitter = attack && !ko ? Math.round((Math.random() - 0.5) * 2) : 0;
+      drawBoss(g, boss, bx + jitter, by + bob, { frame: Math.floor(beat * (attack ? 2 : 1)) + i, mood, flash: run.bossFlash === 3 && !ko, scale: 2 });
+    });
+    if (run.bossFlash > 0) run.bossFlash--;
+    if (ko && t - run.koAt < 3) {
+      for (let k = 0; k < 3; k++) {
+        const age = ((t - run.koAt) * 1.5 + k / 3) % 1;
+        g.fillStyle = 'rgba(200,200,220,0.5)';
+        g.fillRect(BOSS_X - 6 + k * 6, BOSS_Y - 14 - age * 10, 3, 3);
+      }
+    }
     for (const p of run.particles) {
       p.x += p.vx;
       p.y += p.vy;
@@ -363,41 +521,50 @@ export function initGameView(d) {
       g.fillRect(Math.round(p.x), Math.round(p.y), 1, 1);
     }
     run.particles = run.particles.filter((p) => p.life > 0);
+    g.restore();
+
+    // Judgement words, one per hand.
     const nowMs = performance.now();
     for (const pu of run.popups) {
       const age = (nowMs - pu.born) / 600;
       if (age > 1) continue;
-      const y = run.lanes[pu.lane] - 14 - age * 10;
-      text(g, pu.word, HIT_X + 26, y, pu.color, { shadow: PAL.night });
+      const x = level.hands === 2 ? (pu.lane === 'L' ? 100 : 156) : 128;
+      text(g, pu.word, x, 34 - Math.round(age * 3), pu.color, { align: 'center', shadow: PAL.night });
     }
     run.popups = run.popups.filter((pu) => nowMs - pu.born < 600);
-    g.restore();
 
-    // HUD: level, score, combo, health, progress.
+    // HUD: level and score; combo; health bars; progress.
     g.fillStyle = 'rgba(20,16,38,0.85)';
     g.fillRect(0, 0, W, 8);
-    text(g, `${run.level.id} ${run.level.name}`, 2, 2, PAL.dim);
+    text(g, `${level.id} ${level.name}`, 2, 2, PAL.dim);
     text(g, String(Math.round(run.score)).padStart(6, '0'), W - 2, 2, PAL.text, { align: 'right' });
-    if (run.combo >= 4) text(g, `${run.combo} COMBO`, W / 2, 12, run.combo >= 20 ? PAL.perfect : PAL.good, { align: 'center', shadow: PAL.night });
-    // Health: a heart and a bar.
-    sprite(g, HEART, 70, 132, { H: PAL.heart, L: PAL.heartLight });
+    if (run.combo >= 4) text(g, `${run.combo} COMBO`, 60, 11, run.combo >= 20 ? PAL.perfect : PAL.good, { shadow: PAL.night });
+    text(g, ko ? `${boss.name} KO!` : boss.name, 202, 11, ko ? PAL.perfect : boss.light, { align: 'right', shadow: PAL.night });
     g.fillStyle = PAL.lane;
-    g.fillRect(82, 134, 62, 5);
+    g.fillRect(60, 41, 62, 5);
     g.fillStyle = run.health > 30 ? PAL.perfect : PAL.miss;
-    g.fillRect(83, 135, Math.round(60 * (run.health / 100)), 3);
-    // Progress through the song.
+    g.fillRect(61, 42, Math.round(60 * (run.health / 100)), 3);
+    g.fillStyle = PAL.lane;
+    g.fillRect(140, 41, 62, 5);
+    g.fillStyle = boss.body;
+    const hpLeft = Math.max(0, 1 - run.damage / run.bossHp);
+    g.fillRect(141 + Math.round(60 * (1 - hpLeft)), 42, Math.round(60 * hpLeft), 3);
     g.fillStyle = PAL.trim;
-    g.fillRect(150, 135, 100, 3);
+    g.fillRect(0, SCENE_H, W, 1);
     g.fillStyle = PAL.text;
-    g.fillRect(150, 135, Math.max(0, Math.min(100, Math.round((t / song.length) * 100))), 3);
+    g.fillRect(0, SCENE_H, Math.max(0, Math.min(W, Math.round((t / song.length) * W))), 1);
 
-    // Count-in: big beat numbers, then GO.
-    const countBeats = song.countInBars * song.meter.bpb;
+    // Banners: count-in, attack warnings, the knockout.
+    const countBeats = song.countInBars * bpb;
     if (beat < countBeats + 0.6) {
-      const clicks = Math.round(song.meter.bpb / song.meter.click);
+      const clicks = Math.round(bpb / song.meter.click);
       const k = Math.floor(beat / song.meter.click);
       const label = beat < 0 ? 'READY' : k < clicks ? String(k + 1) : 'GO!';
-      text(g, label, W / 2 + 30, 44, PAL.text, { scale: 4, align: 'center', shadow: PAL.trim });
+      text(g, label, 128, 16, PAL.text, { scale: 3, align: 'center', shadow: PAL.trim });
+    } else if (ko && t - run.koAt < 2.5) {
+      text(g, 'BOSS DOWN!', 128, 18, PAL.perfect, { scale: 2, align: 'center', shadow: PAL.night });
+    } else if (nextAttack && beat % 1 < 0.6) {
+      text(g, '! ATTACK !', 128, 18, PAL.miss, { scale: 2, align: 'center', shadow: PAL.night });
     }
   }
 
@@ -407,7 +574,8 @@ export function initGameView(d) {
     run.ended = true;
     const r = grade(run.counts);
     const level = run.level;
-    const passed = !failed && r.passed;
+    const bossDown = run.damage >= run.bossHp - 1e-9;
+    const passed = !failed && bossDown;
     const prev = gs().best[level.id];
     const isBest = !failed && (!prev || r.acc > prev.acc);
     if (isBest) gs().best[level.id] = { acc: r.acc, letter: r.letter };
@@ -417,14 +585,14 @@ export function initGameView(d) {
     const audio = run.audio;
     setTimeout(() => audio.ctx.close().catch(() => {}), failed ? 300 : 900);
     // Final frame: the monitor flatlines if the patient was lost.
-    drawMonitor(g, songTime() / run.song.beatSec, failed);
 
     $('game-pads').hidden = true;
     $('game-quit').hidden = true;
     $('game-results').hidden = false;
     $('game-grade').textContent = failed ? 'X' : r.letter;
     $('game-grade').className = `game-grade g-${failed ? 'X' : r.letter}`;
-    $('game-verdict').textContent = failed ? 'FLATLINED! TRY AGAIN' : passed ? (isBest ? 'NEW BEST!' : 'PATIENT SAVED') : 'NEEDS MORE PRACTICE';
+    const name = level.boss.name;
+    $('game-verdict').textContent = failed ? `FLATLINED! ${name} WINS` : passed ? `${name} DEFEATED!${isBest ? ' NEW BEST' : ''}` : `${name} GOT AWAY (${Math.round((1 - run.damage / run.bossHp) * 100)}% HP LEFT)`;
     $('game-acc').textContent = `${Math.round(r.acc * 100)}%`;
     $('game-counts').textContent = `PERFECT ${run.counts.perfect} · GOOD ${run.counts.good} · OK ${run.counts.ok} · MISS ${run.counts.miss}`;
     $('game-extra').textContent = `MAX COMBO ${run.maxCombo} · EARLY ${run.early} · LATE ${run.late}`;
@@ -486,6 +654,7 @@ export function initGameView(d) {
     },
     leave() {
       active = false;
+      document.body.classList.remove('game-playing');
       endRun();
       cancelAnimationFrame(idleRaf);
     },

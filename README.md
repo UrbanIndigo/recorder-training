@@ -97,12 +97,19 @@ Asks for a chord, like **G major, 1st inversion (G/B)**. You play it on the pian
 
 ### Beat Ward (game)
 
-A pixel-art rhythm game in a hospital ward. Notes slide along a track towards the patient's heart. Tap as each one arrives and you play the tune over the chiptune backing.
+A pixel-art rhythm game and boss rush that trains you to read real sheet music. The music is on the doctor's clipboard: a five-line staff with a clef, time signature, bar lines and engraved spacing, plus all the notation (beams, flags, dots, ties, triplets, rests). The page doesn't move, just like a printed part. Keep time with the count-in and drums and tap each note as you'd play it. Each hit plays the tune and shoots the ward's germ boss.
 
-- **Eight wards**, from quarter notes at 84 BPM up to sixteenths, dotted rhythms, triplets and 6/8 at 124 BPM. Score 65% or more to unlock the next one.
+- **A page that stays still:** there are two lines of two bars. When you finish the top line, it's replaced by the line after next while you play the bottom one, so there's always a line to read ahead. A soft highlight shows which bar you're in. Notes turn green, yellow or orange when you hit them, and red if you miss.
+- **Boss fights:** your hits wear the boss down (Perfect does the most damage). Take its HP to zero to clear the ward and unlock the next; that's the same as 65% accuracy. Misses hurt the patient, and if their health runs out they flatline.
+- **Boss attacks:** each chorus is an attack, with a siren a bar before and red lights. Misses cost more during attacks, and some bosses have gimmicks:
+  - Arrhythmia and Fever Bug jolt the clipboard on every bar.
+  - Tri-Clops and Night Terror fog the next line until just before you reach it, so you have to sight-read fast.
+  - Code Blue does both.
+- **Eight wards**, from quarter notes at 84 BPM up to sixteenths, dotted rhythms, triplets and 6/8 at 124 BPM.
 - **Fresh rhythms every play:** each song keeps its key, chords, tempo and verse/chorus shape, but its rhythms are generated anew each time (verses repeat with variations), so you read them rather than memorise them.
-- **Two hands:** from ward 6 there is a second track. Left hand (blue, F key or the L pad) plays the bass; right hand (pink, J/Space or the R pad) plays the tune. They often land together.
-- **Judging:** Perfect within 45 ms, Good within 90 ms, OK within 140 ms. Each miss costs health, and if it runs out the patient flatlines. At the end you get a grade (S–D) plus counts of early and late hits. If your hits are always early or late, nudge the audio offset.
+- **Two hands:** from ward 6 the music is on two staves, joined like piano music. Left hand (blue, F key or the L pad) plays the bass; right hand (pink, J/Space or the R pad) plays the tune. They often land together.
+- **Judging:** Perfect within 45 ms, Good within 90 ms, OK within 140 ms. At the end you get a grade (S–D) plus counts of early and late hits. If your hits are always early or late, nudge the audio offset.
+- **On a phone,** turn it sideways: the game fills the screen with a pad on each side.
 
 ### Tuner
 Play anything and see the note, frequency and cents offset.
@@ -142,7 +149,8 @@ Code layout (`js/`):
 - `chords.js`: chord types, spelling, inversions, checking, and which chord to practise next (no DOM code, unit tested)
 - `keyboard.js`, `chords-view.js`: the keyboard picture and the Piano Chords screen
 - `game/song.js`: Beat Ward levels, song generation (seeded) and judging (no DOM code, unit tested)
-- `game/art.js`, `game/game.js`: the pixel art, synth and game loop
+- `game/score.js`: pixel notation with engraved spacing (layout and spacing are unit tested)
+- `game/art.js`, `game/game.js`: the pixel art and bosses, synth and game loop
 - `progression.js`: endless-mode curriculum, skill tracking, retries, review and tempo changes (no DOM code, unit tested)
 - `endless-view.js`: the Endless screen (scrolling score, one bar at a time)
 - `rhythm-view.js`: the Practice screen

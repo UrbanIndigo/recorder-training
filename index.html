@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1f6f5c">
   <title>Recorder Trainer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="css/styles.css?v=2.6">
+  <link rel="stylesheet" href="css/styles.css?v=2.7">
 </head>
 <body>
   <header class="topbar">
@@ -41,7 +41,7 @@
         <button class="mode-card" data-goto="game">
           <span class="mode-icon" aria-hidden="true">🎮</span>
           <span class="mode-title">Beat Ward</span>
-          <span class="mode-desc">A pixel-art rhythm game. Tap the notes as they reach the heart to play the tune. The rhythms change every time, the wards get faster, and later ones need both hands.</span>
+          <span class="mode-desc">A pixel-art rhythm game. Read the rhythm as it flies at you and tap it to beat each ward’s germ boss. The rhythms change every play, the bosses get tougher, and later ones need both hands.</span>
         </button>
         <button class="mode-card" data-goto="tuner">
           <span class="mode-icon" aria-hidden="true">🎯</span>
@@ -66,7 +66,7 @@
           <small>Turn it up if your playing isn't picked up, down if background noise is. The Mic bar shows the level: it turns green when it hears you, and the line marks the cut-off.</small>
         </div>
       </details>
-      <p class="hint version">Version 2.6</p>
+      <p class="hint version">Version 2.7</p>
     </section>
 
     <!-- Long tone: choose note -->
@@ -399,7 +399,7 @@
     <!-- Beat Ward: pixel rhythm game -->
     <section class="view" id="view-game" hidden>
       <div class="game-wrap">
-        <canvas id="game-canvas" width="256" height="144" aria-label="Beat Ward game screen"></canvas>
+        <canvas id="game-canvas" width="256" height="192" aria-label="Beat Ward game screen"></canvas>
         <div class="game-results" id="game-results" hidden>
           <div class="game-grade" id="game-grade">S</div>
           <div class="game-verdict" id="game-verdict"></div>
@@ -419,6 +419,7 @@
         <button class="game-pad left" id="game-left">L<small>F</small></button>
         <button class="game-pad right" id="game-right">R<small>J</small></button>
         <button class="game-pad one" id="game-one">TAP<small>SPACE</small></button>
+        <p class="game-rotate">Turn your phone sideways for a bigger screen.</p>
       </div>
       <div class="game-menu" id="game-menu">
         <div class="game-levels" id="game-levels"></div>
@@ -430,7 +431,7 @@
           <span id="game-offset">0 ms</span>
           <button class="game-btn" id="game-offset-up" aria-label="Later">+</button>
         </div>
-        <p class="game-help">Tap as each note reaches the heart. Keys: Space or J for the right hand, F for the left. On a phone, use the pads (or tap the left and right halves of the screen). Rhythms are different every play. Score 65% or more to unlock the next ward. If your hits are always early or late, nudge the audio offset.</p>
+        <p class="game-help">Read the music on the clipboard and tap each note in time with the drums, like sight-reading from a real part. The page doesn’t move: when you finish a line, the next one appears in its place while you play the line below. Notes turn green, yellow or orange when you hit them, and red if you miss. Keys: Space or J for the right hand, F for the left. On a phone, use the pads (or tap the left and right halves of the screen). Rhythms are different every play. Beat the boss to unlock the next ward. If your hits are always early or late, nudge the audio offset.</p>
       </div>
     </section>
 
@@ -522,7 +523,7 @@
     <button class="btn primary small" id="load-error-reload">Reload</button>
   </p>
   <script>
-    window.APP_VERSION = '2.6';
+    window.APP_VERSION = '2.7';
     // If the app hasn't started after a few seconds, offer a fresh reload.
     setTimeout(function () {
       if (window.appReady) return;
@@ -533,6 +534,6 @@
       };
     }, 4000);
   </script>
-  <script type="module" src="js/app.js?v=2.6"></script>
+  <script type="module" src="js/app.js?v=2.7"></script>
 </body>
 </html>
