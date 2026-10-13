@@ -4,9 +4,11 @@
 // note to play the tune; every hit blasts the germ boss. Later wards add a
 // second staff for the left hand.
 
-import { LEVELS, makeSong, judgeTap, grade, WINDOWS, MIN_BPM, MAX_BPM, nextBpm } from './song.js?v=3.0';
-import { W, H, PAL, text, sprite, HEART, DOCTOR, DOCTOR_COLORS, drawWard, drawMonitor, drawBoss, drawScene } from './art.js?v=3.0';
-import { layoutScore, drawScore, engraveBar, drawStaff, drawBarline, drawClefAndTime } from './score.js?v=3.0';
+import { LEVELS, makeSong, judgeTap, grade, WINDOWS, MIN_BPM, MAX_BPM, nextBpm } from './song.js?v=3.1';
+import { W, H, PAL, text, sprite, HEART, DOCTOR, DOCTOR_COLORS, drawWard, drawMonitor, drawBoss, drawScene } from './art.js?v=3.1';
+import { layoutScore, drawScore, engraveBar, drawStaff, drawBarline, drawClefAndTime } from './score.js?v=3.1';
+import { tutorialFor, lessonCells, countLabel } from './lessons.js?v=3.1';
+import { introductions } from './song.js?v=3.1';
 
 const SCENE_H = 48; // the strip above the page: doctor, heart, boss
 const PAGE = { x: 2, y: 50, w: 252, h: 156 };
@@ -54,6 +56,7 @@ export function initGameView(d) {
     for (const [id, k] of Object.entries(gs().cleared || {})) gs().wonAt[id] = Math.round(levelById(id).bpm * steps[k]);
   }
   gs().bpm ||= {};
+  gs().tutorial ||= Object.fromEntries(Object.keys(gs().wonAt).map((id) => [id, true])); // wards already beaten skip it
   const bpmOf = (lvl) => gs().bpm[lvl.id] ?? nextBpm(lvl, gs().wonAt[lvl.id]);
   const done = (lvl) => gs().wonAt[lvl.id] >= lvl.bpm;
 
@@ -108,7 +111,7 @@ export function initGameView(d) {
   $('game-bpm').addEventListener('input', (e) => setBpm(+e.target.value));
   $('game-bpm-down').addEventListener('click', () => setBpm(bpmOf(LEVELS[selected]) - 2));
   $('game-bpm-up').addEventListener('click', () => setBpm(bpmOf(LEVELS[selected]) + 2));
-  $('game-play').addEventListener('click', () => startLevel(LEVELS[selected]));
+  $('game-play').addEventListener('click', () => playWard(LEVELS[selected]));
   $('game-retry').addEventListener('click', () => startLevel(run?.level || LEVELS[selected]));
   $('game-next').addEventListener('click', () => {
     // After a win below full speed, go again faster; otherwise on to the next ward.
@@ -118,8 +121,10 @@ export function initGameView(d) {
   });
   $('game-menu-btn').addEventListener('click', showMenu);
   $('game-quit').addEventListener('click', () => {
+    const inLesson = run && run.mode !== 'fight' && tut;
     endRun();
-    showMenu();
+    if (inLesson) showStep();
+    else showMenu();
   });
   $('game-offset-down').addEventListener('click', () => setOffset(gs().offsetMs - 10));
   $('game-offset-up').addEventListener('click', () => setOffset(gs().offsetMs + 10));
@@ -130,6 +135,8 @@ export function initGameView(d) {
   }
 
   function showMenu() {
+    tut = null;
+    $('game-lesson').hidden = true;
     document.body.classList.remove('game-playing');
     $('game-menu').hidden = false;
     $('game-results').hidden = true;
@@ -284,43 +291,36 @@ export function initGameView(d) {
 
   // ------------------------------------------------------------------ play
 
-  async function startLevel(level) {
-    endRun();
-    cancelAnimationFrame(idleRaf);
-    const audio = makeAudio();
-    await audio.ctx.resume();
+  /** Play a ward: its tutorial first, the first time. */
+  function playWard(level) {
     selected = LEVELS.indexOf(level);
-    const song = makeSong(level, Date.now(), { bpm: bpmOf(level) });
-    const startAt = audio.ctx.currentTime + 0.6;
-    for (const x of song.drums) audio[x.type](startAt + x.time);
-    for (const x of song.bass) audio.bass(startAt + x.time, x.midi, x.dur * song.beatSec);
-    // A soft chord on every bar under the tune.
-    song.chords.forEach((c) => {
-      const t = startAt + (song.countInBars + c.bar) * song.meter.bpb * song.beatSec;
-      audio.pad(t, c.tones.map((x) => 60 + level.key + x), song.meter.bpb * song.beatSec * 0.95);
-    });
-    // A warning siren a bar before each boss attack (the choruses).
-    attackBars(song).forEach((b, i, all) => {
-      if (i === 0 || all[i - 1] !== b - 1) audio.warn(startAt + (song.countInBars + b - 1) * song.meter.bpb * song.beatSec);
-    });
-    const layout = level.hands === 2 ? LINE_TWO : LINE_ONE;
+    if (!gs().tutorial[level.id]) openTutorial(level);
+    else startLevel(level);
+  }
+
+  function startLevel(level) {
+    selected = LEVELS.indexOf(level);
+    return startRun(level, makeSong(level, Date.now(), { bpm: bpmOf(level) }), 'fight');
+  }
+
+  /** The state of one run through a song, before any audio starts. */
+  function newRun(level, song, mode) {
+    const layout = song.hands === 2 ? LINE_TWO : LINE_ONE;
     const staves = layout.staves;
-    run = {
+    return {
       level,
       song,
+      mode, // 'fight' (the boss), 'demo' (a lesson playing itself), 'try' (your go at a lesson), 'still' (a lesson's picture)
       line: layout,
       holding: { L: null, R: null },
       voices: { L: null, R: null },
       short: 0,
-      pageBars: engravePage(song, Object.keys(staves)),
+      pageBars: engravePage(song, Object.keys(staves), mode !== 'fight'),
       bossHp: PASS * song.notes.length,
       damage: 0,
       koAt: null,
       bolts: [],
       bossFlash: 0,
-      audio,
-      startAt,
-      latency: (audio.ctx.outputLatency || 0) + (audio.ctx.baseLatency || 0),
       notes: song.notes.map((n) => ({ ...n })),
       lanes: staves,
       counts: { perfect: 0, good: 0, ok: 0, miss: 0, extra: 0 },
@@ -336,11 +336,35 @@ export function initGameView(d) {
       tapAt: { L: -9, R: -9 },
       ended: false,
     };
+  }
+
+  async function startRun(level, song, mode) {
+    endRun();
+    cancelAnimationFrame(idleRaf);
+    const audio = makeAudio();
+    await audio.ctx.resume();
+    const startAt = audio.ctx.currentTime + 0.6;
+    for (const x of song.drums) audio[x.type](startAt + x.time);
+    for (const x of song.bass) audio.bass(startAt + x.time, x.midi, x.dur * song.beatSec);
+    // A soft chord on every bar under the tune.
+    song.chords.forEach((c) => {
+      const t = startAt + (song.countInBars + c.bar) * song.meter.bpb * song.beatSec;
+      audio.pad(t, c.tones.map((x) => 60 + level.key + x), song.meter.bpb * song.beatSec * 0.95);
+    });
+    // A warning siren a bar before each boss attack (the choruses).
+    if (mode === 'fight') attackBars(song).forEach((b, i, all) => {
+      if (i === 0 || all[i - 1] !== b - 1) audio.warn(startAt + (song.countInBars + b - 1) * song.meter.bpb * song.beatSec);
+    });
+    run = newRun(level, song, mode);
+    run.audio = audio;
+    run.startAt = startAt;
+    run.latency = (audio.ctx.outputLatency || 0) + (audio.ctx.baseLatency || 0);
     $('game-menu').hidden = true;
     $('game-results').hidden = true;
+    $('game-lesson').hidden = true;
     $('game-quit').hidden = false;
-    $('game-pads').hidden = false;
-    $('game-pads').classList.toggle('two', level.hands === 2);
+    $('game-pads').hidden = mode === 'demo';
+    $('game-pads').classList.toggle('two', song.hands === 2);
     document.body.classList.add('game-playing'); // full screen in landscape
     loop();
   }
@@ -353,6 +377,19 @@ export function initGameView(d) {
   function loop() {
     if (!run || run.ended) return;
     const t = songTime();
+    // A lesson demo plays itself.
+    if (run.mode === 'demo') {
+      for (const n of run.notes) {
+        if (n.judged) continue;
+        if (n.time > t) break;
+        n.judged = 'perfect';
+        n.pressAt = n.time;
+        n.releaseAt = n.time + n.dur * run.song.beatSec * 0.92;
+        run.tapAt[n.lane] = t;
+        const now = run.audio.ctx.currentTime;
+        n.lane === 'R' ? run.audio.lead(now, n.midi, n.dur * run.song.beatSec * 0.9) : run.audio.low(now, n.midi, n.dur * run.song.beatSec * 0.9);
+      }
+    }
     // Notes that slipped past are misses.
     for (const n of run.notes) {
       if (n.judged) continue;
@@ -361,7 +398,7 @@ export function initGameView(d) {
       n.missAt = t;
       run.counts.miss++;
       run.combo = 0;
-      run.health = Math.max(0, run.health - (inAttack(n.beat) ? 12 : 9));
+      if (run.mode === 'fight') run.health = Math.max(0, run.health - (inAttack(n.beat) ? 12 : 9));
       run.shake = 4;
       popup(n.lane, 'MISS', PAL.miss);
       run.audio.miss(run.audio.ctx.currentTime);
@@ -371,14 +408,14 @@ export function initGameView(d) {
       if (h && !h.note.holdOk && t - h.note.pressAt >= holdNeeded(h.note)) h.note.holdOk = true;
     }
     if (run.health <= 0) return finish(true);
-    if (t > run.song.length + 0.4) return finish(false);
+    if (t > run.song.length + 0.4) return run.mode === 'fight' ? finish(false) : endLesson();
     render(t);
     requestAnimationFrame(loop);
   }
 
   function input(lane, e) {
-    if (!run || run.ended) return;
-    if (run.level.hands === 1) lane = 'R';
+    if (!run || run.ended || run.mode === 'demo') return;
+    if (run.song.hands === 1) lane = 'R';
     const ago = e?.timeStamp != null ? Math.min(0.2, Math.max(0, performance.now() - e.timeStamp) / 1000) : 0;
     const t = songTime() - ago;
     run.tapAt[lane] = t;
@@ -394,7 +431,7 @@ export function initGameView(d) {
       if (t > run.song.countInBars * run.song.meter.bpb * run.song.beatSec - 0.3) {
         run.counts.extra++;
         run.combo = 0;
-        run.health = Math.max(0, run.health - 4);
+        if (run.mode === 'fight') run.health = Math.max(0, run.health - 4);
         run.damage = Math.max(0, run.damage - 0.5);
         popup(lane, 'EXTRA', PAL.miss);
       }
@@ -414,7 +451,7 @@ export function initGameView(d) {
     run.health = Math.min(100, run.health + (r.judgement === 'perfect' ? 3 : r.judgement === 'good' ? 1.5 : 0.5));
     run.damage += DAMAGE[r.judgement];
     run.bolts.push({ lane, x: HEART_X + 10, color: PAL[r.judgement], big: r.judgement === 'perfect' });
-    if (run.koAt == null && run.damage >= run.bossHp - 1e-9) {
+    if (run.mode === 'fight' && run.koAt == null && run.damage >= run.bossHp - 1e-9) {
       run.koAt = t;
       run.shake = 6;
       run.audio.ko(run.audio.ctx.currentTime);
@@ -444,8 +481,9 @@ export function initGameView(d) {
    * line, a clef at the start of each line (and the time signature on the
    * first), notes engraved and justified, both hands aligned.
    */
-  function engravePage(song, lanes) {
+  function engravePage(song, lanes, allCounts) {
     const { bpb } = song.meter;
+    const intro = introductions(song.level);
     const out = [];
     for (let b = 0; b < song.bars; b++) {
       const start = (song.countInBars + b) * bpb;
@@ -462,6 +500,8 @@ export function initGameView(d) {
         x,
         w,
         xOf: engraveBar(Object.values(events), start, bpb, x, w),
+        // Counting is pencilled in under lessons, and under a new rhythm's first few bars in a song.
+        counts: Object.fromEntries(lanes.map((l) => [l, allCounts || events[l].some((e) => intro.has(e.cell) && b >= intro.get(e.cell) && b - intro.get(e.cell) < 4)])),
         layouts: Object.fromEntries(lanes.map((l) => [l, layoutScore(events[l], bpb)])),
       });
     }
@@ -473,6 +513,7 @@ export function initGameView(d) {
    * line for every line of music played.
    */
   function scrollPosition(beat) {
+    if (run.mode !== 'fight') return run.line === LINE_TWO ? -0.25 : -0.5; // lessons fit on the page: no scrolling
     const { bpb } = run.song.meter;
     const pos = (beat - run.song.countInBars * bpb) / (bpb * BARS_PER_LINE);
     return pos - run.line.lead;
@@ -516,6 +557,17 @@ export function initGameView(d) {
     }
   }
 
+  /** The counting, pencilled in under the notes ("1 e + a", "1 T L" for triplets). */
+  function drawCounts(pb, lane, y) {
+    const compound = run.song.meter.compound;
+    for (const gl of pb.layouts[lane].glyphs) {
+      if (gl.rest) continue;
+      let label = countLabel(gl.beat - pb.start, compound);
+      label = { trip: 'T', let: 'L' }[label] || label;
+      if (label) text(g, label, Math.round(pb.xOf(gl.beat)), y, '#6d5f8f', { align: 'center' });
+    }
+  }
+
   /** How long a note must be held, in seconds (0 for short notes, which can just be tapped). */
   function holdNeeded(n) {
     if (n.dur < HOLD_FROM - 1e-9) return 0;
@@ -526,7 +578,7 @@ export function initGameView(d) {
   /** Letting go of a note: check it was held long enough. */
   function release(lane, e) {
     if (!run || run.ended) return;
-    if (run.level.hands === 1) lane = 'R';
+    if (run.song.hands === 1) lane = 'R';
     const ago = e?.timeStamp != null ? Math.min(0.2, Math.max(0, performance.now() - e.timeStamp) / 1000) : 0;
     const t = songTime() - ago;
     run.voices[lane]?.release(run.audio.ctx.currentTime);
@@ -605,12 +657,13 @@ export function initGameView(d) {
       const ys = Object.entries(run.lanes).map(([lane, dy]) => [lane, top + dy]);
       for (const [lane, y] of ys) {
         drawStaff(g, LINE_X0, LINE_X1, y, INK);
-        const clefColor = level.hands === 2 ? (lane === 'L' ? PAL.leftDark : PAL.rightDark) : INK;
+        const clefColor = song.hands === 2 ? (lane === 'L' ? PAL.leftDark : PAL.rightDark) : INK;
         drawClefAndTime(g, LINE_X0 + 3, y, clefColor, song.meter.id, line === 0);
         for (const pb of bars) {
           drawScore(g, pb.layouts[lane], y, pb.xOf, colorOf);
           drawBarline(g, Math.round(pb.x + pb.w), y, INK, pb.bar === song.bars - 1);
           drawHeld(pb, lane, y + 11, t);
+          if (pb.counts[lane]) drawCounts(pb, lane, y + 14);
         }
       }
       // Lines that start the system: one joining the staves, and a brace for two hands.
@@ -666,9 +719,13 @@ export function initGameView(d) {
     }
     if (run.bolts.some((b) => b.x >= bossLeft) && !ko) run.bossFlash = 3;
     run.bolts = run.bolts.filter((b) => b.x < bossLeft);
-    // The boss.
+    // The boss (lessons have none: just what's happening).
     const mood = ko ? 'ko' : run.bossFlash > 0 ? 'hurt' : attack || nextAttack ? 'angry' : 'idle';
-    bossSpots().forEach(([bx, by], i) => {
+    if (run.mode !== 'fight') {
+      const label = { demo: 'LISTEN...', try: 'YOUR TURN', still: 'LESSON' }[run.mode];
+      text(g, label, 236, 24, run.mode === 'try' ? PAL.good : PAL.text, { scale: 2, align: 'right', shadow: PAL.night });
+    }
+    if (run.mode === 'fight') bossSpots().forEach(([bx, by], i) => {
       const bob = ko ? Math.round(Math.sin(t * 3 + i) * 2) : beat >= 0 && (beat + i * 0.5) % 1 < 0.5 ? 0 : 1;
       const jitter = attack && !ko ? Math.round((Math.random() - 0.5) * 2) : 0;
       drawBoss(g, boss, bx + jitter, by + bob, { frame: Math.floor(beat * (attack ? 2 : 1)) + i, mood, flash: run.bossFlash === 3 && !ko, scale: 2 });
@@ -697,7 +754,7 @@ export function initGameView(d) {
     for (const pu of run.popups) {
       const age = (nowMs - pu.born) / 600;
       if (age > 1) continue;
-      const x = level.hands === 2 ? (pu.lane === 'L' ? 100 : 156) : 128;
+      const x = song.hands === 2 ? (pu.lane === 'L' ? 100 : 156) : 128;
       text(g, pu.word, x, 34 - Math.round(age * 3), pu.color, { align: 'center', shadow: PAL.night });
     }
     run.popups = run.popups.filter((pu) => nowMs - pu.born < 600);
@@ -708,16 +765,18 @@ export function initGameView(d) {
     text(g, `${level.id} ${level.name}`, 2, 2, PAL.dim);
     text(g, String(Math.round(run.score)).padStart(6, '0'), W - 2, 2, PAL.text, { align: 'right' });
     if (run.combo >= 4) text(g, `${run.combo} COMBO`, 60, 11, run.combo >= 20 ? PAL.perfect : PAL.good, { shadow: PAL.night });
-    text(g, ko ? `${boss.name} KO!` : boss.name, 202, 11, ko ? PAL.perfect : boss.light, { align: 'right', shadow: PAL.night });
-    g.fillStyle = PAL.lane;
-    g.fillRect(60, 41, 62, 5);
-    g.fillStyle = run.health > 30 ? PAL.perfect : PAL.miss;
-    g.fillRect(61, 42, Math.round(60 * (run.health / 100)), 3);
-    g.fillStyle = PAL.lane;
-    g.fillRect(140, 41, 62, 5);
-    g.fillStyle = boss.body;
-    const hpLeft = Math.max(0, 1 - run.damage / run.bossHp);
-    g.fillRect(141 + Math.round(60 * (1 - hpLeft)), 42, Math.round(60 * hpLeft), 3);
+    if (run.mode === 'fight') {
+      text(g, ko ? `${boss.name} KO!` : boss.name, 202, 11, ko ? PAL.perfect : boss.light, { align: 'right', shadow: PAL.night });
+      g.fillStyle = PAL.lane;
+      g.fillRect(60, 41, 62, 5);
+      g.fillStyle = run.health > 30 ? PAL.perfect : PAL.miss;
+      g.fillRect(61, 42, Math.round(60 * (run.health / 100)), 3);
+      g.fillStyle = PAL.lane;
+      g.fillRect(140, 41, 62, 5);
+      g.fillStyle = boss.body;
+      const hpLeft = Math.max(0, 1 - run.damage / run.bossHp);
+      g.fillRect(141 + Math.round(60 * (1 - hpLeft)), 42, Math.round(60 * hpLeft), 3);
+    }
     g.fillStyle = PAL.trim;
     g.fillRect(0, SCENE_H, W, 1);
     g.fillStyle = PAL.text;
@@ -725,7 +784,9 @@ export function initGameView(d) {
 
     // Banners: count-in, attack warnings, the knockout.
     const countBeats = song.countInBars * bpb;
-    if (beat < countBeats + 0.6) {
+    if (run.mode === 'still') {
+      // A lesson's picture: no count-in yet.
+    } else if (beat < countBeats + 0.6) {
       const clicks = Math.round(bpb / song.meter.click);
       const k = Math.floor(beat / song.meter.click);
       const label = beat < 0 ? 'READY' : k < clicks ? String(k + 1) : 'GO!';
@@ -789,9 +850,105 @@ export function initGameView(d) {
   function endRun() {
     if (!run) return;
     run.ended = true;
-    run.audio.ctx.close().catch(() => {});
+    for (const v of Object.values(run.voices)) v?.release(run.audio?.ctx.currentTime || 0);
+    run.audio?.ctx.close().catch(() => {});
     run = null;
   }
+
+  // -------------------------------------------------------------- tutorial
+
+  // A ward's tutorial: an introduction, then a lesson card for each new
+  // rhythm. Each lesson can be heard (it plays itself, with the counting
+  // written in) and tried (your go, with feedback), as often as you like.
+  let tut = null;
+
+  function openTutorial(level) {
+    endRun();
+    cancelAnimationFrame(idleRaf);
+    tut = { level, steps: tutorialFor(level), i: 0 };
+    document.body.classList.remove('game-playing');
+    $('game-menu').hidden = true;
+    $('game-results').hidden = true;
+    showStep();
+  }
+
+  function lessonSong() {
+    const step = tut.steps[tut.i];
+    const lesson = step.kind === 'hands'
+      ? { hands: 2, right: tut.level.cells, left: tut.level.left, bars: 4 }
+      : { hands: 1, right: lessonCells(tut.level, step), bars: 4 };
+    return makeSong(tut.level, tut.seed, { bpm: bpmOf(tut.level), lesson });
+  }
+
+  function showStep(result = '') {
+    const step = tut.steps[tut.i];
+    const last = tut.i === tut.steps.length - 1;
+    $('game-lesson').hidden = false;
+    $('game-pads').hidden = true;
+    $('game-quit').hidden = true;
+    $('gls-step').textContent = `WARD ${tut.level.id} TUTORIAL · ${tut.i + 1}/${tut.steps.length}`;
+    $('gls-title').textContent = step.kind === 'cell' ? `NEW RHYTHM: ${step.title}` : step.title;
+    $('gls-text').textContent = step.text;
+    $('gls-result').textContent = result;
+    const practice = step.kind !== 'intro';
+    $('gls-hear').hidden = !practice;
+    $('gls-try').hidden = !practice;
+    $('gls-next').textContent = last ? 'START THE FIGHT ▶' : 'NEXT ▸';
+    if (!practice) return idle();
+    cancelAnimationFrame(idleRaf); // the title animation would draw over the lesson
+    // Draw the lesson's music, still, with the counting written in.
+    if (!result) {
+      tut.seed = Math.floor(Math.random() * 1e9);
+      run = newRun(tut.level, lessonSong(), 'still');
+      render(-1);
+      run = null;
+    }
+  }
+
+  function lessonRun(mode) {
+    startRun(tut.level, lessonSong(), mode);
+  }
+
+  /** A lesson demo or try has finished: back to its card, with how it went. */
+  function endLesson() {
+    const r = run;
+    const mode = r.mode;
+    r.ended = true;
+    for (const v of Object.values(r.voices)) v?.release(r.audio.ctx.currentTime);
+    setTimeout(() => r.audio.ctx.close().catch(() => {}), 500);
+    run = null;
+    if (mode === 'demo') return showStep('Now you try! Count along with the clicks.');
+    const c = r.counts;
+    const total = r.notes.length;
+    const good = c.perfect + c.good;
+    const notes = [];
+    if (r.early > r.late + 1) notes.push('a bit early: wait for the beat');
+    else if (r.late > r.early + 1) notes.push('a bit late: read ahead');
+    if (r.short) notes.push(`${r.short} long note${r.short > 1 ? 's' : ''} let go too soon`);
+    if (c.extra) notes.push(`${c.extra} extra tap${c.extra > 1 ? 's' : ''}`);
+    const verdict = good >= total * 0.85 && !c.miss ? 'Great! You\u2019ve got it.' : good >= total * 0.6 ? 'Nearly there.' : 'Have another listen, then try again.';
+    showStep(`${good}/${total} notes on time${c.miss ? `, ${c.miss} missed` : ''}${notes.length ? ` (${notes.join(', ')})` : ''}. ${verdict}`);
+  }
+
+  $('gls-hear').addEventListener('click', () => lessonRun('demo'));
+  $('gls-try').addEventListener('click', () => lessonRun('try'));
+  $('gls-next').addEventListener('click', () => {
+    if (tut.i < tut.steps.length - 1) {
+      tut.i++;
+      return showStep();
+    }
+    finishTutorial();
+  });
+  $('gls-skip').addEventListener('click', finishTutorial);
+  function finishTutorial() {
+    gs().tutorial[tut.level.id] = true;
+    d.save();
+    const level = tut.level;
+    tut = null;
+    $('game-lesson').hidden = true;
+    startLevel(level);
+  }
+  $('game-tutorial').addEventListener('click', () => openTutorial(LEVELS[selected]));
 
   // ----------------------------------------------------------------- input
 
@@ -838,12 +995,11 @@ export function initGameView(d) {
   document.addEventListener('keydown', (e) => {
     if (!active || e.repeat || e.target.closest?.('input, select, textarea')) return;
     if (!run) {
-      if (e.code === 'Enter' && !$('game-menu').hidden) startLevel(LEVELS[selected]);
+      if (e.code === 'Enter' && !$('game-menu').hidden) playWard(LEVELS[selected]);
       return;
     }
     if (e.code === 'Escape') {
-      endRun();
-      showMenu();
+      $('game-quit').click();
       return;
     }
     const lane = LEFT_KEYS.has(e.code) ? 'L' : RIGHT_KEYS.has(e.code) ? 'R' : null;

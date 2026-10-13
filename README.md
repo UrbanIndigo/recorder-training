@@ -105,6 +105,8 @@ A pixel-art rhythm game and boss rush that trains you to read real sheet music. 
   - Arrhythmia and Fever Bug jolt the clipboard on every bar.
   - Tri-Clops and Night Terror fog the next line until just before you reach it, so you have to sight-read fast.
   - Code Blue does both.
+- **A tutorial for every ward:** the first time you play a ward, it opens with a card on what's new, then a lesson for each new rhythm. Each lesson shows four bars of the rhythm with the counting written under the notes ("1 e + a", T/L for triplet "trip-let"). **Hear it** plays it for you; **Try it** is your go, with feedback (notes on time, early or late, long notes let go too soon, extra taps). Replay it any time with **Tutorial for this ward** in the menu.
+- **Easing in during the song:** new rhythms arrive one at a time, and the counting is pencilled in under each new rhythm's first few bars.
 - **Eight wards**, from quarter notes at 84 BPM up to sixteenths, dotted rhythms, triplets and 6/8 at 124 BPM. Any ward can be played at any time.
 - **BPM control:** set any tempo for a ward (40–200 BPM) with the slider or the −/+ buttons. New wards start at 70% of their tempo so you can learn the new rhythms, and each win nudges the BPM up by 15% until full tempo. A ✓ marks wards beaten at full tempo.
 - **Fresh rhythms every play:** each song keeps its key, chords, tempo and verse/chorus shape, but its rhythms are generated anew each time (verses repeat with variations), so you read them rather than memorise them.
@@ -152,6 +154,7 @@ Code layout (`js/`):
 - `chords.js`: chord types, spelling, inversions, checking, and which chord to practise next (no DOM code, unit tested)
 - `keyboard.js`, `chords-view.js`: the keyboard picture and the Piano Chords screen
 - `game/song.js`: Beat Ward levels, song generation (seeded) and judging (no DOM code, unit tested)
+- `game/lessons.js`: the tutorials: ward introductions, a card for each rhythm, counting (unit tested)
 - `game/score.js`: pixel notation with engraved spacing (layout and spacing are unit tested)
 - `game/art.js`, `game/game.js`: the pixel art and bosses, synth and game loop
 - `progression.js`: endless-mode curriculum, skill tracking, retries, review and tempo changes (no DOM code, unit tested)

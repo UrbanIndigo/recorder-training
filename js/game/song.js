@@ -2,7 +2,7 @@
 // chords, sections, tempo) but its rhythms are generated fresh on every
 // play, so a song can't simply be memorised. No DOM or audio code.
 
-import { generateFromCells, METERS } from '../rhythm.js?v=3.0';
+import { generateFromCells, METERS } from '../rhythm.js?v=3.1';
 
 /**
  * The wards, easiest first. `cells` are rhythm patterns from rhythm.js.
@@ -131,7 +131,7 @@ function chordTones(level, root) {
  * @returns {{level, bpm, beatSec, meter, bars, countInBars, notes, score, drums, bass, chords, length}}
  *   notes: [{time, beat, lane: 'R'|'L', midi, dur}] times in seconds from the song start
  */
-export function makeSong(level, seed = Date.now(), { speed = 1, bpm: chosenBpm = null } = {}) {
+export function makeSong(level, seed = Date.now(), { speed = 1, bpm: chosenBpm = null, lesson = null } = {}) {
   const random = seededRandom(seed);
   const meter = METERS[level.meter];
   const bpb = meter.bpb;
@@ -150,7 +150,7 @@ export function makeSong(level, seed = Date.now(), { speed = 1, bpm: chosenBpm =
     const out = {};
     for (const [c, w] of Object.entries(weights)) {
       const at = intro.get(c);
-      if (at == null || b >= at) out[c] = at != null && b - at < 2 ? w + 5 : w;
+      if (at == null || b >= at) out[c] = at != null && b - at < 2 ? w + 2 : w;
     }
     if (!Object.keys(out).length && weights !== level.cells) return cellsFor(level.cells, b);
     if (!Object.keys(out).length) out[[...intro.keys()][0]] = 1;
@@ -172,6 +172,12 @@ export function makeSong(level, seed = Date.now(), { speed = 1, bpm: chosenBpm =
   });
   // The intro gently brings the right hand in on simple beats.
   for (let i = 0; i < 4; i++) plan[i].right = i < 2 ? null : bar({ quarter: 3, half: 1 });
+  // A tutorial lesson: a few bars practising one rhythm (or both hands) instead of a song.
+  const hands = lesson ? lesson.hands : level.hands;
+  if (lesson) {
+    plan.length = 0;
+    for (let i = 0; i < lesson.bars; i++) plan.push({ section: 'lesson', right: bar(lesson.right), left: lesson.left ? bar(lesson.left) : null });
+  }
 
   const notes = [];
   const score = { R: [], L: [] }; // the written rhythm for each hand, as it's drawn
@@ -215,8 +221,8 @@ export function makeSong(level, seed = Date.now(), { speed = 1, bpm: chosenBpm =
       return keyBase + 12 + scale[((deg % 7) + 7) % 7] + 12 * Math.floor(deg / 7);
     });
     // Left hand (two-handed levels): the bassline, from the verse on.
-    if (level.hands === 2) {
-      const left = p.section === 'intro' ? barRest(bpb) : bar(level.left);
+    if (hands === 2) {
+      const left = p.section === 'intro' ? barRest(bpb) : p.left || bar(level.left);
       addBar('L', left, barStart, (e) => keyBase - 24 + root + (e.beat % 2 === 0 ? 0 : 7));
     }
     // Backing: drums every bar, plus a quiet bass on one-hand levels.
@@ -226,7 +232,7 @@ export function makeSong(level, seed = Date.now(), { speed = 1, bpm: chosenBpm =
       drums.push({ beat, type: k === 0 ? 'kick' : meter.compound || k % 2 === 0 ? 'kick' : 'snare' });
     }
     for (let h = 0; h < bpb - 1e-9; h += 0.5) drums.push({ beat: barStart + h, type: 'hat' });
-    if (level.hands === 1 || p.section === 'intro') bass.push({ beat: barStart, midi: keyBase - 24 + root, dur: bpb * 0.9 });
+    if (hands === 1 || p.section === 'intro') bass.push({ beat: barStart, midi: keyBase - 24 + root, dur: bpb * 0.9 });
   });
   // Count-in: four sticks.
   for (let k = 0; k < Math.round(bpb / meter.click); k++) drums.push({ beat: k * meter.click, type: 'stick' });
@@ -244,7 +250,7 @@ export function makeSong(level, seed = Date.now(), { speed = 1, bpm: chosenBpm =
     }
   }
   const totalBeats = (countInBars + plan.length) * bpb;
-  return { level, seed, speed, bpm, beatSec, meter, bars: plan.length, countInBars, notes, drums, bass, chords, score, length: t(totalBeats), sections: plan.map((p) => p.section) };
+  return { level, seed, speed, hands, bpm, beatSec, meter, bars: plan.length, countInBars, notes, drums, bass, chords, score, length: t(totalBeats), sections: plan.map((p) => p.section) };
 }
 
 // ---------------------------------------------------------------- judging

@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1f6f5c">
   <title>Recorder Trainer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="css/styles.css?v=3.0">
+  <link rel="stylesheet" href="css/styles.css?v=3.1">
 </head>
 <body>
   <header class="topbar">
@@ -66,7 +66,7 @@
           <small>Turn it up if your playing isn't picked up, down if background noise is. The Mic bar shows the level: it turns green when it hears you, and the line marks the cut-off.</small>
         </div>
       </details>
-      <p class="hint version">Version 3.0</p>
+      <p class="hint version">Version 3.1</p>
     </section>
 
     <!-- Long tone: choose note -->
@@ -414,6 +414,18 @@
           </div>
         </div>
       </div>
+      <div class="game-lesson" id="game-lesson" hidden>
+        <div class="gls-step" id="gls-step"></div>
+        <h3 class="gls-title" id="gls-title"></h3>
+        <p class="gls-text" id="gls-text"></p>
+        <p class="gls-result" id="gls-result"></p>
+        <div class="game-row">
+          <button class="game-btn" id="gls-hear">▶ HEAR IT</button>
+          <button class="game-btn" id="gls-try">✋ TRY IT</button>
+          <button class="game-btn primary" id="gls-next">NEXT ▸</button>
+        </div>
+        <button class="gls-skip" id="gls-skip">Skip tutorial</button>
+      </div>
       <button class="game-btn game-quit" id="game-quit" hidden>✕ QUIT</button>
       <div class="game-pads" id="game-pads" hidden>
         <button class="game-pad left" id="game-left">L<small>F</small></button>
@@ -433,6 +445,7 @@
         </div>
         <p class="game-blurb" id="game-blurb"></p>
         <button class="game-btn primary big" id="game-play">▶ PLAY</button>
+        <button class="game-btn" id="game-tutorial">? TUTORIAL FOR THIS WARD</button>
         <div class="game-offset">
           <span>AUDIO OFFSET</span>
           <button class="game-btn" id="game-offset-down" aria-label="Earlier">−</button>
@@ -531,7 +544,7 @@
     <button class="btn primary small" id="load-error-reload">Reload</button>
   </p>
   <script>
-    window.APP_VERSION = '3.0';
+    window.APP_VERSION = '3.1';
     // If the app hasn't started after a few seconds, offer a fresh reload.
     setTimeout(function () {
       if (window.appReady) return;
@@ -542,6 +555,6 @@
       };
     }, 4000);
   </script>
-  <script type="module" src="js/app.js?v=3.0"></script>
+  <script type="module" src="js/app.js?v=3.1"></script>
 </body>
 </html>

@@ -183,3 +183,25 @@ test('wards ease in: new rhythms arrive one at a time', async () => {
     for (const [c, at] of intro) for (let b = 0; b < at; b++) assert.ok(!cellsAt(b).has(c), `${c} before bar ${at}`);
   }
 });
+
+test('every ward has a tutorial, with a lesson for each new rhythm', async () => {
+  const { tutorialFor, CELL_INFO, WARD_INTROS, lessonCells, countLabel } = await import('../js/game/lessons.js');
+  for (const level of LEVELS) {
+    const steps = tutorialFor(level);
+    assert.equal(steps[0].kind, 'intro');
+    assert.ok(WARD_INTROS[level.id]?.text, `intro for ward ${level.id}`);
+    assert.ok(steps.length >= 2, `ward ${level.id} has something to practise`);
+    for (const st of steps.slice(1)) {
+      if (st.kind === 'cell') assert.ok(CELL_INFO[st.cell], `info for ${st.cell}`);
+      // Lesson songs build, and use the rhythm being taught.
+      const lesson = st.kind === 'hands' ? { hands: 2, right: level.cells, left: level.left, bars: 4 } : { hands: 1, right: lessonCells(level, st), bars: 4 };
+      const song = makeSong(level, 7, { lesson });
+      assert.equal(song.bars, 4);
+      assert.ok(song.notes.length > 3);
+      if (st.kind === 'cell') assert.ok(song.score.R.some((e) => e.cell === st.cell), `${st.cell} appears in its lesson`);
+    }
+  }
+  assert.equal(tutorialFor(LEVELS[3]).filter((s) => s.kind === 'cell').length, 6); // Fever Bug's six new rhythms
+  assert.deepEqual([0, 0.25, 0.5, 0.75, 1, 1 / 3, 2 / 3].map((b) => countLabel(b, false)), ['1', 'e', '+', 'a', '2', 'trip', 'let']);
+  assert.deepEqual([0, 0.5, 1, 1.5, 2, 2.5].map((b) => countLabel(b, true)), ['1', '+', 'a', '2', '+', 'a']);
+});

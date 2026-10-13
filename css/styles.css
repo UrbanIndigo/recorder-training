@@ -537,3 +537,12 @@ body { overflow-anchor: none; } /* rows updating shouldn't make the page jump */
 .game-bpm-row .game-btn { padding: 0.15rem 0.6rem; }
 #game-bpm { flex: 1; min-width: 120px; accent-color: var(--g-pink); }
 #game-bpm-num { color: var(--g-text); font-size: 1rem; min-width: 2.5em; text-align: right; }
+.game-lesson { margin-top: 0.8rem; background: var(--g-bg); color: var(--g-text); border: 4px solid var(--g-edge); padding: 0.8rem; }
+.gls-step { font-size: 0.7rem; color: var(--g-dim); }
+.gls-title { margin: 0.2rem 0 0.4rem; font-size: 1.05rem; color: #ffe066; }
+.gls-text { margin: 0 0 0.5rem; font-size: 0.9rem; line-height: 1.5; }
+.gls-result { margin: 0 0 0.5rem; font-size: 0.85rem; color: var(--g-green); min-height: 0; }
+.gls-result:empty { display: none; }
+.game-lesson .game-row { justify-content: flex-start; }
+.gls-skip { background: none; border: none; color: var(--g-dim); text-decoration: underline; font-size: 0.75rem; margin-top: 0.6rem; cursor: pointer; padding: 0; }
+#game-tutorial { width: 100%; margin-bottom: 0.6rem; font-size: 0.8rem; }
