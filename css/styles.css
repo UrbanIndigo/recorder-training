@@ -533,8 +533,7 @@ body { overflow-anchor: none; } /* rows updating shouldn't make the page jump */
   body.game-playing .game-rotate { display: none; }
 }
 .game-level.done .gl-num { background: #2f7a3a; }
-.game-speed-row { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.6rem; font-size: 0.75rem; color: var(--g-dim); }
-#game-speeds { display: flex; gap: 0.3rem; flex-wrap: wrap; }
-.game-speed { padding: 0.25rem 0.55rem; font-size: 0.8rem; }
-.game-speed.done { color: var(--g-green); }
-.game-speed.sel { border-color: var(--g-pink); box-shadow: inset 0 0 0 2px var(--g-pink); }
+.game-bpm-row { display: flex; align-items: center; gap: 0.45rem; margin-top: 0.7rem; font-size: 0.75rem; color: var(--g-dim); flex-wrap: wrap; }
+.game-bpm-row .game-btn { padding: 0.15rem 0.6rem; }
+#game-bpm { flex: 1; min-width: 120px; accent-color: var(--g-pink); }
+#game-bpm-num { color: var(--g-text); font-size: 1rem; min-width: 2.5em; text-align: right; }

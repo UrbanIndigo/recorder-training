@@ -2,7 +2,7 @@
 // chords, sections, tempo) but its rhythms are generated fresh on every
 // play, so a song can't simply be memorised. No DOM or audio code.
 
-import { generateFromCells, METERS } from '../rhythm.js?v=2.9';
+import { generateFromCells, METERS } from '../rhythm.js?v=3.0';
 
 /**
  * The wards, easiest first. `cells` are rhythm patterns from rhythm.js.
@@ -72,17 +72,20 @@ export const LEVELS = [
   },
 ];
 
-/**
- * Speeds a ward can be played at. A new ward starts slow so its new rhythms
- * can be learnt; each win moves it up a step, to full speed and beyond.
- */
-export const SPEEDS = [0.7, 0.85, 1, 1.15];
-export const FULL_SPEED = 2; // index of 100%
+/** The BPM range the tempo control allows. */
+export const MIN_BPM = 40;
+export const MAX_BPM = 200;
 
-/** The speed to offer next for a ward, given the fastest step it has been cleared at (or null). */
-export function nextSpeed(cleared) {
-  if (cleared == null) return 0;
-  return Math.min(SPEEDS.length - 1, cleared < FULL_SPEED ? cleared + 1 : cleared);
+/**
+ * The tempo to offer next for a ward. A new ward starts at 70% of its
+ * tempo so its new rhythms can be learnt; each win moves it up by 15%
+ * of the ward's tempo, up to full speed. `wonAt` is the fastest BPM the
+ * boss has been beaten at (or null).
+ */
+export function nextBpm(level, wonAt) {
+  if (wonAt == null) return Math.round(level.bpm * 0.7);
+  if (wonAt >= level.bpm) return wonAt;
+  return Math.min(level.bpm, wonAt + Math.round(level.bpm * 0.15));
 }
 
 const SECTIONS = ['intro', 'verse', 'verse', 'chorus', 'verse', 'chorus']; // 4 bars each
@@ -128,11 +131,11 @@ function chordTones(level, root) {
  * @returns {{level, bpm, beatSec, meter, bars, countInBars, notes, score, drums, bass, chords, length}}
  *   notes: [{time, beat, lane: 'R'|'L', midi, dur}] times in seconds from the song start
  */
-export function makeSong(level, seed = Date.now(), { speed = 1 } = {}) {
+export function makeSong(level, seed = Date.now(), { speed = 1, bpm: chosenBpm = null } = {}) {
   const random = seededRandom(seed);
   const meter = METERS[level.meter];
   const bpb = meter.bpb;
-  const bpm = Math.round(level.bpm * speed);
+  const bpm = chosenBpm ?? Math.round(level.bpm * speed);
   const beatSec = 60 / bpm;
   const countInBars = 1;
   const keyBase = 60 + level.key; // middle-C octave

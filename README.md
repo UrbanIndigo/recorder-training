@@ -106,7 +106,7 @@ A pixel-art rhythm game and boss rush that trains you to read real sheet music. 
   - Tri-Clops and Night Terror fog the next line until just before you reach it, so you have to sight-read fast.
   - Code Blue does both.
 - **Eight wards**, from quarter notes at 84 BPM up to sixteenths, dotted rhythms, triplets and 6/8 at 124 BPM. Any ward can be played at any time.
-- **Slow first, then faster:** each ward has four speeds (70%, 85%, 100%, 115%). A new ward starts at 70% so you can learn its new rhythms. Each win moves it up a step until full speed, and 115% is there as an extra challenge. You can pick any speed from the menu. A ✓ marks wards beaten at full speed.
+- **BPM control:** set any tempo for a ward (40–200 BPM) with the slider or the −/+ buttons. New wards start at 70% of their tempo so you can learn the new rhythms, and each win nudges the BPM up by 15% until full tempo. A ✓ marks wards beaten at full tempo.
 - **Fresh rhythms every play:** each song keeps its key, chords, tempo and verse/chorus shape, but its rhythms are generated anew each time (verses repeat with variations), so you read them rather than memorise them.
 - **Two hands:** from ward 6 the music is on two staves, joined like piano music. Left hand (blue, F key or the L pad) plays the bass; right hand (pink, J/Space or the R pad) plays the tune. They often land together.
 - **Note lengths count:** quarter notes and longer must be held for most of their value. Let go too soon and the hit drops a grade (**TOO SHORT**). The sound lasts as long as you hold, and after you play, a bar under the staff shows how long you held each note. Quicker notes can just be tapped.

@@ -141,12 +141,15 @@ test('engraved spacing: in order, inside the bar, longer notes get more room but
   assert.ok(Math.abs(empty(2) - 51.5) < 2);
 });
 
-test('speeds: new wards start slow and step up to full speed', async () => {
-  const { SPEEDS, FULL_SPEED, nextSpeed } = await import('../js/game/song.js');
-  assert.equal(SPEEDS[nextSpeed(null)], 0.7);
-  assert.equal(nextSpeed(0), 1);
-  assert.equal(nextSpeed(1), FULL_SPEED);
-  assert.equal(nextSpeed(FULL_SPEED), FULL_SPEED); // 115% is opt-in
+test('tempo: new wards start slow and step up to full tempo', async () => {
+  const { nextBpm } = await import('../js/game/song.js');
+  const lvl = LEVELS[0]; // 84 BPM
+  assert.equal(nextBpm(lvl, null), 59);
+  assert.equal(nextBpm(lvl, 59), 72);
+  assert.equal(nextBpm(lvl, 80), 84);
+  assert.equal(nextBpm(lvl, 84), 84);
+  assert.equal(nextBpm(lvl, 100), 100); // faster than full tempo is the player's choice
+  assert.equal(makeSong(lvl, 1, { bpm: 66 }).bpm, 66);
   const slow = makeSong(LEVELS[3], 5, { speed: 0.7 });
   const full = makeSong(LEVELS[3], 5);
   // Same rhythms, just slower.

@@ -4,9 +4,9 @@
 // note to play the tune; every hit blasts the germ boss. Later wards add a
 // second staff for the left hand.
 
-import { LEVELS, makeSong, judgeTap, grade, WINDOWS, SPEEDS, FULL_SPEED, nextSpeed } from './song.js?v=2.9';
-import { W, H, PAL, text, sprite, HEART, DOCTOR, DOCTOR_COLORS, drawWard, drawMonitor, drawBoss, drawScene } from './art.js?v=2.9';
-import { layoutScore, drawScore, engraveBar, drawStaff, drawBarline, drawClefAndTime } from './score.js?v=2.9';
+import { LEVELS, makeSong, judgeTap, grade, WINDOWS, MIN_BPM, MAX_BPM, nextBpm } from './song.js?v=3.0';
+import { W, H, PAL, text, sprite, HEART, DOCTOR, DOCTOR_COLORS, drawWard, drawMonitor, drawBoss, drawScene } from './art.js?v=3.0';
+import { layoutScore, drawScore, engraveBar, drawStaff, drawBarline, drawClefAndTime } from './score.js?v=3.0';
 
 const SCENE_H = 48; // the strip above the page: doctor, heart, boss
 const PAGE = { x: 2, y: 50, w: 252, h: 156 };
@@ -43,15 +43,19 @@ export function initGameView(d) {
   const { $, state } = d;
   state.game ||= { best: {}, offsetMs: 0 };
   const gs = () => state.game;
-  // cleared: the fastest speed step each ward's boss has been beaten at.
-  // speed: the step picked for each ward (it moves up after each win).
-  if (!gs().cleared) {
-    gs().cleared = {};
-    // Older saves only knew which wards were unlocked: count those as cleared at full speed.
-    for (let id = 1; id < (gs().unlocked || 1); id++) gs().cleared[id] = FULL_SPEED;
+  // wonAt: the fastest BPM each ward's boss has been beaten at.
+  // bpm: the tempo picked for each ward (it moves up after each win).
+  const levelById = (id) => LEVELS.find((l) => l.id === +id);
+  if (!gs().wonAt) {
+    gs().wonAt = {};
+    // Older saves: wards unlocked, or cleared at a speed step (70/85/100/115%).
+    const steps = [0.7, 0.85, 1, 1.15];
+    for (let id = 1; id < (gs().unlocked || 1); id++) gs().wonAt[id] = levelById(id).bpm;
+    for (const [id, k] of Object.entries(gs().cleared || {})) gs().wonAt[id] = Math.round(levelById(id).bpm * steps[k]);
   }
-  gs().speed ||= {};
-  const speedOf = (id) => gs().speed[id] ?? nextSpeed(gs().cleared[id]);
+  gs().bpm ||= {};
+  const bpmOf = (lvl) => gs().bpm[lvl.id] ?? nextBpm(lvl, gs().wonAt[lvl.id]);
+  const done = (lvl) => gs().wonAt[lvl.id] >= lvl.bpm;
 
   const canvas = $('game-canvas');
   const g = canvas.getContext('2d');
@@ -61,7 +65,7 @@ export function initGameView(d) {
   let run = null;
   let idleRaf = null;
   // Start on the first ward not yet cleared at full speed.
-  let selected = Math.max(0, LEVELS.findIndex((l) => !(gs().cleared[l.id] >= FULL_SPEED)));
+  let selected = Math.max(0, LEVELS.findIndex((l) => !done(l)));
 
   // ------------------------------------------------------------------ menu
 
@@ -71,11 +75,11 @@ export function initGameView(d) {
       ...LEVELS.map((lvl, i) => {
         const b = document.createElement('button');
         const best = gs().best[lvl.id];
-        const cleared = gs().cleared[lvl.id];
-        b.className = `game-level${i === selected ? ' sel' : ''}${cleared >= FULL_SPEED ? ' done' : ''}`;
-        b.innerHTML = `<span class="gl-num">${cleared >= FULL_SPEED ? '✓' : lvl.id}</span><span class="gl-name"></span><span class="gl-best"></span>`;
+        const won = gs().wonAt[lvl.id];
+        b.className = `game-level${i === selected ? ' sel' : ''}${done(lvl) ? ' done' : ''}`;
+        b.innerHTML = `<span class="gl-num">${done(lvl) ? '✓' : lvl.id}</span><span class="gl-name"></span><span class="gl-best"></span>`;
         b.querySelector('.gl-name').textContent = lvl.name + (lvl.hands === 2 ? ' ✋✋' : '');
-        b.querySelector('.gl-best').textContent = best ? `${best.letter}${cleared != null ? ` @${Math.round(SPEEDS[cleared] * 100)}%` : ''}` : '';
+        b.querySelector('.gl-best').textContent = best ? `${best.letter}${won != null ? ` @${won}` : ''}` : '';
         b.addEventListener('click', () => {
           selected = i;
           renderMenu();
@@ -85,30 +89,30 @@ export function initGameView(d) {
       }),
     );
     const lvl = LEVELS[selected];
-    const sp = speedOf(lvl.id);
-    $('game-speeds').replaceChildren(
-      ...SPEEDS.map((v, k) => {
-        const b = document.createElement('button');
-        b.className = `game-btn game-speed${k === sp ? ' sel' : ''}${gs().cleared[lvl.id] >= k ? ' done' : ''}`;
-        b.textContent = `${Math.round(v * 100)}%`;
-        b.title = gs().cleared[lvl.id] >= k ? 'Cleared at this speed' : '';
-        b.addEventListener('click', () => {
-          gs().speed[lvl.id] = k;
-          d.save();
-          renderMenu();
-        });
-        return b;
-      }),
-    );
-    $('game-blurb').textContent = `${lvl.blurb} ${Math.round(lvl.bpm * SPEEDS[sp])} BPM · ${lvl.meter}${lvl.hands === 2 ? ' · TWO HANDS' : ''}. BOSS: ${lvl.boss.name}. ${GIMMICKS[lvl.boss.gimmick] || ''}`;
+    const bpm = bpmOf(lvl);
+    $('game-bpm').value = bpm;
+    $('game-bpm-num').textContent = bpm;
+    $('game-bpm-pct').textContent = `${Math.round((bpm / lvl.bpm) * 100)}% OF ${lvl.bpm}`;
+    $('game-blurb').textContent = `${lvl.blurb} Full tempo ${lvl.bpm} BPM · ${lvl.meter}${lvl.hands === 2 ? ' · TWO HANDS' : ''}. BOSS: ${lvl.boss.name}. ${GIMMICKS[lvl.boss.gimmick] || ''}`;
     $('game-offset').textContent = `${gs().offsetMs > 0 ? '+' : ''}${gs().offsetMs} ms`;
   }
 
+  const setBpm = (v) => {
+    const lvl = LEVELS[selected];
+    gs().bpm[lvl.id] = Math.max(MIN_BPM, Math.min(MAX_BPM, Math.round(v)));
+    d.save();
+    renderMenu();
+  };
+  $('game-bpm').min = MIN_BPM;
+  $('game-bpm').max = MAX_BPM;
+  $('game-bpm').addEventListener('input', (e) => setBpm(+e.target.value));
+  $('game-bpm-down').addEventListener('click', () => setBpm(bpmOf(LEVELS[selected]) - 2));
+  $('game-bpm-up').addEventListener('click', () => setBpm(bpmOf(LEVELS[selected]) + 2));
   $('game-play').addEventListener('click', () => startLevel(LEVELS[selected]));
   $('game-retry').addEventListener('click', () => startLevel(run?.level || LEVELS[selected]));
   $('game-next').addEventListener('click', () => {
     // After a win below full speed, go again faster; otherwise on to the next ward.
-    if (!(gs().cleared[LEVELS[selected].id] >= FULL_SPEED)) return startLevel(LEVELS[selected]);
+    if (!done(LEVELS[selected])) return startLevel(LEVELS[selected]);
     selected = Math.min(LEVELS.length - 1, selected + 1);
     startLevel(LEVELS[selected]);
   });
@@ -286,8 +290,7 @@ export function initGameView(d) {
     const audio = makeAudio();
     await audio.ctx.resume();
     selected = LEVELS.indexOf(level);
-    const speedStep = speedOf(level.id);
-    const song = makeSong(level, Date.now(), { speed: SPEEDS[speedStep] });
+    const song = makeSong(level, Date.now(), { bpm: bpmOf(level) });
     const startAt = audio.ctx.currentTime + 0.6;
     for (const x of song.drums) audio[x.type](startAt + x.time);
     for (const x of song.bass) audio.bass(startAt + x.time, x.midi, x.dur * song.beatSec);
@@ -305,7 +308,6 @@ export function initGameView(d) {
     run = {
       level,
       song,
-      speedStep,
       line: layout,
       holding: { L: null, R: null },
       voices: { L: null, R: null },
@@ -749,11 +751,11 @@ export function initGameView(d) {
     if (isBest) gs().best[level.id] = { acc: r.acc, letter: r.letter };
     let fasterNext = false;
     if (passed) {
-      const prevCleared = gs().cleared[level.id];
-      if (prevCleared == null || run.speedStep > prevCleared) gs().cleared[level.id] = run.speedStep;
-      // Speed up for next time (until full speed; beyond that it's the player's choice).
-      if (run.speedStep < FULL_SPEED) {
-        gs().speed[level.id] = run.speedStep + 1;
+      const prev = gs().wonAt[level.id];
+      if (prev == null || run.song.bpm > prev) gs().wonAt[level.id] = run.song.bpm;
+      // Speed up for next time, until full tempo (beyond that it's the player's choice).
+      if (run.song.bpm < level.bpm) {
+        gs().bpm[level.id] = nextBpm(level, run.song.bpm);
         fasterNext = true;
       }
     }
@@ -770,15 +772,15 @@ export function initGameView(d) {
     $('game-grade').className = `game-grade g-${failed ? 'X' : r.letter}`;
     const name = level.boss.name;
     $('game-verdict').textContent = failed ? `FLATLINED! ${name} WINS` : passed ? `${name} DEFEATED!${isBest ? ' NEW BEST' : ''}` : `${name} GOT AWAY (${Math.round((1 - run.damage / run.bossHp) * 100)}% HP LEFT)`;
-    $('game-acc').textContent = `${Math.round(r.acc * 100)}% AT ${Math.round(SPEEDS[run.speedStep] * 100)}% SPEED`;
+    $('game-acc').textContent = `${Math.round(r.acc * 100)}% AT ${run.song.bpm} BPM`;
     $('game-counts').textContent = `PERFECT ${run.counts.perfect} · GOOD ${run.counts.good} · OK ${run.counts.ok} · MISS ${run.counts.miss} · EXTRA ${run.counts.extra}`;
     $('game-extra').textContent = `MAX COMBO ${run.maxCombo} · EARLY ${run.early} · LATE ${run.late} · TOO SHORT ${run.short}`;
-    const hint = fasterNext ? `Next time: ${Math.round(SPEEDS[run.speedStep + 1] * 100)}% speed.`
+    const hint = fasterNext ? `Next time: ${gs().bpm[level.id]} BPM.`
       : run.counts.extra > 5 ? 'Extra taps cost you: only tap the notes that are written.'
       : run.short > 3 && run.short > (run.early + run.late) / 2 ? 'Hold long notes for their full value: count through them.'
       : run.early > run.late * 2 && run.early > 3 ? 'You tend to rush: count steadily with the drums.'
         : run.late > run.early * 2 && run.late > 3 ? 'You tend to be late: read a beat ahead so you are ready.'
-          : run.counts.miss > run.counts.perfect ? (run.speedStep > 0 ? 'Try a slower speed from the menu, and count the beats.' : 'Count the beats with the drums, and read ahead.') : '';
+          : run.counts.miss > run.counts.perfect ? (run.song.bpm > MIN_BPM + 10 ? 'Try a lower BPM from the menu, and count the beats.' : 'Count the beats with the drums, and read ahead.') : '';
     $('game-hint').textContent = hint;
     $('game-next').hidden = !passed || (!fasterNext && level.id >= LEVELS.length);
     $('game-next').textContent = fasterNext ? 'FASTER ▶' : 'NEXT WARD';
