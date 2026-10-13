@@ -2,7 +2,7 @@
 // chords, sections, tempo) but its rhythms are generated fresh on every
 // play, so a song can't simply be memorised. No DOM or audio code.
 
-import { generateFromCells, METERS } from '../rhythm.js?v=2.8';
+import { generateFromCells, METERS } from '../rhythm.js?v=2.9';
 
 /**
  * The wards, easiest first. `cells` are rhythm patterns from rhythm.js.
@@ -36,7 +36,7 @@ export const LEVELS = [
     id: 4, name: 'FEVER', blurb: 'Sixteenths and dotted rhythms. Faster.',
     boss: { name: 'FEVER BUG', body: '#ff7a3d', dark: '#a8361a', light: '#ffc6a3', eyes: 2, scale: 2, gimmick: 'quake' },
     bpm: 104, meter: '4/4', hands: 1, key: 2, minor: false, prog: [0, 9, 5, 7],
-    cells: { quarter: 2, eighths: 2, sixteenths: 1, eighthTwoSixteenths: 2, twoSixteenthsEighth: 2, dottedEighthSixteenth: 2 },
+    cells: { quarter: 2, eighths: 2, eighthTwoSixteenths: 2, twoSixteenthsEighth: 2, sixteenths: 1, dottedEighthSixteenth: 2 },
     chorus: { eighths: 1, sixteenths: 2, scotchSnap: 2, sixteenthEighthSixteenth: 2, dottedEighthSixteenth: 1 },
   },
   {
@@ -72,9 +72,33 @@ export const LEVELS = [
   },
 ];
 
+/**
+ * Speeds a ward can be played at. A new ward starts slow so its new rhythms
+ * can be learnt; each win moves it up a step, to full speed and beyond.
+ */
+export const SPEEDS = [0.7, 0.85, 1, 1.15];
+export const FULL_SPEED = 2; // index of 100%
+
+/** The speed to offer next for a ward, given the fastest step it has been cleared at (or null). */
+export function nextSpeed(cleared) {
+  if (cleared == null) return 0;
+  return Math.min(SPEEDS.length - 1, cleared < FULL_SPEED ? cleared + 1 : cleared);
+}
+
 const SECTIONS = ['intro', 'verse', 'verse', 'chorus', 'verse', 'chorus']; // 4 bars each
 const MAJOR = [0, 2, 4, 5, 7, 9, 11];
 const MINOR = [0, 2, 3, 5, 7, 8, 10];
+
+/**
+ * When each of a ward's new rhythms (ones no easier ward uses) first
+ * appears: the bar number, spread over the first verse to the first chorus
+ * (bars 4 to 15), in the order the level lists them.
+ */
+export function introductions(level) {
+  const seen = new Set(LEVELS.filter((l) => l.id < level.id).flatMap((l) => [...Object.keys(l.cells), ...Object.keys(l.chorus)]));
+  const fresh = [...new Set([...Object.keys(level.cells), ...Object.keys(level.chorus)])].filter((c) => !seen.has(c));
+  return new Map(fresh.map((c, i) => [c, 4 + Math.floor((i * 12) / fresh.length)]));
+}
 
 /** A small, fast, seedable random number generator. */
 export function seededRandom(seed) {
@@ -104,31 +128,45 @@ function chordTones(level, root) {
  * @returns {{level, bpm, beatSec, meter, bars, countInBars, notes, score, drums, bass, chords, length}}
  *   notes: [{time, beat, lane: 'R'|'L', midi, dur}] times in seconds from the song start
  */
-export function makeSong(level, seed = Date.now()) {
+export function makeSong(level, seed = Date.now(), { speed = 1 } = {}) {
   const random = seededRandom(seed);
   const meter = METERS[level.meter];
   const bpb = meter.bpb;
-  const beatSec = 60 / level.bpm;
+  const bpm = Math.round(level.bpm * speed);
+  const beatSec = 60 / bpm;
   const countInBars = 1;
   const keyBase = 60 + level.key; // middle-C octave
 
   // Generate one bar of rhythm for a hand from weighted cells.
   const bar = (cells) => generateFromCells({ cells, meter: meter.id, pitches: [72], bars: 1, random, standalone: false }).events;
 
-  // Verse bars are made once and repeated with variations; choruses likewise,
-  // so the song has a recognisable shape but changes every play.
-  const verse = Array.from({ length: 4 }, () => bar(level.cells));
-  const chorus = Array.from({ length: 4 }, () => bar(level.chorus));
-  const plan = [];
-  let verseCount = 0;
-  for (const section of SECTIONS) {
-    for (let i = 0; i < 4; i++) {
-      if (section === 'intro') plan.push({ section, right: null });
-      else if (section === 'verse') plan.push({ section, right: verseCount > 0 && random() < 0.4 ? bar(level.cells) : verse[i] });
-      else plan.push({ section, right: random() < 0.3 ? bar(level.chorus) : chorus[i] });
+  // Ease in: the ward's new rhythms arrive one at a time over the first
+  // half of the song, each used a lot in the bars just after it arrives.
+  const intro = introductions(level);
+  const cellsFor = (weights, b) => {
+    const out = {};
+    for (const [c, w] of Object.entries(weights)) {
+      const at = intro.get(c);
+      if (at == null || b >= at) out[c] = at != null && b - at < 2 ? w + 5 : w;
     }
-    if (section === 'verse') verseCount++;
-  }
+    if (!Object.keys(out).length && weights !== level.cells) return cellsFor(level.cells, b);
+    if (!Object.keys(out).length) out[[...intro.keys()][0]] = 1;
+    return out;
+  };
+
+  // Bars repeat with variations (verse 3 echoes verse 2; the second chorus
+  // echoes the first), so the song has a shape but changes every play.
+  const plan = [];
+  SECTIONS.forEach((section, si) => {
+    for (let i = 0; i < 4; i++) {
+      const b = si * 4 + i;
+      const earlier = plan[b - 8];
+      let right = null;
+      if (section === 'verse') right = si === 4 && random() < 0.6 ? earlier.right : bar(cellsFor(level.cells, b));
+      else if (section === 'chorus') right = si === 5 && random() < 0.7 ? earlier.right : bar(cellsFor(level.chorus, b));
+      plan.push({ section, right });
+    }
+  });
   // The intro gently brings the right hand in on simple beats.
   for (let i = 0; i < 4; i++) plan[i].right = i < 2 ? null : bar({ quarter: 3, half: 1 });
 
@@ -138,7 +176,7 @@ export function makeSong(level, seed = Date.now()) {
   const addBar = (lane, events, barStart, pitchOf) => {
     let last = null;
     for (const e of events) {
-      const ev = { beat: barStart + e.beat, beats: e.beats, rest: e.rest, dotted: e.dotted, dots: e.dots, written: e.written, tuplet: e.tuplet, tupletId: e.tupletId != null ? `${barStart}:${e.tupletId}` : undefined, beamGroup: e.beamGroup != null ? `${barStart}:${e.beamGroup}` : undefined, tieNext: e.tieNext, tied: e.tied, barRest: e.barRest };
+      const ev = { beat: barStart + e.beat, beats: e.beats, cell: e.cell, rest: e.rest, dotted: e.dotted, dots: e.dots, written: e.written, tuplet: e.tuplet, tupletId: e.tupletId != null ? `${barStart}:${e.tupletId}` : undefined, beamGroup: e.beamGroup != null ? `${barStart}:${e.beamGroup}` : undefined, tieNext: e.tieNext, tied: e.tied, barRest: e.barRest };
       if (!e.rest) {
         if (e.tied && last) {
           last.dur += e.beats;
@@ -203,7 +241,7 @@ export function makeSong(level, seed = Date.now()) {
     }
   }
   const totalBeats = (countInBars + plan.length) * bpb;
-  return { level, seed, bpm: level.bpm, beatSec, meter, bars: plan.length, countInBars, notes, drums, bass, chords, score, length: t(totalBeats), sections: plan.map((p) => p.section) };
+  return { level, seed, speed, bpm, beatSec, meter, bars: plan.length, countInBars, notes, drums, bass, chords, score, length: t(totalBeats), sections: plan.map((p) => p.section) };
 }
 
 // ---------------------------------------------------------------- judging
@@ -228,9 +266,9 @@ export function judgeTap(notes, lane, time) {
   return best;
 }
 
-/** Final accuracy (0..1) and grade for a finished song. */
+/** Final accuracy (0..1) and grade for a finished song. Extra taps (with no note) count against it. */
 export function grade(counts) {
-  const total = counts.perfect + counts.good + counts.ok + counts.miss;
+  const total = counts.perfect + counts.good + counts.ok + counts.miss + (counts.extra || 0);
   const acc = total ? (counts.perfect + 0.7 * counts.good + 0.4 * counts.ok) / total : 0;
   const letter = acc >= 0.95 ? 'S' : acc >= 0.88 ? 'A' : acc >= 0.78 ? 'B' : acc >= 0.65 ? 'C' : 'D';
   return { acc, letter, passed: acc >= 0.65 };

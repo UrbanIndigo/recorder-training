@@ -140,3 +140,43 @@ test('engraved spacing: in order, inside the bar, longer notes get more room but
   const empty = engraveBar([[{ beat: 0, beats: 4, rest: true, barRest: true }]], 0, 4, 0, 100);
   assert.ok(Math.abs(empty(2) - 51.5) < 2);
 });
+
+test('speeds: new wards start slow and step up to full speed', async () => {
+  const { SPEEDS, FULL_SPEED, nextSpeed } = await import('../js/game/song.js');
+  assert.equal(SPEEDS[nextSpeed(null)], 0.7);
+  assert.equal(nextSpeed(0), 1);
+  assert.equal(nextSpeed(1), FULL_SPEED);
+  assert.equal(nextSpeed(FULL_SPEED), FULL_SPEED); // 115% is opt-in
+  const slow = makeSong(LEVELS[3], 5, { speed: 0.7 });
+  const full = makeSong(LEVELS[3], 5);
+  // Same rhythms, just slower.
+  assert.deepEqual(slow.notes.map((n) => n.beat), full.notes.map((n) => n.beat));
+  assert.ok(slow.length > full.length * 1.4);
+  assert.equal(slow.bpm, Math.round(LEVELS[3].bpm * 0.7));
+});
+
+test('extra taps count against the grade', () => {
+  const clean = grade({ perfect: 10, good: 0, ok: 0, miss: 0 });
+  const mashed = grade({ perfect: 10, good: 0, ok: 0, miss: 0, extra: 30 });
+  assert.equal(clean.letter, 'S');
+  assert.ok(mashed.acc < 0.3 && !mashed.passed);
+});
+
+test('wards ease in: new rhythms arrive one at a time', async () => {
+  const { introductions } = await import('../js/game/song.js');
+  const fever = LEVELS[3];
+  const intro = introductions(fever);
+  assert.equal([...intro.keys()][0], 'eighthTwoSixteenths');
+  assert.ok(!intro.has('quarter') && !intro.has('eighths'));
+  const bars = [...intro.values()];
+  for (let i = 1; i < bars.length; i++) assert.ok(bars[i] > bars[i - 1]);
+  assert.ok(bars[0] === 4 && bars.at(-1) <= 15);
+  // In the first verse, no sixteenth-note pairs yet beyond the first new rhythm.
+  for (let seed = 1; seed <= 20; seed++) {
+    const s = makeSong(fever, seed);
+    const firstVerse = s.score.R.filter((e) => e.beat >= 4 * 5 && e.beat < 4 * 6); // bar 4 after the 1-bar count-in
+    assert.ok(firstVerse.every((e) => e.beats >= 0.25 - 1e-9));
+    const cellsAt = (b) => new Set(s.score.R.filter((e) => Math.floor(e.beat / 4) === b + 1).map((e) => e.cell));
+    for (const [c, at] of intro) for (let b = 0; b < at; b++) assert.ok(!cellsAt(b).has(c), `${c} before bar ${at}`);
+  }
+});

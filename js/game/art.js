@@ -3,7 +3,7 @@
 // whole-pixel rectangles on a small canvas that's scaled up crisply.
 
 export const W = 256;
-export const H = 192;
+export const H = 208;
 
 export const PAL = {
   night: '#141026',

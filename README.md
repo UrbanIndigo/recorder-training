@@ -97,17 +97,20 @@ Asks for a chord, like **G major, 1st inversion (G/B)**. You play it on the pian
 
 ### Beat Ward (game)
 
-A pixel-art rhythm game and boss rush that trains you to read real sheet music. The music is on the doctor's clipboard: a five-line staff with a clef, time signature, bar lines and engraved spacing, plus all the notation (beams, flags, dots, ties, triplets, rests). The music stays still while you read it. Keep time with the count-in and drums and tap each note as you'd play it. Each hit plays the tune and shoots the ward's germ boss.
+A pixel-art rhythm game and boss rush that trains you to read real sheet music. The music is on the doctor's clipboard: a five-line staff with a clef, time signature, bar lines and engraved spacing, plus all the notation (beams, flags, dots, ties, triplets, rests). The music stays still while you read it. Keep time with the count-in and drums and play each note: press at its start and hold it for its length. Each hit plays the tune and shoots the ward's germ boss.
 
-- **A page that scrolls a line at a time:** you play the top line with the next one below to read ahead (two bars per line). As you reach the end of a line, the page glides up by one line; it never moves with the beat. A soft highlight shows which bar you're in. Notes turn green, yellow or orange when you hit them, and red if you miss.
-- **Boss fights:** your hits wear the boss down (Perfect does the most damage). Take its HP to zero to clear the ward and unlock the next; that's the same as 65% accuracy. Misses hurt the patient, and if their health runs out they flatline.
+- **A page that scrolls steadily:** lines of two bars scroll slowly upwards at an even speed, one line for every two bars played. The line you're playing stays near the top and the next comes up underneath to read ahead. A soft highlight shows which bar you're in. Notes turn green, yellow or orange when you hit them, and red if you miss.
+- **Boss fights:** your hits wear the boss down (Perfect does the most damage). Take its HP to zero to beat it; that's the same as 65% accuracy. Misses hurt the patient, and if their health runs out they flatline.
 - **Boss attacks:** each chorus is an attack, with a siren a bar before and red lights. Misses cost more during attacks, and some bosses have gimmicks:
   - Arrhythmia and Fever Bug jolt the clipboard on every bar.
   - Tri-Clops and Night Terror fog the next line until just before you reach it, so you have to sight-read fast.
   - Code Blue does both.
-- **Eight wards**, from quarter notes at 84 BPM up to sixteenths, dotted rhythms, triplets and 6/8 at 124 BPM.
+- **Eight wards**, from quarter notes at 84 BPM up to sixteenths, dotted rhythms, triplets and 6/8 at 124 BPM. Any ward can be played at any time.
+- **Slow first, then faster:** each ward has four speeds (70%, 85%, 100%, 115%). A new ward starts at 70% so you can learn its new rhythms. Each win moves it up a step until full speed, and 115% is there as an extra challenge. You can pick any speed from the menu. A ✓ marks wards beaten at full speed.
 - **Fresh rhythms every play:** each song keeps its key, chords, tempo and verse/chorus shape, but its rhythms are generated anew each time (verses repeat with variations), so you read them rather than memorise them.
 - **Two hands:** from ward 6 the music is on two staves, joined like piano music. Left hand (blue, F key or the L pad) plays the bass; right hand (pink, J/Space or the R pad) plays the tune. They often land together.
+- **Note lengths count:** quarter notes and longer must be held for most of their value. Let go too soon and the hit drops a grade (**TOO SHORT**). The sound lasts as long as you hold, and after you play, a bar under the staff shows how long you held each note. Quicker notes can just be tapped.
+- **No mashing:** a tap with no note to play is an **EXTRA**. It breaks your combo, hurts the patient, heals the boss and counts against your accuracy.
 - **Judging:** Perfect within 45 ms, Good within 90 ms, OK within 140 ms. At the end you get a grade (S–D) plus counts of early and late hits. If your hits are always early or late, nudge the audio offset.
 - **On a phone,** turn it sideways: the game fills the screen with a pad on each side.
 

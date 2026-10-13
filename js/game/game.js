@@ -4,17 +4,22 @@
 // note to play the tune; every hit blasts the germ boss. Later wards add a
 // second staff for the left hand.
 
-import { LEVELS, makeSong, judgeTap, grade, WINDOWS } from './song.js?v=2.8';
-import { W, H, PAL, text, sprite, HEART, DOCTOR, DOCTOR_COLORS, drawWard, drawMonitor, drawBoss, drawScene } from './art.js?v=2.8';
-import { layoutScore, drawScore, engraveBar, drawStaff, drawBarline, drawClefAndTime } from './score.js?v=2.8';
+import { LEVELS, makeSong, judgeTap, grade, WINDOWS, SPEEDS, FULL_SPEED, nextSpeed } from './song.js?v=2.9';
+import { W, H, PAL, text, sprite, HEART, DOCTOR, DOCTOR_COLORS, drawWard, drawMonitor, drawBoss, drawScene } from './art.js?v=2.9';
+import { layoutScore, drawScore, engraveBar, drawStaff, drawBarline, drawClefAndTime } from './score.js?v=2.9';
 
 const SCENE_H = 48; // the strip above the page: doctor, heart, boss
-const PAGE = { x: 2, y: 50, w: 252, h: 140 };
-const SLOT_H = 70; // each line of music (a system of two bars)
+const PAGE = { x: 2, y: 50, w: 252, h: 156 };
 const LINE_X0 = 8;
 const LINE_X1 = 250;
-const STAVES_ONE = { R: 36 }; // middle-line offset of each staff within a line
-const STAVES_TWO = { R: 24, L: 55 };
+// Each line of music (a system of two bars): its height, and where each
+// staff's middle line sits in it. `lead` is how far below the top of the
+// page a line starts, in lines, so the line you're playing stays in view
+// as the page scrolls and the next is there to read ahead.
+const LINE_ONE = { h: 46, staves: { R: 24 }, lead: 0.75 };
+const LINE_TWO = { h: 66, staves: { R: 22, L: 50 }, lead: 0.88 };
+const HOLD_FROM = 1; // notes this many beats or longer must be held
+const HOLD_SHARE = 0.6; // ...for at least this share of their length (or all but 0.25 s, whichever is shorter)
 const BARS_PER_LINE = 2;
 const HEART_X = 42;
 const BOSS_X = 226;
@@ -36,8 +41,17 @@ const RIGHT_KEYS = new Set(['KeyJ', 'KeyK', 'KeyL', 'ArrowRight', 'Space', 'Ente
 
 export function initGameView(d) {
   const { $, state } = d;
-  state.game ||= { unlocked: 1, best: {}, offsetMs: 0 };
+  state.game ||= { best: {}, offsetMs: 0 };
   const gs = () => state.game;
+  // cleared: the fastest speed step each ward's boss has been beaten at.
+  // speed: the step picked for each ward (it moves up after each win).
+  if (!gs().cleared) {
+    gs().cleared = {};
+    // Older saves only knew which wards were unlocked: count those as cleared at full speed.
+    for (let id = 1; id < (gs().unlocked || 1); id++) gs().cleared[id] = FULL_SPEED;
+  }
+  gs().speed ||= {};
+  const speedOf = (id) => gs().speed[id] ?? nextSpeed(gs().cleared[id]);
 
   const canvas = $('game-canvas');
   const g = canvas.getContext('2d');
@@ -46,7 +60,8 @@ export function initGameView(d) {
   let active = false;
   let run = null;
   let idleRaf = null;
-  let selected = Math.min(gs().unlocked, LEVELS.length) - 1;
+  // Start on the first ward not yet cleared at full speed.
+  let selected = Math.max(0, LEVELS.findIndex((l) => !(gs().cleared[l.id] >= FULL_SPEED)));
 
   // ------------------------------------------------------------------ menu
 
@@ -55,13 +70,12 @@ export function initGameView(d) {
     list.replaceChildren(
       ...LEVELS.map((lvl, i) => {
         const b = document.createElement('button');
-        const locked = lvl.id > gs().unlocked;
         const best = gs().best[lvl.id];
-        b.className = `game-level${i === selected ? ' sel' : ''}${locked ? ' locked' : ''}`;
-        b.disabled = locked;
-        b.innerHTML = `<span class="gl-num">${lvl.id}</span><span class="gl-name"></span><span class="gl-best"></span>`;
-        b.querySelector('.gl-name').textContent = locked ? 'LOCKED' : lvl.name + (lvl.hands === 2 ? ' ✋✋' : '');
-        b.querySelector('.gl-best').textContent = best ? `${best.letter} ${Math.round(best.acc * 100)}%` : '';
+        const cleared = gs().cleared[lvl.id];
+        b.className = `game-level${i === selected ? ' sel' : ''}${cleared >= FULL_SPEED ? ' done' : ''}`;
+        b.innerHTML = `<span class="gl-num">${cleared >= FULL_SPEED ? '✓' : lvl.id}</span><span class="gl-name"></span><span class="gl-best"></span>`;
+        b.querySelector('.gl-name').textContent = lvl.name + (lvl.hands === 2 ? ' ✋✋' : '');
+        b.querySelector('.gl-best').textContent = best ? `${best.letter}${cleared != null ? ` @${Math.round(SPEEDS[cleared] * 100)}%` : ''}` : '';
         b.addEventListener('click', () => {
           selected = i;
           renderMenu();
@@ -71,13 +85,30 @@ export function initGameView(d) {
       }),
     );
     const lvl = LEVELS[selected];
-    $('game-blurb').textContent = `${lvl.blurb} ${lvl.bpm} BPM · ${lvl.meter}${lvl.hands === 2 ? ' · TWO HANDS' : ''}. BOSS: ${lvl.boss.name}. ${GIMMICKS[lvl.boss.gimmick] || ''}`;
+    const sp = speedOf(lvl.id);
+    $('game-speeds').replaceChildren(
+      ...SPEEDS.map((v, k) => {
+        const b = document.createElement('button');
+        b.className = `game-btn game-speed${k === sp ? ' sel' : ''}${gs().cleared[lvl.id] >= k ? ' done' : ''}`;
+        b.textContent = `${Math.round(v * 100)}%`;
+        b.title = gs().cleared[lvl.id] >= k ? 'Cleared at this speed' : '';
+        b.addEventListener('click', () => {
+          gs().speed[lvl.id] = k;
+          d.save();
+          renderMenu();
+        });
+        return b;
+      }),
+    );
+    $('game-blurb').textContent = `${lvl.blurb} ${Math.round(lvl.bpm * SPEEDS[sp])} BPM · ${lvl.meter}${lvl.hands === 2 ? ' · TWO HANDS' : ''}. BOSS: ${lvl.boss.name}. ${GIMMICKS[lvl.boss.gimmick] || ''}`;
     $('game-offset').textContent = `${gs().offsetMs > 0 ? '+' : ''}${gs().offsetMs} ms`;
   }
 
   $('game-play').addEventListener('click', () => startLevel(LEVELS[selected]));
   $('game-retry').addEventListener('click', () => startLevel(run?.level || LEVELS[selected]));
   $('game-next').addEventListener('click', () => {
+    // After a win below full speed, go again faster; otherwise on to the next ward.
+    if (!(gs().cleared[LEVELS[selected].id] >= FULL_SPEED)) return startLevel(LEVELS[selected]);
     selected = Math.min(LEVELS.length - 1, selected + 1);
     startLevel(LEVELS[selected]);
   });
@@ -192,6 +223,38 @@ export function initGameView(d) {
       pad(t, midis, dur) {
         for (const m of midis) tone(t, hz(m), 'triangle', 0.035, dur, 0.05);
       },
+      /** A note that sounds until released (at most a few seconds). */
+      voice(t, midi, low) {
+        const gn = ctx.createGain();
+        gn.gain.setValueAtTime(0.0001, t);
+        gn.gain.exponentialRampToValueAtTime(low ? 0.09 : 0.08, t + 0.005);
+        gn.gain.setTargetAtTime(low ? 0.05 : 0.045, t + 0.04, 0.15);
+        gn.connect(master);
+        const oscs = low
+          ? [[hz(midi), 'square', 0.6], [hz(midi) / 2, 'triangle', 2.5]]
+          : [[hz(midi), 'square', 1], [hz(midi) * 1.004, 'square', 0.5]];
+        const nodes = oscs.map(([f, type, level]) => {
+          const o = ctx.createOscillator();
+          o.type = type;
+          o.frequency.value = f;
+          const lv = ctx.createGain();
+          lv.gain.value = level;
+          o.connect(lv).connect(gn);
+          o.start(t);
+          o.stop(t + 4);
+          return o;
+        });
+        let done = false;
+        return {
+          release(at) {
+            if (done) return;
+            done = true;
+            gn.gain.cancelScheduledValues(at);
+            gn.gain.setTargetAtTime(0.0001, at, 0.03);
+            for (const o of nodes) o.stop(at + 0.25);
+          },
+        };
+      },
       lead(t, midi, dur) {
         tone(t, hz(midi), 'square', 0.07, Math.min(0.45, Math.max(0.12, dur)));
         tone(t, hz(midi) * 1.004, 'square', 0.035, Math.min(0.45, Math.max(0.12, dur)));
@@ -222,7 +285,9 @@ export function initGameView(d) {
     cancelAnimationFrame(idleRaf);
     const audio = makeAudio();
     await audio.ctx.resume();
-    const song = makeSong(level, Date.now());
+    selected = LEVELS.indexOf(level);
+    const speedStep = speedOf(level.id);
+    const song = makeSong(level, Date.now(), { speed: SPEEDS[speedStep] });
     const startAt = audio.ctx.currentTime + 0.6;
     for (const x of song.drums) audio[x.type](startAt + x.time);
     for (const x of song.bass) audio.bass(startAt + x.time, x.midi, x.dur * song.beatSec);
@@ -235,10 +300,16 @@ export function initGameView(d) {
     attackBars(song).forEach((b, i, all) => {
       if (i === 0 || all[i - 1] !== b - 1) audio.warn(startAt + (song.countInBars + b - 1) * song.meter.bpb * song.beatSec);
     });
-    const staves = level.hands === 2 ? STAVES_TWO : STAVES_ONE;
+    const layout = level.hands === 2 ? LINE_TWO : LINE_ONE;
+    const staves = layout.staves;
     run = {
       level,
       song,
+      speedStep,
+      line: layout,
+      holding: { L: null, R: null },
+      voices: { L: null, R: null },
+      short: 0,
       pageBars: engravePage(song, Object.keys(staves)),
       bossHp: PASS * song.notes.length,
       damage: 0,
@@ -250,7 +321,7 @@ export function initGameView(d) {
       latency: (audio.ctx.outputLatency || 0) + (audio.ctx.baseLatency || 0),
       notes: song.notes.map((n) => ({ ...n })),
       lanes: staves,
-      counts: { perfect: 0, good: 0, ok: 0, miss: 0 },
+      counts: { perfect: 0, good: 0, ok: 0, miss: 0, extra: 0 },
       early: 0,
       late: 0,
       combo: 0,
@@ -293,6 +364,10 @@ export function initGameView(d) {
       popup(n.lane, 'MISS', PAL.miss);
       run.audio.miss(run.audio.ctx.currentTime);
     }
+    for (const lane of ['L', 'R']) {
+      const h = run.holding[lane];
+      if (h && !h.note.holdOk && t - h.note.pressAt >= holdNeeded(h.note)) h.note.holdOk = true;
+    }
     if (run.health <= 0) return finish(true);
     if (t > run.song.length + 0.4) return finish(false);
     render(t);
@@ -306,9 +381,30 @@ export function initGameView(d) {
     const t = songTime() - ago;
     run.tapAt[lane] = t;
     const r = judgeTap(run.notes, lane, t);
-    if (!r) return; // a stray tap: no penalty
+    const now = run.audio.ctx.currentTime;
+    run.voices[lane]?.release(now);
+    if (!r) {
+      run.voices[lane] = null;
+      run.holding[lane] = null;
+      // A tap with no note to play is an extra: it breaks the combo, hurts the
+      // patient a little and heals the boss, so mashing doesn't pay. Taps
+      // during the count-in are fine.
+      if (t > run.song.countInBars * run.song.meter.bpb * run.song.beatSec - 0.3) {
+        run.counts.extra++;
+        run.combo = 0;
+        run.health = Math.max(0, run.health - 4);
+        run.damage = Math.max(0, run.damage - 0.5);
+        popup(lane, 'EXTRA', PAL.miss);
+      }
+      return;
+    }
     const n = r.note;
     n.judged = r.judgement;
+    n.pressAt = t;
+    // You play the music: the note sounds for as long as you hold it.
+    run.voices[lane] = run.audio.voice(now, n.midi, lane === 'L');
+    run.holding[lane] = { note: n };
+    if (!holdNeeded(n)) n.holdOk = true;
     run.counts[r.judgement]++;
     run.combo++;
     run.maxCombo = Math.max(run.maxCombo, run.combo);
@@ -326,10 +422,6 @@ export function initGameView(d) {
     const word = r.judgement === 'perfect' ? 'PERFECT' : `${r.judgement === 'good' ? 'GOOD' : 'OK'} ${r.offset < 0 ? 'EARLY' : 'LATE'}`;
     popup(lane, word, PAL[r.judgement]);
     burstAt(HEART_X, BOSS_Y, r.judgement === 'perfect' ? 14 : 8, lane === 'L' ? PAL.left : PAL.right);
-    // You play the music: the note sounds when you hit it.
-    const now = run.audio.ctx.currentTime;
-    if (lane === 'R') run.audio.lead(now, n.midi, n.dur * run.song.beatSec);
-    else run.audio.low(now, n.midi, n.dur * run.song.beatSec);
   }
 
   function popup(lane, word, color) {
@@ -375,21 +467,13 @@ export function initGameView(d) {
   }
 
   /**
-   * How far the page has scrolled, in lines. It holds still on each line
-   * and glides to the next over the half beat around the line change.
+   * How far the page has scrolled, in lines: it moves up steadily, one
+   * line for every line of music played.
    */
-  function scrollPosition(beat, lines) {
+  function scrollPosition(beat) {
     const { bpb } = run.song.meter;
-    const lineBeats = bpb * BARS_PER_LINE;
-    const pos = (beat - run.song.countInBars * bpb) / lineBeats;
-    const glide = 0.25 / lineBeats; // a quarter beat either side of the change
-    const base = Math.floor(pos);
-    const frac = pos - base;
-    const ease = (x) => x * x * (3 - 2 * x);
-    let at = base;
-    if (frac > 1 - glide) at = base + ease((frac - (1 - glide)) / (2 * glide));
-    else if (frac < glide) at = base - 1 + ease((frac + glide) / (2 * glide));
-    return Math.max(0, Math.min(lines - 1, at));
+    const pos = (beat - run.song.countInBars * bpb) / (bpb * BARS_PER_LINE);
+    return pos - run.line.lead;
   }
 
   /** Bars (counting from the first after the count-in) where the boss attacks. */
@@ -403,6 +487,63 @@ export function initGameView(d) {
 
   function inAttack(beat) {
     return run.song.sections[barAt(beat)] === 'chorus';
+  }
+
+  /**
+   * Under the staff, once you've played a note: a bar showing how long you
+   * held it (red where a long note was let go too soon).
+   */
+  function drawHeld(pb, lane, y, t) {
+    const { beatSec } = run.song;
+    const barEnd = pb.start + run.song.meter.bpb;
+    for (const n of run.notes) {
+      if (n.lane !== lane || n.pressAt == null || n.beat < pb.start - 1e-9 || n.beat >= barEnd - 1e-9) continue;
+      const until = n.releaseAt ?? t;
+      const b0 = n.pressAt / beatSec;
+      const b1 = Math.min(until / beatSec, n.beat + n.dur, barEnd);
+      const x0 = Math.round(pb.xOf(Math.max(pb.start, b0)));
+      const x1 = Math.round(pb.xOf(Math.max(b0, b1)));
+      g.fillStyle = JUDGED[n.judged] || INK;
+      g.fillRect(x0 - 2, y, Math.max(2, x1 - x0 + 2), 2);
+      if (n.short) {
+        // The part of the note that should still have been held.
+        const xe = Math.round(pb.xOf(Math.min(n.beat + n.dur, barEnd)));
+        g.fillStyle = JUDGED.miss;
+        for (let x = x1 + 1; x < xe - 2; x += 2) g.fillRect(x, y, 1, 2);
+      }
+    }
+  }
+
+  /** How long a note must be held, in seconds (0 for short notes, which can just be tapped). */
+  function holdNeeded(n) {
+    if (n.dur < HOLD_FROM - 1e-9) return 0;
+    const sec = n.dur * run.song.beatSec;
+    return Math.min(sec * HOLD_SHARE, sec - 0.25);
+  }
+
+  /** Letting go of a note: check it was held long enough. */
+  function release(lane, e) {
+    if (!run || run.ended) return;
+    if (run.level.hands === 1) lane = 'R';
+    const ago = e?.timeStamp != null ? Math.min(0.2, Math.max(0, performance.now() - e.timeStamp) / 1000) : 0;
+    const t = songTime() - ago;
+    run.voices[lane]?.release(run.audio.ctx.currentTime);
+    run.voices[lane] = null;
+    const h = run.holding[lane];
+    run.holding[lane] = null;
+    if (!h) return;
+    const n = h.note;
+    n.releaseAt = t;
+    if (n.holdOk || t - n.pressAt >= holdNeeded(n)) return;
+    // Let go too soon: the hit drops a grade.
+    n.short = true;
+    run.short++;
+    const worse = n.judged === 'perfect' ? 'good' : 'ok';
+    run.counts[n.judged]--;
+    run.counts[worse]++;
+    run.damage -= DAMAGE[n.judged] - DAMAGE[worse];
+    n.judged = worse;
+    popup(lane, 'TOO SHORT', PAL.ok);
   }
 
   /** Where the boss is drawn: one germ, or twins side by side. */
@@ -424,12 +565,12 @@ export function initGameView(d) {
     const fog = boss.gimmick === 'fog' || boss.gimmick === 'both' ? boss.fog : 0;
     const ko = run.koAt != null;
 
-    // ---- the page: the line you're on at the top, the next one below.
-    // As you reach the end of a line the page glides up by one line; it
-    // never moves in between, so you read still music.
+    // ---- the page: lines of music scrolling steadily up, the one you're
+    // playing near the top and the next coming up beneath it.
     const lines = Math.ceil(song.bars / BARS_PER_LINE);
     const curLine = Math.max(0, Math.min(lines - 1, Math.floor(Math.max(0, bar) / BARS_PER_LINE)));
-    const scroll = scrollPosition(beat, lines);
+    const scroll = scrollPosition(beat);
+    const SLOT_H = run.line.h;
     let jolt = 0;
     if (quake && attack && (beat % bpb) < 0.2) jolt = Math.round((Math.random() - 0.5) * 4);
     g.fillStyle = PAPER_EDGE;
@@ -447,8 +588,8 @@ export function initGameView(d) {
     g.beginPath();
     g.rect(PAGE.x, PAGE.y + jolt, PAGE.w, PAGE.h);
     g.clip();
-    for (let line = Math.floor(scroll); line <= Math.floor(scroll) + 2; line++) {
-      if (line >= lines) continue;
+    for (let line = Math.floor(scroll); line <= Math.floor(scroll) + 4; line++) {
+      if (line < 0 || line >= lines) continue;
       const top = Math.round(PAGE.y + (line - scroll) * SLOT_H) + jolt;
       const bars = run.pageBars.filter((pb) => pb.line === line);
       const lineStart = bars[0].start;
@@ -467,6 +608,7 @@ export function initGameView(d) {
         for (const pb of bars) {
           drawScore(g, pb.layouts[lane], y, pb.xOf, colorOf);
           drawBarline(g, Math.round(pb.x + pb.w), y, INK, pb.bar === song.bars - 1);
+          drawHeld(pb, lane, y + 11, t);
         }
       }
       // Lines that start the system: one joining the staves, and a brace for two hands.
@@ -599,12 +741,22 @@ export function initGameView(d) {
     run.ended = true;
     const r = grade(run.counts);
     const level = run.level;
-    const bossDown = run.damage >= run.bossHp - 1e-9;
+    for (const lane of ['L', 'R']) release(lane);
+    const bossDown = run.koAt != null || run.damage >= run.bossHp - 1e-9;
     const passed = !failed && bossDown;
     const prev = gs().best[level.id];
     const isBest = !failed && (!prev || r.acc > prev.acc);
     if (isBest) gs().best[level.id] = { acc: r.acc, letter: r.letter };
-    if (passed) gs().unlocked = Math.max(gs().unlocked, Math.min(LEVELS.length, level.id + 1));
+    let fasterNext = false;
+    if (passed) {
+      const prevCleared = gs().cleared[level.id];
+      if (prevCleared == null || run.speedStep > prevCleared) gs().cleared[level.id] = run.speedStep;
+      // Speed up for next time (until full speed; beyond that it's the player's choice).
+      if (run.speedStep < FULL_SPEED) {
+        gs().speed[level.id] = run.speedStep + 1;
+        fasterNext = true;
+      }
+    }
     d.save();
     // Let the music ring out briefly, then stop.
     const audio = run.audio;
@@ -618,14 +770,18 @@ export function initGameView(d) {
     $('game-grade').className = `game-grade g-${failed ? 'X' : r.letter}`;
     const name = level.boss.name;
     $('game-verdict').textContent = failed ? `FLATLINED! ${name} WINS` : passed ? `${name} DEFEATED!${isBest ? ' NEW BEST' : ''}` : `${name} GOT AWAY (${Math.round((1 - run.damage / run.bossHp) * 100)}% HP LEFT)`;
-    $('game-acc').textContent = `${Math.round(r.acc * 100)}%`;
-    $('game-counts').textContent = `PERFECT ${run.counts.perfect} · GOOD ${run.counts.good} · OK ${run.counts.ok} · MISS ${run.counts.miss}`;
-    $('game-extra').textContent = `MAX COMBO ${run.maxCombo} · EARLY ${run.early} · LATE ${run.late}`;
-    const hint = run.early > run.late * 2 && run.early > 3 ? 'You tend to rush: wait for the note to reach the heart.'
-      : run.late > run.early * 2 && run.late > 3 ? 'You tend to be late: tap as the note touches the heart.'
-        : run.counts.miss > run.counts.perfect ? 'Try listening to the drums and counting the beats.' : '';
+    $('game-acc').textContent = `${Math.round(r.acc * 100)}% AT ${Math.round(SPEEDS[run.speedStep] * 100)}% SPEED`;
+    $('game-counts').textContent = `PERFECT ${run.counts.perfect} · GOOD ${run.counts.good} · OK ${run.counts.ok} · MISS ${run.counts.miss} · EXTRA ${run.counts.extra}`;
+    $('game-extra').textContent = `MAX COMBO ${run.maxCombo} · EARLY ${run.early} · LATE ${run.late} · TOO SHORT ${run.short}`;
+    const hint = fasterNext ? `Next time: ${Math.round(SPEEDS[run.speedStep + 1] * 100)}% speed.`
+      : run.counts.extra > 5 ? 'Extra taps cost you: only tap the notes that are written.'
+      : run.short > 3 && run.short > (run.early + run.late) / 2 ? 'Hold long notes for their full value: count through them.'
+      : run.early > run.late * 2 && run.early > 3 ? 'You tend to rush: count steadily with the drums.'
+        : run.late > run.early * 2 && run.late > 3 ? 'You tend to be late: read a beat ahead so you are ready.'
+          : run.counts.miss > run.counts.perfect ? (run.speedStep > 0 ? 'Try a slower speed from the menu, and count the beats.' : 'Count the beats with the drums, and read ahead.') : '';
     $('game-hint').textContent = hint;
-    $('game-next').hidden = !passed || level.id >= LEVELS.length;
+    $('game-next').hidden = !passed || (!fasterNext && level.id >= LEVELS.length);
+    $('game-next').textContent = fasterNext ? 'FASTER ▶' : 'NEXT WARD';
   }
 
   function endRun() {
@@ -642,18 +798,40 @@ export function initGameView(d) {
     e.currentTarget.classList.add('down');
     input(lane, e);
   };
-  const lift = (e) => e.currentTarget.classList.remove('down');
+  const lift = (lane) => (e) => {
+    e.currentTarget.classList.remove('down');
+    release(lane, e);
+  };
   for (const [id, lane] of [['game-left', 'L'], ['game-right', 'R'], ['game-one', 'R']]) {
-    $(id).addEventListener('pointerdown', press(lane));
-    $(id).addEventListener('pointerup', lift);
-    $(id).addEventListener('pointercancel', lift);
+    $(id).addEventListener('pointerdown', (e) => {
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+      press(lane)(e);
+    });
+    $(id).addEventListener('pointerup', lift(lane));
+    $(id).addEventListener('pointercancel', lift(lane));
     $(id).addEventListener('contextmenu', (e) => e.preventDefault());
   }
   canvas.addEventListener('pointerdown', (e) => {
     if (!run) return;
     e.preventDefault();
     const rect = canvas.getBoundingClientRect();
-    input(e.clientX - rect.left < rect.width / 2 ? 'L' : 'R', e);
+    const lane = e.clientX - rect.left < rect.width / 2 ? 'L' : 'R';
+    canvasLanes.set(e.pointerId, lane);
+    canvas.setPointerCapture?.(e.pointerId);
+    input(lane, e);
+  });
+  const canvasLanes = new Map();
+  const canvasUp = (e) => {
+    const lane = canvasLanes.get(e.pointerId);
+    canvasLanes.delete(e.pointerId);
+    if (lane) release(lane, e);
+  };
+  canvas.addEventListener('pointerup', canvasUp);
+  canvas.addEventListener('pointercancel', canvasUp);
+  document.addEventListener('keyup', (e) => {
+    if (!active || !run) return;
+    const lane = LEFT_KEYS.has(e.code) ? 'L' : RIGHT_KEYS.has(e.code) ? 'R' : null;
+    if (lane) release(lane, e);
   });
   document.addEventListener('keydown', (e) => {
     if (!active || e.repeat || e.target.closest?.('input, select, textarea')) return;

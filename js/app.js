@@ -1,19 +1,19 @@
 // UI controller: navigation, the long-tone exercise, results, and the tuner.
 
-import { RECORDERS, recorderNotes, writtenMidi, detectionRange } from './recorders.js?v=2.8';
-import { noteInfo, midiToFreq, freqToMidi, describeInterval } from './music.js?v=2.8';
-import { PitchListener, playReferenceTone } from './audio.js?v=2.8';
-import { PitchSmoother } from './pitch.js?v=2.8';
-import { LongToneSession, IN_TUNE_CENTS } from './longtone.js?v=2.8';
-import { staffSvg } from './staff.js?v=2.8';
-import { drawPitchChart } from './chart.js?v=2.8';
-import { loadState, saveState, recordAttempt, noteHistory } from './storage.js?v=2.8';
-import { initRhythmView } from './rhythm-view.js?v=2.8';
-import { initEndlessView } from './endless-view.js?v=2.8';
-import { initCalibration } from './calibration.js?v=2.8';
-import { initChordsView } from './chords-view.js?v=2.8';
-import { TapListener } from './tap-input.js?v=2.8';
-import { initGameView } from './game/game.js?v=2.8';
+import { RECORDERS, recorderNotes, writtenMidi, detectionRange } from './recorders.js?v=2.9';
+import { noteInfo, midiToFreq, freqToMidi, describeInterval } from './music.js?v=2.9';
+import { PitchListener, playReferenceTone } from './audio.js?v=2.9';
+import { PitchSmoother } from './pitch.js?v=2.9';
+import { LongToneSession, IN_TUNE_CENTS } from './longtone.js?v=2.9';
+import { staffSvg } from './staff.js?v=2.9';
+import { drawPitchChart } from './chart.js?v=2.9';
+import { loadState, saveState, recordAttempt, noteHistory } from './storage.js?v=2.9';
+import { initRhythmView } from './rhythm-view.js?v=2.9';
+import { initEndlessView } from './endless-view.js?v=2.9';
+import { initCalibration } from './calibration.js?v=2.9';
+import { initChordsView } from './chords-view.js?v=2.9';
+import { TapListener } from './tap-input.js?v=2.9';
+import { initGameView } from './game/game.js?v=2.9';
 
 const $ = (id) => document.getElementById(id);
 const state = loadState();
