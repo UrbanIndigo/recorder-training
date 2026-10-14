@@ -2,7 +2,7 @@
 // chords, sections, tempo) but its rhythms are generated fresh on every
 // play, so a song can't simply be memorised. No DOM or audio code.
 
-import { generateFromCells, METERS } from '../rhythm.js?v=3.3';
+import { generateFromCells, METERS } from '../rhythm.js?v=3.4';
 
 /**
  * The wards, easiest first. `cells` are rhythm patterns from rhythm.js.
@@ -297,12 +297,17 @@ export const WINDOWS = { perfect: 0.045, good: 0.09, ok: 0.14 };
  * @returns {{note, judgement: 'perfect'|'good'|'ok', offset: number}|null}
  */
 export function judgeTap(notes, lane, time) {
+  // The earliest note still waiting gets the tap, unless a later one is
+  // clearly closer: a steady delay (a phone's audio, say) then can't make
+  // a tap jump to the next fast note and leave this one missed.
   let best = null;
   for (const n of notes) {
     if (n.judged || n.lane !== lane) continue;
     const off = time - n.time;
     if (off < -WINDOWS.ok) break; // notes are in time order; the rest are later
-    if (Math.abs(off) <= WINDOWS.ok && (!best || Math.abs(off) < Math.abs(best.offset))) best = { note: n, offset: off };
+    if (Math.abs(off) > WINDOWS.ok) continue;
+    if (!best) best = { note: n, offset: off };
+    else if (Math.abs(off) < Math.abs(best.offset) - 0.06) best = { note: n, offset: off };
   }
   if (!best) return null;
   const a = Math.abs(best.offset);

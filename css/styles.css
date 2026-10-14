@@ -551,3 +551,6 @@ body { overflow-anchor: none; } /* rows updating shouldn't make the page jump */
 .game-endless-row { display: flex; gap: 0.5rem; }
 #game-endless { flex: 1; font-size: 1rem; padding: 0.6rem; background: #4fc3ff; border-color: #b8e8ff; }
 #game-endless-best { display: block; margin-top: 0.4rem; color: var(--g-dim); font-size: 0.75rem; }
+#game-endless-read { width: 100%; margin-top: 0.4rem; font-size: 0.8rem; }
+#game-endless-read.sel { border-color: #ffe066; box-shadow: inset 0 0 0 2px #ffe066; color: #ffe066; }
+#game-fix-offset { background: #ffe066; color: #1a0f1f; border-color: #fff2a8; }

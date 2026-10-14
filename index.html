@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1f6f5c">
   <title>Recorder Trainer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="css/styles.css?v=3.3">
+  <link rel="stylesheet" href="css/styles.css?v=3.4">
 </head>
 <body>
   <header class="topbar">
@@ -66,7 +66,7 @@
           <small>Turn it up if your playing isn't picked up, down if background noise is. The Mic bar shows the level: it turns green when it hears you, and the line marks the cut-off.</small>
         </div>
       </details>
-      <p class="hint version">Version 3.3</p>
+      <p class="hint version">Version 3.4</p>
     </section>
 
     <!-- Long tone: choose note -->
@@ -412,6 +412,9 @@
             <button class="game-btn primary" id="game-next">NEXT WARD</button>
             <button class="game-btn" id="game-menu-btn">MENU</button>
           </div>
+          <div class="game-row">
+            <button class="game-btn" id="game-fix-offset" hidden>FIX TIMING</button>
+          </div>
         </div>
       </div>
       <div class="game-lesson" id="game-lesson" hidden>
@@ -456,6 +459,7 @@
             <button class="game-btn primary" id="game-endless">∞ UNLIMITED</button>
             <button class="game-btn" id="game-endless-hands">✋ 1 HAND</button>
           </div>
+          <button class="game-btn" id="game-endless-read">👁 READ AHEAD: OFF</button>
           <small id="game-endless-best"></small>
         </div>
         <div class="game-offset">
@@ -556,7 +560,7 @@
     <button class="btn primary small" id="load-error-reload">Reload</button>
   </p>
   <script>
-    window.APP_VERSION = '3.3';
+    window.APP_VERSION = '3.4';
     // If the app hasn't started after a few seconds, offer a fresh reload.
     setTimeout(function () {
       if (window.appReady) return;
@@ -567,6 +571,6 @@
       };
     }, 4000);
   </script>
-  <script type="module" src="js/app.js?v=3.3"></script>
+  <script type="module" src="js/app.js?v=3.4"></script>
 </body>
 </html>

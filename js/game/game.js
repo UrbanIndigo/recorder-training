@@ -4,14 +4,14 @@
 // note to play the tune; every hit blasts the germ boss. Later wards add a
 // second staff for the left hand.
 
-import { LEVELS, makeSong, judgeTap, grade, WINDOWS, MIN_BPM, MAX_BPM, nextBpm } from './song.js?v=3.3';
-import { W, H, PAL, text, sprite, HEART, DOCTOR, DOCTOR_COLORS, drawWard, drawMonitor, drawBoss, drawScene } from './art.js?v=3.3';
-import { layoutScore, drawScore, engraveBar, drawStaff, drawBarline, drawClefAndTime, drawTie } from './score.js?v=3.3';
-import { newSkill, makeLine, lineResult, updateSkill, endRound, weakest, unlocked, LADDER, LINES_PER_ROUND } from './endless.js?v=3.3';
-import { CELL_INFO } from './lessons.js?v=3.3';
-import { METERS, generateFromCells } from '../rhythm.js?v=3.3';
-import { tutorialFor, lessonCells, countLabel } from './lessons.js?v=3.3';
-import { introductions, writeBar, tieAcross, seededRandom } from './song.js?v=3.3';
+import { LEVELS, makeSong, judgeTap, grade, WINDOWS, MIN_BPM, MAX_BPM, nextBpm } from './song.js?v=3.4';
+import { W, H, PAL, text, sprite, HEART, DOCTOR, DOCTOR_COLORS, drawWard, drawMonitor, drawBoss, drawScene } from './art.js?v=3.4';
+import { layoutScore, drawScore, engraveBar, drawStaff, drawBarline, drawClefAndTime, drawTie } from './score.js?v=3.4';
+import { newSkill, makeLine, lineResult, updateSkill, endRound, weakest, unlocked, LADDER, LINES_PER_ROUND } from './endless.js?v=3.4';
+import { CELL_INFO } from './lessons.js?v=3.4';
+import { METERS, generateFromCells } from '../rhythm.js?v=3.4';
+import { tutorialFor, lessonCells, countLabel } from './lessons.js?v=3.4';
+import { introductions, writeBar, tieAcross, seededRandom } from './song.js?v=3.4';
 
 const SCENE_H = 48; // the strip above the page: doctor, heart, boss
 const PAGE = { x: 2, y: 50, w: 252, h: 156 };
@@ -100,6 +100,8 @@ export function initGameView(d) {
     const lvl = LEVELS[selected];
     for (const [id, n] of [['game-hands-1', 1], ['game-hands-2', 2]]) $(id).classList.toggle('sel', handsOf(lvl) === n);
     $('game-endless-hands').textContent = gs().endless.hands === 2 ? '✋✋ 2 HANDS' : '✋ 1 HAND';
+    $('game-endless-read').textContent = `👁 READ AHEAD: ${gs().endless.readAhead ? 'ON' : 'OFF'}`;
+    $('game-endless-read').classList.toggle('sel', !!gs().endless.readAhead);
     const eb = gs().endless.best;
     $('game-endless-best').textContent = eb ? `BEST: LEVEL ${eb.peak} · ${eb.lines} LINES · ${eb.bpm} BPM` : 'Finds your level, then keeps pushing it.';
     const bpm = bpmOf(lvl);
@@ -134,6 +136,11 @@ export function initGameView(d) {
     renderMenu();
   });
   $('game-endless').addEventListener('click', () => startEndless());
+  $('game-endless-read').addEventListener('click', () => {
+    gs().endless.readAhead = !gs().endless.readAhead;
+    d.save();
+    renderMenu();
+  });
   $('game-play').addEventListener('click', () => playWard(LEVELS[selected]));
   $('game-retry').addEventListener('click', () => (lastMode === 'endless' ? startEndless() : startLevel(LEVELS[selected])));
   $('game-next').addEventListener('click', () => {
@@ -372,6 +379,8 @@ export function initGameView(d) {
       particles: [],
       shake: 0,
       tapAt: { L: -9, R: -9 },
+      owner: { L: null, R: null },
+      offsets: [],
       ended: false,
     };
   }
@@ -453,9 +462,11 @@ export function initGameView(d) {
     requestAnimationFrame(loop);
   }
 
-  function input(lane, e) {
+  function input(lane, e, owner = null) {
     if (!run || run.ended || run.mode === 'demo') return;
     if (run.song.hands === 1) lane = 'R';
+    // Whatever pressed last (a finger, a key) owns the sound until it lifts.
+    run.owner[lane] = owner;
     const ago = e?.timeStamp != null ? Math.min(0.2, Math.max(0, performance.now() - e.timeStamp) / 1000) : 0;
     const t = songTime() - ago;
     run.tapAt[lane] = t;
@@ -483,6 +494,7 @@ export function initGameView(d) {
     const n = r.note;
     n.judged = r.judgement;
     n.pressAt = t;
+    run.offsets.push(r.offset);
     // You play the music: the note sounds for as long as you hold it.
     run.voices[lane] = run.audio.voice(now, n.midi, lane === 'L');
     run.holding[lane] = { note: n };
@@ -629,9 +641,11 @@ export function initGameView(d) {
   }
 
   /** Letting go of a note: check it was held long enough. */
-  function release(lane, e) {
+  function release(lane, e, owner = null) {
     if (!run || run.ended) return;
     if (run.song.hands === 1) lane = 'R';
+    // Two thumbs on one pad: lifting the first doesn't end the note the second one started.
+    if (owner != null && run.owner[lane] !== owner) return;
     const ago = e?.timeStamp != null ? Math.min(0.2, Math.max(0, performance.now() - e.timeStamp) / 1000) : 0;
     const t = songTime() - ago;
     run.voices[lane]?.release(run.audio.ctx.currentTime);
@@ -726,6 +740,20 @@ export function initGameView(d) {
           drawBarline(g, Math.round(pb.x + pb.w), y, INK, pb.bar === song.bars - 1 && Number.isFinite(song.length));
           drawHeld(pb, lane, y + 11, t);
           if (pb.counts[lane]) drawCounts(pb, lane, y + 14);
+        }
+      }
+      // Read ahead (unlimited): the bar you're playing is covered as it starts,
+      // so you have to have read it already. It's revealed, marked, once it's over.
+      if (run.mode === 'endless' && endless?.readAhead) {
+        for (const pb of bars) {
+          if (pb.bar !== bar) continue;
+          const x0 = Math.round(pb.x) + 1;
+          const w = Math.round(pb.w) - 2;
+          g.fillStyle = '#ddd0ad';
+          g.fillRect(x0, top + 2, w, SLOT_H - 4);
+          g.fillStyle = '#cbbd95';
+          for (let yy = top + 3; yy < top + SLOT_H - 3; yy += 3) for (let xx = x0 + ((yy / 3) % 2 ? 1 : 2); xx < x0 + w - 1; xx += 4) g.fillRect(xx, yy, 1, 1);
+          text(g, 'FROM MEMORY', x0 + w / 2, top + SLOT_H / 2 - 2, '#8a7a55', { align: 'center' });
         }
       }
       // Lines that start the system: one joining the staves, and a brace for two hands.
@@ -911,8 +939,33 @@ export function initGameView(d) {
         : run.late > run.early * 2 && run.late > 3 ? 'You tend to be late: read a beat ahead so you are ready.'
           : run.counts.miss > run.counts.perfect ? (run.song.bpm > MIN_BPM + 10 ? 'Try a lower BPM from the menu, and count the beats.' : 'Count the beats with the drums, and read ahead.') : '';
     $('game-hint').textContent = hint;
+    offerTimingFix(run.offsets);
     $('game-next').hidden = !passed || (!fasterNext && level.id >= LEVELS.length);
     $('game-next').textContent = fasterNext ? 'FASTER ▶' : 'NEXT WARD';
+  }
+
+  /**
+   * If your hits were consistently early or late (often the device's audio
+   * delay, especially on phones and Bluetooth), offer to fix it in one tap.
+   */
+  function offerTimingFix(offsets) {
+    const btn = $('game-fix-offset');
+    btn.hidden = true;
+    if (offsets.length < 12) return false;
+    const sorted = [...offsets].sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    if (Math.abs(median) < 0.03) return false;
+    const ms = Math.round(median * 1000);
+    btn.hidden = false;
+    btn.textContent = `FIX TIMING (YOU'RE ${Math.abs(ms)} MS ${ms > 0 ? 'LATE' : 'EARLY'})`;
+    btn.onclick = () => {
+      gs().offsetMs = Math.max(-200, Math.min(200, gs().offsetMs + ms));
+      d.save();
+      btn.textContent = `TIMING FIXED: OFFSET ${gs().offsetMs > 0 ? '+' : ''}${gs().offsetMs} MS`;
+      btn.onclick = null;
+    };
+    $('game-hint').textContent = `Your taps were steadily ${ms > 0 ? 'late' : 'early'}, which is often your device's sound delay (phones, Bluetooth headphones). Tap FIX TIMING to correct it.`;
+    return true;
   }
 
   function endRun() {
@@ -941,6 +994,7 @@ export function initGameView(d) {
       skill: newSkill(),
       random: seededRandom(Date.now()),
       hands: gs().endless.hands,
+      readAhead: !!gs().endless.readAhead,
       health: 100, score: 0, combo: 0, maxCombo: 0,
       counts: { perfect: 0, good: 0, ok: 0, miss: 0, extra: 0 },
       early: 0, late: 0, short: 0,
@@ -1099,6 +1153,7 @@ export function initGameView(d) {
       health: run.health, score: run.score, combo: run.combo, maxCombo: run.maxCombo,
       counts: run.counts, early: run.early, late: run.late, short: run.short, damage: run.damage,
     });
+    endless.offsets = [...(endless.offsets || []), ...run.offsets];
   }
 
   function endlessRoundOver() {
@@ -1140,6 +1195,7 @@ export function initGameView(d) {
     const weak = weakest(sk).map((x) => CELL_INFO[x]?.name || x);
     $('game-hint').textContent = `Hardest rhythm reached: ${hardest}.${weak.length ? ` Work on: ${weak.join(', ')}.` : ''}`;
     $('game-next').hidden = true;
+    offerTimingFix(endless.offsets || []);
     endless = null;
   }
 
@@ -1241,18 +1297,28 @@ export function initGameView(d) {
 
   // ----------------------------------------------------------------- input
 
+  const fingers = new Map(); // pad -> pointers down on it
   const press = (lane) => (e) => {
     e.preventDefault();
-    e.currentTarget.classList.add('down');
-    input(lane, e);
+    const pad = e.currentTarget;
+    if (!fingers.has(pad)) fingers.set(pad, new Set());
+    fingers.get(pad).add(e.pointerId);
+    pad.classList.add('down');
+    input(lane, e, `p${e.pointerId}`);
   };
   const lift = (lane) => (e) => {
-    e.currentTarget.classList.remove('down');
-    release(lane, e);
+    const pad = e.currentTarget;
+    fingers.get(pad)?.delete(e.pointerId);
+    if (!fingers.get(pad)?.size) pad.classList.remove('down');
+    release(lane, e, `p${e.pointerId}`);
   };
   for (const [id, lane] of [['game-left', 'L'], ['game-right', 'R'], ['game-one', 'R']]) {
     $(id).addEventListener('pointerdown', (e) => {
-      e.currentTarget.setPointerCapture?.(e.pointerId);
+      try {
+        e.currentTarget.setPointerCapture?.(e.pointerId);
+      } catch {
+        // Some browsers refuse capture (it's only a nicety).
+      }
       press(lane)(e);
     });
     $(id).addEventListener('pointerup', lift(lane));
@@ -1265,21 +1331,25 @@ export function initGameView(d) {
     const rect = canvas.getBoundingClientRect();
     const lane = e.clientX - rect.left < rect.width / 2 ? 'L' : 'R';
     canvasLanes.set(e.pointerId, lane);
-    canvas.setPointerCapture?.(e.pointerId);
-    input(lane, e);
+    try {
+      canvas.setPointerCapture?.(e.pointerId);
+    } catch {
+      // not essential
+    }
+    input(lane, e, `p${e.pointerId}`);
   });
   const canvasLanes = new Map();
   const canvasUp = (e) => {
     const lane = canvasLanes.get(e.pointerId);
     canvasLanes.delete(e.pointerId);
-    if (lane) release(lane, e);
+    if (lane) release(lane, e, `p${e.pointerId}`);
   };
   canvas.addEventListener('pointerup', canvasUp);
   canvas.addEventListener('pointercancel', canvasUp);
   document.addEventListener('keyup', (e) => {
     if (!active || !run) return;
     const lane = LEFT_KEYS.has(e.code) ? 'L' : RIGHT_KEYS.has(e.code) ? 'R' : null;
-    if (lane) release(lane, e);
+    if (lane) release(lane, e, `k${e.code}`);
   });
   document.addEventListener('keydown', (e) => {
     if (!active || e.repeat || e.target.closest?.('input, select, textarea')) return;
@@ -1294,7 +1364,7 @@ export function initGameView(d) {
     const lane = LEFT_KEYS.has(e.code) ? 'L' : RIGHT_KEYS.has(e.code) ? 'R' : null;
     if (!lane) return;
     e.preventDefault();
-    input(lane, e);
+    input(lane, e, `k${e.code}`);
   });
 
   // For automated tests only: lets a simulated player see the notes (?debug in the URL).

@@ -230,3 +230,16 @@ test('notes are sometimes tied across the bar line, and held through it', async 
   assert.ok(defaultLeft(LEVELS[0]).half);
   assert.equal(makeSong(LEVELS[5], 3, { hands: 1 }).notes.filter((n) => n.lane === 'L').length, 0);
 });
+
+test('a steady delay does not make taps jump to the next fast note', () => {
+  // Sixteenths at 104 BPM are 144 ms apart; taps 75 ms late are nearer the next note.
+  const notes = [0, 0.144, 0.288, 0.432].map((time) => ({ time, lane: 'R' }));
+  for (const n of notes) {
+    const r = judgeTap(notes, 'R', n.time + 0.075);
+    assert.equal(r.note, n);
+    r.note.judged = r.judgement;
+  }
+  // But a tap clearly meant for a later note (the earlier one skipped) goes to it.
+  const more = [0, 0.3].map((time) => ({ time, lane: 'R' }));
+  assert.equal(judgeTap(more, 'R', 0.3).note, more[1]);
+});
