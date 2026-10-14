@@ -176,8 +176,14 @@ export function drawScore(ctx, layout, y, xOf, colorOf, { minX = -Infinity, maxX
     if (!visible(x)) return;
     ctx.fillStyle = colorOf(gl);
     if (gl.rest) {
-      if (gl.barRest || gl.value >= 4 - EPS) px(ctx, x - 3, y - GAP + 1, 7, 2); // whole rest hangs from the 4th line
-      else if (gl.value >= 2 - EPS) px(ctx, x - 3, y - 2, 7, 2); // half rest sits on the middle line
+      if (gl.barRest || gl.value >= 4 - EPS) {
+        // Whole rest: a wide block hanging below the 4th line (it fills the top of the space).
+        px(ctx, x - 4, y - GAP + 1, 9, 2);
+        px(ctx, x - 5, y - GAP, 11, 1); // a short ledger-like lip so it reads as hanging
+      } else if (gl.value >= 2 - EPS) {
+        // Half rest: a narrower block sitting on top of the middle line.
+        px(ctx, x - 3, y - 2, 7, 2);
+      }
       else if (gl.value >= 1 - EPS) rows(ctx, QUARTER_REST, x - 1, y - 6);
       else if (gl.value >= 0.5 - EPS) rows(ctx, EIGHTH_REST, x - 2, y - 4);
       else rows(ctx, SIXTEENTH_REST, x - 3, y - 4);

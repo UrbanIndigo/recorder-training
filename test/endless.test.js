@@ -55,10 +55,13 @@ test('new rhythms are announced and tempo follows the round', () => {
   const skill = newSkill();
   skill.assessing = false;
   const msgs = [];
-  for (let i = 0; i < 4; i++) msgs.push(...updateSkill(skill, { acc: 1, perCell: {} }));
-  assert.deepEqual(msgs.filter((m) => m.kind === 'new').map((m) => m.cell), ['quarterRest', 'eighths']);
-  assert.equal(endRound(skill), 4);
-  assert.equal(skill.bpm, START_BPM + 4);
+  for (let i = 0; i < 2; i++) msgs.push(...updateSkill(skill, { acc: 0.9, perCell: {} }));
+  assert.deepEqual(msgs.filter((m) => m.kind === 'new').map((m) => m.cell), ['quarterRest', 'eighths']); // one per clean line
+  msgs.length = 0;
+  for (let i = 0; i < 2; i++) msgs.push(...updateSkill(skill, { acc: 1, perCell: {} }));
+  assert.equal(msgs.filter((m) => m.kind === 'new').length, 3); // near-perfect twice: skips ahead
+  assert.equal(endRound(skill), 8);
+  assert.equal(skill.bpm, START_BPM + 8);
   for (let i = 0; i < 3; i++) updateSkill(skill, { acc: 0.4, perCell: {} });
   assert.equal(endRound(skill), -6);
   assert.ok(lineResult([{ judged: 'perfect' }, { judged: 'miss' }], 2).acc < 0.5);
@@ -71,7 +74,7 @@ test('placement copes with lines written ahead of time', () => {
     const random = seededRandom(limit);
     const queue = [];
     for (let i = 0; i < 40; i++) {
-      queue.push(makeLine(skill, random));
+      queue.push(makeLine(skill, random, queue.length));
       if (queue.length < 3) continue;
       const bars = queue.shift();
       const notes = bars.flat().filter((e) => !e.rest && !e.tied).map((e) => ({ cell: e.cell, judged: LADDER.indexOf(e.cell) < limit ? 'perfect' : 'miss' }));
@@ -80,4 +83,17 @@ test('placement copes with lines written ahead of time', () => {
     assert.equal(skill.assessing, false);
     assert.ok(Math.abs(skill.k - limit) <= 3, `limit ${limit}: settled at ${skill.k}`);
   }
+});
+
+test('writing ahead: placement and clean streaks look ahead, a slip does not', async () => {
+  const { writingLevel } = await import('../js/game/endless.js');
+  const skill = newSkill();
+  assert.equal(writingLevel(skill, 2), 8); // placement: 2 + 3 per waiting line
+  skill.assessing = false;
+  skill.k = 6;
+  assert.equal(writingLevel(skill, 2), 6);
+  updateSkill(skill, { acc: 0.95, perCell: {}, top: 5 });
+  assert.equal(writingLevel(skill, 2), Math.floor(skill.k) + 1);
+  updateSkill(skill, { acc: 0.3, perCell: {}, top: 5 });
+  assert.equal(writingLevel(skill, 2), skill.k);
 });

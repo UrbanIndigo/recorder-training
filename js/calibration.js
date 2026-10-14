@@ -2,8 +2,8 @@
 // we measure the delay between the click and the mic on this device. Works
 // from either Rhythm Reading tab; it has its own small display.
 
-import { calibrationExercise, calibrationOffset, OnsetTracker } from './rhythm.js?v=3.2';
-import { scheduleClick } from './audio.js?v=3.2';
+import { calibrationExercise, calibrationOffset, OnsetTracker } from './rhythm.js?v=3.3';
+import { scheduleClick } from './audio.js?v=3.3';
 
 const BPM = 80;
 

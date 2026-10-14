@@ -4,14 +4,14 @@
 // note to play the tune; every hit blasts the germ boss. Later wards add a
 // second staff for the left hand.
 
-import { LEVELS, makeSong, judgeTap, grade, WINDOWS, MIN_BPM, MAX_BPM, nextBpm } from './song.js?v=3.2';
-import { W, H, PAL, text, sprite, HEART, DOCTOR, DOCTOR_COLORS, drawWard, drawMonitor, drawBoss, drawScene } from './art.js?v=3.2';
-import { layoutScore, drawScore, engraveBar, drawStaff, drawBarline, drawClefAndTime, drawTie } from './score.js?v=3.2';
-import { newSkill, makeLine, lineResult, updateSkill, endRound, weakest, unlocked, LADDER, LINES_PER_ROUND } from './endless.js?v=3.2';
-import { CELL_INFO } from './lessons.js?v=3.2';
-import { METERS, generateFromCells } from '../rhythm.js?v=3.2';
-import { tutorialFor, lessonCells, countLabel } from './lessons.js?v=3.2';
-import { introductions, writeBar, tieAcross, seededRandom } from './song.js?v=3.2';
+import { LEVELS, makeSong, judgeTap, grade, WINDOWS, MIN_BPM, MAX_BPM, nextBpm } from './song.js?v=3.3';
+import { W, H, PAL, text, sprite, HEART, DOCTOR, DOCTOR_COLORS, drawWard, drawMonitor, drawBoss, drawScene } from './art.js?v=3.3';
+import { layoutScore, drawScore, engraveBar, drawStaff, drawBarline, drawClefAndTime, drawTie } from './score.js?v=3.3';
+import { newSkill, makeLine, lineResult, updateSkill, endRound, weakest, unlocked, LADDER, LINES_PER_ROUND } from './endless.js?v=3.3';
+import { CELL_INFO } from './lessons.js?v=3.3';
+import { METERS, generateFromCells } from '../rhythm.js?v=3.3';
+import { tutorialFor, lessonCells, countLabel } from './lessons.js?v=3.3';
+import { introductions, writeBar, tieAcross, seededRandom } from './song.js?v=3.3';
 
 const SCENE_H = 48; // the strip above the page: doctor, heart, boss
 const PAGE = { x: 2, y: 50, w: 252, h: 156 };
@@ -259,12 +259,22 @@ export function initGameView(d) {
         for (const m of midis) tone(t, hz(m), 'triangle', 0.035, dur, 0.05);
       },
       /** A note that sounds until released (at most a few seconds). */
-      voice(t, midi, low) {
+      voice(t, midi, low, level = 1) {
         const gn = ctx.createGain();
         gn.gain.setValueAtTime(0.0001, t);
-        gn.gain.exponentialRampToValueAtTime(low ? 0.09 : 0.08, t + 0.005);
-        gn.gain.setTargetAtTime(low ? 0.05 : 0.045, t + 0.04, 0.15);
+        const peak = (low ? 0.11 : 0.1) * level;
+        gn.gain.exponentialRampToValueAtTime(peak, t + 0.005);
+        gn.gain.setTargetAtTime(peak * 0.75, t + 0.04, 0.2); // sustains for as long as you hold
         gn.connect(master);
+        // A gentle vibrato creeping in on long holds, like a held recorder note.
+        const lfo = ctx.createOscillator();
+        const depth = ctx.createGain();
+        lfo.frequency.value = 5.5;
+        depth.gain.setValueAtTime(0, t);
+        depth.gain.linearRampToValueAtTime(hz(midi) * 0.006, t + 0.8);
+        lfo.connect(depth);
+        lfo.start(t);
+        lfo.stop(t + 8);
         const oscs = low
           ? [[hz(midi), 'square', 0.6], [hz(midi) / 2, 'triangle', 2.5]]
           : [[hz(midi), 'square', 1], [hz(midi) * 1.004, 'square', 0.5]];
@@ -275,8 +285,9 @@ export function initGameView(d) {
           const lv = ctx.createGain();
           lv.gain.value = level;
           o.connect(lv).connect(gn);
+          depth.connect(o.frequency);
           o.start(t);
-          o.stop(t + 4);
+          o.stop(t + 8);
           return o;
         });
         let done = false;
@@ -287,6 +298,7 @@ export function initGameView(d) {
             gn.gain.cancelScheduledValues(at);
             gn.gain.setTargetAtTime(0.0001, at, 0.03);
             for (const o of nodes) o.stop(at + 0.25);
+            lfo.stop(at + 0.25);
           },
         };
       },
@@ -425,7 +437,7 @@ export function initGameView(d) {
       n.missAt = t;
       run.counts.miss++;
       run.combo = 0;
-      if (isBattle() && !placing()) run.health = Math.max(0, run.health - (inAttack(n.beat) ? 12 : 9));
+      if (isBattle() && !placing() && !n.free) run.health = Math.max(0, run.health - (run.mode === 'endless' ? 6 : inAttack(n.beat) ? 12 : 9));
       run.shake = 4;
       popup(n.lane, 'MISS', PAL.miss);
       run.audio.miss(run.audio.ctx.currentTime);
@@ -451,7 +463,9 @@ export function initGameView(d) {
     const now = run.audio.ctx.currentTime;
     run.voices[lane]?.release(now);
     if (!r) {
-      run.voices[lane] = null;
+      // Still make a sound while held (quietly, at the pitch of the nearest note), so you hear what you play.
+      const near = run.notes.find((n) => n.lane === lane && !n.judged) || run.notes.findLast((n) => n.lane === lane);
+      run.voices[lane] = near ? run.audio.voice(now, near.midi, lane === 'L', 0.45) : null;
       run.holding[lane] = null;
       // A tap with no note to play is an extra: it breaks the combo, hurts the
       // patient a little and heals the boss, so mashing doesn't pay. Taps
@@ -709,7 +723,7 @@ export function initGameView(d) {
         });
         for (const pb of bars) {
           drawScore(g, pb.layouts[lane], y, pb.xOf, colorOf);
-          drawBarline(g, Math.round(pb.x + pb.w), y, INK, pb.bar === song.bars - 1);
+          drawBarline(g, Math.round(pb.x + pb.w), y, INK, pb.bar === song.bars - 1 && Number.isFinite(song.length));
           drawHeld(pb, lane, y + 11, t);
           if (pb.counts[lane]) drawCounts(pb, lane, y + 14);
         }
@@ -963,7 +977,9 @@ export function initGameView(d) {
     const { bpb } = song.meter;
     const skill = endless.skill;
     const L = song.bars / BARS_PER_LINE;
-    let right = makeLine(skill, endless.random);
+    const ahead = L - run.evaluated; // lines written but not yet played
+    const free = skill.assessing; // placement lines never hurt the patient
+    let right = makeLine(skill, endless.random, ahead);
     if (skill.k > LADDER.indexOf('syncopation') && endless.random() < 0.25) right = tieAcross(right[0], right[1]) || right;
     const leftCells = skill.k < 6 ? { half: 3, quarter: 1 } : skill.k < 12 ? { half: 2, quarter: 3, halfRest: 1 } : { quarter: 3, eighths: 2, half: 1, halfRest: 1 };
     const fresh = [];
@@ -998,6 +1014,7 @@ export function initGameView(d) {
       n.time = n.beat * song.beatSec;
       n.id = run.notes.length;
       n.line = L;
+      n.free = free;
       run.notes.push(n);
     }
     for (const lane of ['R', 'L']) {

@@ -2,7 +2,7 @@
 // chords, sections, tempo) but its rhythms are generated fresh on every
 // play, so a song can't simply be memorised. No DOM or audio code.
 
-import { generateFromCells, METERS } from '../rhythm.js?v=3.2';
+import { generateFromCells, METERS } from '../rhythm.js?v=3.3';
 
 /**
  * The wards, easiest first. `cells` are rhythm patterns from rhythm.js.
