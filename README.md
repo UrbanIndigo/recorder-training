@@ -126,7 +126,21 @@ A pixel-art rhythm game and boss rush that trains you to read real sheet music. 
 - **Judging:** Perfect within 45 ms, Good within 90 ms, OK within 140 ms. At the end you get a grade (S–D) plus counts of early and late hits. If your hits are always early or late, nudge the audio offset.
 - **On a phone,** turn it sideways: the game fills the screen with a pad on each side.
 
-### Tuner
+### Ear Training (scale degrees)
+
+Hear a key, then name notes by their **scale degree** (do re mi, or 1–7), not by interval: hear it, know which degree it is, find it on your recorder.
+
+- **Setting the key:** every drill starts by setting up the key with a I–IV–V–I cadence (or a tonic drone with a rising scale). **⌂ Key** (or C) plays it again whenever you need reminding of home.
+- **Degrees (main drill):** after the key, one note plays; pick its degree on the big buttons (or keys 1–7, 8 = high do, Shift+5/6/7 = low). A wrong answer replays the note, then home, then the note again, so you hear how it sits.
+  - Eight levels: do so → do mi so → … → the full scale with high do → low so la ti → chromatic me fi le te.
+  - It moves up a level automatically at 90% over the last 20 (you can turn that off or pick a level).
+  - Half the questions come from your two weakest degrees.
+- **Sing:** a degree is shown. Sing or play it, then **Reveal** to hear the right note and mark yourself ✓ / ✗.
+- **Melody:** hear 3–8 notes (sometimes a phrase from a song you know), then tap their degrees in order. Mistakes are shown with the right answer.
+- **Songs:** Twinkle Twinkle, Mary Had a Little Lamb, Frère Jacques, Happy Birthday, When the Saints and Amazing Grace, with the degree of every syllable. Play a whole song or tap a line; the current note lights up. They play in whichever key is set. There's also a list of interval anchor songs (titles only).
+- **Options:** fixed key or a random key each question (recorder keys C F G D B♭, or any). Labels as solfège or numbers. Recorder-like or piano sound. Notes kept in your recorder's range (or a middle range). Play home before each note (easier). Show the **recorder fingering** (baroque) for each answer.
+- **Stats:** accuracy and response time for each degree (all keys or one key), for naming, singing and melodies. Also your weakest degrees, today's answers and a day streak.
+
 Play anything and see the note, frequency and cents offset.
 
 ### Settings
@@ -161,6 +175,8 @@ Code layout (`js/`):
 - `notation.js`: draws rhythm exercises as sheet music (beams, ties, triplets, rests, counting)
 - `calibration.js`: measures the click-to-mic delay
 - `tap-input.js`: the tap button / Space bar input for rhythm reading
+- `ear.js`: ear training: degrees, levels, keys, question choice, progress, melodies, songs, fingerings (no DOM code, unit tested)
+- `ear-audio.js`, `ear-view.js`: ear-training sound (cadences, piano and recorder voices) and screen
 - `chords.js`: chord types, spelling, inversions, checking, and which chord to practise next (no DOM code, unit tested)
 - `keyboard.js`, `chords-view.js`: the keyboard picture and the Piano Chords screen
 - `game/song.js`: Beat Ward levels, song generation (seeded) and judging (no DOM code, unit tested)

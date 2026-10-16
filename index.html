@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1f6f5c">
   <title>Recorder Trainer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="css/styles.css?v=3.4">
+  <link rel="stylesheet" href="css/styles.css?v=3.5">
 </head>
 <body>
   <header class="topbar">
@@ -43,6 +43,11 @@
           <span class="mode-title">Beat Ward</span>
           <span class="mode-desc">A pixel-art rhythm game. Read the rhythm as it flies at you and tap it to beat each ward’s germ boss. The rhythms change every play, the bosses get tougher, and later ones need both hands.</span>
         </button>
+        <button class="mode-card" data-goto="ear">
+          <span class="mode-icon" aria-hidden="true">👂</span>
+          <span class="mode-title">Ear Training</span>
+          <span class="mode-desc">Hear a key, then name notes by their scale degree (do re mi, or 1–7) and find them on your recorder. Also sing-back, melodies by ear, and anchor songs.</span>
+        </button>
         <button class="mode-card" data-goto="tuner">
           <span class="mode-icon" aria-hidden="true">🎯</span>
           <span class="mode-title">Tuner</span>
@@ -66,7 +71,7 @@
           <small>Turn it up if your playing isn't picked up, down if background noise is. The Mic bar shows the level: it turns green when it hears you, and the line marks the cut-off.</small>
         </div>
       </details>
-      <p class="hint version">Version 3.4</p>
+      <p class="hint version">Version 3.5</p>
     </section>
 
     <!-- Long tone: choose note -->
@@ -472,6 +477,107 @@
       </div>
     </section>
 
+    <!-- Ear training: scale degrees -->
+    <section class="view" id="view-ear" hidden>
+      <h2>Ear Training</h2>
+      <div class="tabs ear-tabs" role="tablist">
+        <button class="tab" role="tab" id="ear-tab-recognise">Degrees</button>
+        <button class="tab" role="tab" id="ear-tab-sing">Sing</button>
+        <button class="tab" role="tab" id="ear-tab-melody">Melody</button>
+        <button class="tab" role="tab" id="ear-tab-songs">Songs</button>
+        <button class="tab" role="tab" id="ear-tab-progress">Stats</button>
+      </div>
+
+      <details class="settings ear-settings" id="ear-settings">
+        <summary>Settings <span class="ear-level-degrees" id="ear-level-degrees"></span></summary>
+        <div class="ear-setup">
+          <label class="rh-field">Level
+            <select id="ear-level"></select>
+          </label>
+          <label class="rh-field">Key
+            <select id="ear-key-select"></select>
+          </label>
+          <label class="rh-field">Names
+            <select id="ear-labels"><option value="solfege">do re mi</option><option value="numbers">1 2 3</option></select>
+          </label>
+          <label class="rh-field">Sound
+            <select id="ear-timbre"><option value="recorder">Recorder-like</option><option value="piano">Piano</option></select>
+          </label>
+          <label class="rh-field">Range
+            <select id="ear-range"><option value="recorder">My recorder's range</option><option value="middle">Middle (any instrument)</option></select>
+          </label>
+          <label class="rh-field">Set the key with
+            <select id="ear-home-style"><option value="cadence">Chords (I–IV–V–I)</option><option value="scale">Drone + scale</option></select>
+          </label>
+        </div>
+        <div class="ear-checks">
+          <label><input type="checkbox" id="ear-auto"> Move up a level at 90% (last 20)</label>
+          <label><input type="checkbox" id="ear-tonic-first"> Play home (do) before each note (easier)</label>
+          <label><input type="checkbox" id="ear-fingering"> Show recorder fingerings</label>
+        </div>
+      </details>
+
+      <div class="ear-panel" id="ear-recognise">
+        <div class="ear-status" id="ear-status"></div>
+        <p class="ear-prompt" id="ear-prompt">Press Start. You'll hear the key, then a note: name it by its degree.</p>
+        <div class="ear-controls">
+          <button class="btn primary" id="ear-start">▶ Start</button>
+          <button class="btn primary" id="ear-next" hidden>Next ▸</button>
+          <button class="btn secondary" id="ear-replay" title="Space">↻ Note</button>
+          <button class="btn secondary" id="ear-home" title="C">⌂ Key</button>
+        </div>
+        <div class="ear-answers" id="ear-answers"></div>
+        <div class="ear-feedback" id="ear-feedback"></div>
+        <div id="ear-finger"></div>
+        <p class="hint">Keys: 1–7 to answer (8 = high do, Shift + 5/6/7 = low), Space = replay, C = hear the key, Enter = next.</p>
+      </div>
+
+      <div class="ear-panel" id="ear-sing" hidden>
+        <div class="ear-big" id="sing-degree">?</div>
+        <div class="ear-sub" id="sing-sub">You'll be shown a degree to sing or play.</div>
+        <p class="ear-prompt" id="sing-hint">Press Start to hear the key.</p>
+        <div class="ear-controls">
+          <button class="btn primary" id="sing-start">▶ Start</button>
+          <button class="btn secondary" id="sing-reveal" hidden>Reveal</button>
+          <button class="btn secondary" id="sing-home">⌂ Key</button>
+        </div>
+        <div class="ear-controls" id="sing-grade" hidden>
+          <button class="btn primary" id="sing-yes">✓ I got it (Y)</button>
+          <button class="btn secondary" id="sing-no">✗ Not quite (N)</button>
+        </div>
+        <div id="sing-finger"></div>
+      </div>
+
+      <div class="ear-panel" id="ear-melody" hidden>
+        <p class="ear-prompt" id="mel-info">Press Start to hear the key and a short melody, then tap its degrees in order.</p>
+        <div class="ear-slots" id="mel-slots"></div>
+        <div class="ear-controls">
+          <button class="btn primary" id="mel-start">▶ Start</button>
+          <button class="btn secondary" id="mel-replay" title="Space">↻ Melody</button>
+          <button class="btn secondary" id="mel-home" title="C">⌂ Key</button>
+          <button class="btn secondary" id="mel-undo" title="Backspace">⌫ Undo</button>
+        </div>
+        <div class="ear-answers" id="mel-answers"></div>
+        <div class="ear-feedback" id="mel-feedback"></div>
+      </div>
+
+      <div class="ear-panel" id="ear-songs" hidden>
+        <p class="ear-prompt">Songs you know, with the degree of every syllable, in <b id="songs-key">C major</b> (change the key in Settings). Tap a line to hear it.</p>
+        <div id="ear-song-list"></div>
+        <h3>Interval anchors</h3>
+        <p class="hint">Songs that start with each interval (titles only).</p>
+        <table class="ear-table"><tbody id="ear-intervals"></tbody></table>
+      </div>
+
+      <div class="ear-panel" id="ear-progress" hidden>
+        <div class="ear-cards" id="ear-prog-cards"></div>
+        <p class="ear-prompt" id="ear-prog-weak"></p>
+        <label class="rh-field">Key <select id="ear-prog-key"></select></label>
+        <table class="ear-table" id="ear-prog-table"></table>
+        <button class="btn small secondary" id="ear-prog-reset">Reset progress</button>
+      </div>
+    </section>
+
     <!-- Piano chords -->
     <section class="view" id="view-chords" hidden>
       <h2>Piano Chords</h2>
@@ -560,7 +666,7 @@
     <button class="btn primary small" id="load-error-reload">Reload</button>
   </p>
   <script>
-    window.APP_VERSION = '3.4';
+    window.APP_VERSION = '3.5';
     // If the app hasn't started after a few seconds, offer a fresh reload.
     setTimeout(function () {
       if (window.appReady) return;
@@ -571,6 +677,6 @@
       };
     }, 4000);
   </script>
-  <script type="module" src="js/app.js?v=3.4"></script>
+  <script type="module" src="js/app.js?v=3.5"></script>
 </body>
 </html>

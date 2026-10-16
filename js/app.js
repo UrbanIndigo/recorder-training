@@ -1,19 +1,20 @@
 // UI controller: navigation, the long-tone exercise, results, and the tuner.
 
-import { RECORDERS, recorderNotes, writtenMidi, detectionRange } from './recorders.js?v=3.4';
-import { noteInfo, midiToFreq, freqToMidi, describeInterval } from './music.js?v=3.4';
-import { PitchListener, playReferenceTone } from './audio.js?v=3.4';
-import { PitchSmoother } from './pitch.js?v=3.4';
-import { LongToneSession, IN_TUNE_CENTS } from './longtone.js?v=3.4';
-import { staffSvg } from './staff.js?v=3.4';
-import { drawPitchChart } from './chart.js?v=3.4';
-import { loadState, saveState, recordAttempt, noteHistory } from './storage.js?v=3.4';
-import { initRhythmView } from './rhythm-view.js?v=3.4';
-import { initEndlessView } from './endless-view.js?v=3.4';
-import { initCalibration } from './calibration.js?v=3.4';
-import { initChordsView } from './chords-view.js?v=3.4';
-import { TapListener } from './tap-input.js?v=3.4';
-import { initGameView } from './game/game.js?v=3.4';
+import { RECORDERS, recorderNotes, writtenMidi, detectionRange } from './recorders.js?v=3.5';
+import { noteInfo, midiToFreq, freqToMidi, describeInterval } from './music.js?v=3.5';
+import { PitchListener, playReferenceTone } from './audio.js?v=3.5';
+import { PitchSmoother } from './pitch.js?v=3.5';
+import { LongToneSession, IN_TUNE_CENTS } from './longtone.js?v=3.5';
+import { staffSvg } from './staff.js?v=3.5';
+import { drawPitchChart } from './chart.js?v=3.5';
+import { loadState, saveState, recordAttempt, noteHistory } from './storage.js?v=3.5';
+import { initRhythmView } from './rhythm-view.js?v=3.5';
+import { initEndlessView } from './endless-view.js?v=3.5';
+import { initCalibration } from './calibration.js?v=3.5';
+import { initChordsView } from './chords-view.js?v=3.5';
+import { TapListener } from './tap-input.js?v=3.5';
+import { initGameView } from './game/game.js?v=3.5';
+import { initEarView } from './ear-view.js?v=3.5';
 
 const $ = (id) => document.getElementById(id);
 const state = loadState();
@@ -29,7 +30,7 @@ const pitchToMidi = (freq) => freqToMidi(freq, state.a4);
 
 // ---------------------------------------------------------------- navigation
 
-const PARENT = { home: null, pick: 'home', run: 'pick', results: 'pick', tuner: 'home', rhythm: 'home', chords: 'home', game: 'home' };
+const PARENT = { home: null, pick: 'home', run: 'pick', results: 'pick', tuner: 'home', rhythm: 'home', chords: 'home', game: 'home', ear: 'home' };
 let currentView = 'home';
 
 function show(view) {
@@ -37,6 +38,7 @@ function show(view) {
   if (currentView === 'tuner') stopTuner();
   if (currentView === 'chords') chordsView.leave();
   if (currentView === 'game') gameView.leave();
+  if (currentView === 'ear') earView.leave();
   if (currentView === 'rhythm') {
     rhythmView.leave();
     endlessView.leave();
@@ -51,6 +53,7 @@ function show(view) {
   if (view === 'rhythm') showRhythmTab(state.rhythmTab);
   if (view === 'chords') chordsView.enter();
   if (view === 'game') gameView.enter();
+  if (view === 'ear') earView.enter();
 }
 
 $('back-btn').addEventListener('click', () => show(PARENT[currentView] || 'home'));
@@ -532,6 +535,7 @@ const calibration = initCalibration({
 
 const chordsView = initChordsView({ $, state, save: () => saveState(state) });
 const gameView = initGameView({ $, state, save: () => saveState(state) });
+const earView = initEarView({ $, state, save: () => saveState(state), recorder });
 
 // Rhythm Reading has two tabs: Endless (adaptive) and Practice (pick a level).
 function showRhythmTab(tab) {

@@ -4,7 +4,7 @@
 // rhythm, struggling eases off, weak rhythms come up more often, and the
 // tempo rises (or falls) round by round. No DOM or audio code.
 
-import { generateFromCells } from '../rhythm.js?v=3.4';
+import { generateFromCells } from '../rhythm.js?v=3.5';
 
 /** Rhythms from easiest to hardest (4/4, one hand). */
 export const LADDER = [

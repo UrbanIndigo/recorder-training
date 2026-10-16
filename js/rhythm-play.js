@@ -1,9 +1,9 @@
 // Plays a rhythm exercise (count-in, clicks and notes) so the player can
 // hear how it should go.
 
-import { scheduleClick, scheduleTone, createPlaybackContext } from './audio.js?v=3.4';
-import { midiToFreq } from './music.js?v=3.4';
-import { soundingNotes, meterOf } from './rhythm.js?v=3.4';
+import { scheduleClick, scheduleTone, createPlaybackContext } from './audio.js?v=3.5';
+import { midiToFreq } from './music.js?v=3.5';
+import { soundingNotes, meterOf } from './rhythm.js?v=3.5';
 
 /**
  * @param {object} exercise

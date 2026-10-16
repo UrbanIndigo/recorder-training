@@ -4,14 +4,14 @@
 // note to play the tune; every hit blasts the germ boss. Later wards add a
 // second staff for the left hand.
 
-import { LEVELS, makeSong, judgeTap, grade, WINDOWS, MIN_BPM, MAX_BPM, nextBpm } from './song.js?v=3.4';
-import { W, H, PAL, text, sprite, HEART, DOCTOR, DOCTOR_COLORS, drawWard, drawMonitor, drawBoss, drawScene } from './art.js?v=3.4';
-import { layoutScore, drawScore, engraveBar, drawStaff, drawBarline, drawClefAndTime, drawTie } from './score.js?v=3.4';
-import { newSkill, makeLine, lineResult, updateSkill, endRound, weakest, unlocked, LADDER, LINES_PER_ROUND } from './endless.js?v=3.4';
-import { CELL_INFO } from './lessons.js?v=3.4';
-import { METERS, generateFromCells } from '../rhythm.js?v=3.4';
-import { tutorialFor, lessonCells, countLabel } from './lessons.js?v=3.4';
-import { introductions, writeBar, tieAcross, seededRandom } from './song.js?v=3.4';
+import { LEVELS, makeSong, judgeTap, grade, WINDOWS, MIN_BPM, MAX_BPM, nextBpm } from './song.js?v=3.5';
+import { W, H, PAL, text, sprite, HEART, DOCTOR, DOCTOR_COLORS, drawWard, drawMonitor, drawBoss, drawScene } from './art.js?v=3.5';
+import { layoutScore, drawScore, engraveBar, drawStaff, drawBarline, drawClefAndTime, drawTie } from './score.js?v=3.5';
+import { newSkill, makeLine, lineResult, updateSkill, endRound, weakest, unlocked, LADDER, LINES_PER_ROUND } from './endless.js?v=3.5';
+import { CELL_INFO } from './lessons.js?v=3.5';
+import { METERS, generateFromCells } from '../rhythm.js?v=3.5';
+import { tutorialFor, lessonCells, countLabel } from './lessons.js?v=3.5';
+import { introductions, writeBar, tieAcross, seededRandom } from './song.js?v=3.5';
 
 const SCENE_H = 48; // the strip above the page: doctor, heart, boss
 const PAGE = { x: 2, y: 50, w: 252, h: 156 };
