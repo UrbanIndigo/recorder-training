@@ -1,20 +1,20 @@
 // UI controller: navigation, the long-tone exercise, results, and the tuner.
 
-import { RECORDERS, recorderNotes, writtenMidi, detectionRange } from './recorders.js?v=3.5';
-import { noteInfo, midiToFreq, freqToMidi, describeInterval } from './music.js?v=3.5';
-import { PitchListener, playReferenceTone } from './audio.js?v=3.5';
-import { PitchSmoother } from './pitch.js?v=3.5';
-import { LongToneSession, IN_TUNE_CENTS } from './longtone.js?v=3.5';
-import { staffSvg } from './staff.js?v=3.5';
-import { drawPitchChart } from './chart.js?v=3.5';
-import { loadState, saveState, recordAttempt, noteHistory } from './storage.js?v=3.5';
-import { initRhythmView } from './rhythm-view.js?v=3.5';
-import { initEndlessView } from './endless-view.js?v=3.5';
-import { initCalibration } from './calibration.js?v=3.5';
-import { initChordsView } from './chords-view.js?v=3.5';
-import { TapListener } from './tap-input.js?v=3.5';
-import { initGameView } from './game/game.js?v=3.5';
-import { initEarView } from './ear-view.js?v=3.5';
+import { RECORDERS, recorderNotes, writtenMidi, detectionRange } from './recorders.js?v=3.6';
+import { noteInfo, midiToFreq, freqToMidi, describeInterval } from './music.js?v=3.6';
+import { PitchListener, playReferenceTone } from './audio.js?v=3.6';
+import { PitchSmoother } from './pitch.js?v=3.6';
+import { LongToneSession, IN_TUNE_CENTS } from './longtone.js?v=3.6';
+import { staffSvg } from './staff.js?v=3.6';
+import { drawPitchChart } from './chart.js?v=3.6';
+import { loadState, saveState, recordAttempt, noteHistory } from './storage.js?v=3.6';
+import { initRhythmView } from './rhythm-view.js?v=3.6';
+import { initEndlessView } from './endless-view.js?v=3.6';
+import { initCalibration } from './calibration.js?v=3.6';
+import { initChordsView } from './chords-view.js?v=3.6';
+import { TapListener } from './tap-input.js?v=3.6';
+import { initGameView } from './game/game.js?v=3.6';
+import { initEarView } from './ear-view.js?v=3.6';
 
 const $ = (id) => document.getElementById(id);
 const state = loadState();
@@ -535,7 +535,7 @@ const calibration = initCalibration({
 
 const chordsView = initChordsView({ $, state, save: () => saveState(state) });
 const gameView = initGameView({ $, state, save: () => saveState(state) });
-const earView = initEarView({ $, state, save: () => saveState(state), recorder });
+const earView = initEarView({ $, state, save: () => saveState(state), recorder, listener, showMicError, restoreDetector: applyDetectorOptions });
 
 // Rhythm Reading has two tabs: Endless (adaptive) and Practice (pick a level).
 function showRhythmTab(tab) {

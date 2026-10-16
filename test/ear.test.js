@@ -100,3 +100,34 @@ test('fingerings: baroque chart on C and F recorders', () => {
   assert.deepEqual(fingeringFor(RECORDERS.alto, 65 + 7), fingeringFor(RECORDERS.soprano, 72 + 7)); // same pattern a fifth lower
   assert.equal(fingeringFor(RECORDERS.soprano, 71), null);
 });
+
+test('singing: any octave counts, and a steady pitch is needed', async () => {
+  const { judgeSung, steadyPitch } = await import('../js/ear.js');
+  // Tonic C5 (72). Singing G3 (55) is so, two octaves down.
+  assert.ok(judgeSung(55, 72, '5').right);
+  assert.ok(judgeSung(67.2, 72, 'L5').right);
+  const r = judgeSung(64.4, 72, '5');
+  assert.equal(r.right, false);
+  assert.equal(r.heardLabel, 'mi');
+  assert.equal(r.cents, 40);
+  assert.equal(judgeSung(61, 72, '5').heardLabel, 'ra');
+  const steady = Array.from({ length: 30 }, (_, i) => ({ t: i * 0.02, midi: 60 + (i % 3) * 0.05 }));
+  assert.ok(Math.abs(steadyPitch(steady) - 60.05) < 0.06);
+  const wobbly = Array.from({ length: 30 }, (_, i) => ({ t: i * 0.02, midi: 60 + (i % 2) * 1.5 }));
+  assert.equal(steadyPitch(wobbly), null);
+  assert.equal(steadyPitch(steady.slice(0, 3)), null);
+});
+
+test('hints: a song for every degree, or a path to it', async () => {
+  const { hintFor } = await import('../js/ear.js');
+  const so = hintFor('5');
+  assert.equal(so.song, 'Twinkle Twinkle Little Star');
+  assert.deepEqual(so.notes.map((n) => n[1]), ['1', '1', '5']);
+  assert.equal(hintFor('L5').song, 'Happy Birthday');
+  assert.equal(hintFor('3').song, 'Mary Had a Little Lamb');
+  for (const deg of ORDER) {
+    const h = hintFor(deg);
+    assert.ok(h.text && h.notes.length >= 2, deg);
+    assert.equal(h.notes[h.target][1], deg, `hint for ${deg} marks it`);
+  }
+});

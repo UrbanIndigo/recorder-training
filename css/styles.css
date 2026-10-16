@@ -607,3 +607,14 @@ body { overflow-anchor: none; } /* rows updating shouldn't make the page jump */
 .ear-bar { display: inline-block; width: 60px; height: 6px; border-radius: 3px; background: var(--surface-2); vertical-align: middle; margin-left: 4px; overflow: hidden; }
 .ear-bar span { display: block; height: 100%; background: var(--accent); }
 .ear-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 6px 0; }
+.ear-hint { border: 1px dashed var(--accent); border-radius: var(--radius); padding: 10px; margin: 8px 0; background: var(--surface); }
+.ear-hint-text { margin-bottom: 6px; }
+.ear-hint-notes { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.ear-syl.target { outline: 2px solid var(--accent); }
+.ear-syl.target b { color: var(--accent); }
+.ear-syl.now.target b { color: var(--accent-contrast); }
+.ear-listen { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 6px 0; font-weight: 600; }
+.ear-meter { width: 80px; height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+.ear-meter span { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.08s; }
+.good-text { color: var(--good); }
+.bad-text { color: var(--bad); }

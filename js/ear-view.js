@@ -5,11 +5,12 @@
 import {
   ORDER, LEVELS, levelSet, degreeLabel, degreeLongName, KEYS, keyByName, tonicFor, degreeMidi, pickKey,
   newProgress, recordAnswer, degreeStats, weakest, pickDegree, streak, makeMelody, melodyLength, compareMelody,
-  SONGS, INTERVAL_SONGS, fingeringFor,
-} from './ear.js?v=3.5';
-import { EarAudio } from './ear-audio.js?v=3.5';
-import { noteInfo } from './music.js?v=3.5';
-import { writtenMidi } from './recorders.js?v=3.5';
+  SONGS, INTERVAL_SONGS, fingeringFor, hintFor, judgeSung, steadyPitch,
+} from './ear.js?v=3.6';
+import { freqToMidi } from './music.js?v=3.6';
+import { EarAudio } from './ear-audio.js?v=3.6';
+import { noteInfo } from './music.js?v=3.6';
+import { writtenMidi } from './recorders.js?v=3.6';
 
 const DEFAULT_SETTINGS = {
   tab: 'recognise',
@@ -55,6 +56,29 @@ export function initEarView(d) {
     return `<div class="ear-fing">${fingeringSvg(f)}<div><div class="ear-fing-name">${name}${note}</div><small>${rec.shortName} recorder, baroque fingering. ● covered, ◐ half.</small></div></div>`;
   }
 
+  /**
+   * A hint for finding a degree: a song you know (or a short path), with
+   * every syllable's degree and the target marked, and a button to hear it
+   * in the current key.
+   */
+  function showHint(box, deg, tonic) {
+    const h = hintFor(deg, S().labels);
+    box.hidden = false;
+    box.innerHTML = `<div class="ear-hint-text">💡 ${h.text}</div>
+      <div class="ear-hint-notes">${h.notes.map(([syl, g], i) => `<span class="ear-syl${i === h.target ? ' target' : ''}"><i>${syl}</i><b>${label(g)}</b></span>`).join('')}</div>
+      <button class="btn small secondary">▶ Hear it</button>`;
+    const cells = box.querySelectorAll('.ear-syl');
+    box.querySelector('button').addEventListener('click', async () => {
+      audio.stop();
+      audio.clearTimers();
+      const notes = h.notes.map(([, g, beats], i) => [g, i === h.target ? Math.max(2, beats) : beats]);
+      audio.melody(tonic, notes, await audio.ready(), 0.4, (i) => {
+        cells.forEach((c) => c.classList.remove('now'));
+        cells[i]?.classList.add('now');
+      });
+    });
+  }
+
   /** Hear the key: cadence or drone + scale. Returns when it's over. */
   async function playHome(tonic) {
     const t0 = await audio.ready();
@@ -76,6 +100,7 @@ export function initEarView(d) {
     });
   }
   function showTab() {
+    stopMic();
     audio.stop();
     audio.clearTimers();
     for (const t of tabs) {
@@ -175,6 +200,7 @@ export function initEarView(d) {
     $('ear-feedback').textContent = '';
     $('ear-feedback').className = 'ear-feedback';
     $('ear-finger').innerHTML = '';
+    $('ear-hint-box').hidden = true;
     $('ear-next').hidden = true;
     $('ear-start').hidden = true;
     $('ear-prompt').textContent = needHome ? 'Listen to the key…' : 'Which degree is this?';
@@ -225,6 +251,7 @@ export function initEarView(d) {
     } else {
       fb.textContent = `✗ That was ${longName(rq.deg)}, not ${longName(deg)}. Listen: the note, home, the note.`;
       fb.className = 'ear-feedback bad';
+      showHint($('ear-hint-box'), rq.deg, rq.tonic);
       // Hear how it sits against home.
       audio.stop();
       let t = await audio.ready();
@@ -271,17 +298,26 @@ export function initEarView(d) {
     sq.revealed = false;
     $('sing-degree').textContent = label(sq.deg);
     $('sing-sub').textContent = `${longName(sq.deg)} in ${key} major`;
+    stopMic();
     $('sing-finger').innerHTML = '';
+    $('sing-hint-box').hidden = true;
     $('sing-grade').hidden = true;
     $('sing-reveal').hidden = false;
+    $('sing-mic').hidden = false;
+    $('sing-hint-btn').hidden = false;
+    $('sing-mic-error').hidden = true;
     $('sing-start').textContent = 'Next ▸';
-    $('sing-hint').textContent = needHome ? 'Listen to the key, then sing or play this degree.' : 'Sing or play it, then reveal to check.';
+    $('sing-hint').textContent = needHome
+      ? 'Listen to the key, then sing or play this degree: 🎤 to be checked by the microphone, or Reveal to check yourself.'
+      : 'Sing or play it: 🎤 to be checked, or Reveal to check yourself. Stuck? Try 💡 Hint.';
     if (needHome) await playHome(sq.tonic);
   }
 
   async function revealSing() {
     if (!sq.deg) return;
+    stopMic();
     sq.revealed = true;
+    $('sing-mic').hidden = true;
     audio.stop();
     let t = await audio.ready();
     audio.note(degreeMidi(sq.tonic, sq.deg), t, 1.2);
@@ -298,6 +334,79 @@ export function initEarView(d) {
     newSing();
   }
 
+  // Singing into the microphone: listen for a steady note, then judge it
+  // against the degree in any octave, and play the right note to compare.
+  let micUnsub = null;
+  let micTimer = null;
+  async function startMic() {
+    if (!sq.deg || sq.revealed) return;
+    audio.stop();
+    $('sing-mic-error').hidden = true;
+    try {
+      d.listener.setOptions({ minFreq: 70, maxFreq: 2600 });
+      await d.listener.start();
+    } catch (err) {
+      d.showMicError($('sing-mic-error'), err);
+      return;
+    }
+    $('sing-listen').hidden = false;
+    $('sing-heard').textContent = 'Listening… sing or play the note and hold it.';
+    const samples = [];
+    micUnsub?.();
+    micUnsub = d.listener.onPitch((reading, now) => {
+      $('sing-level').style.width = `${Math.min(100, Math.round(reading.rms * 400))}%`;
+      if (!reading.freq || reading.clarity < 0.85) return;
+      const midi = freqToMidi(reading.freq, state.a4);
+      samples.push({ t: now, midi });
+      const live = judgeSung(midi, sq.tonic, sq.deg, S().labels);
+      $('sing-heard').textContent = `Hearing ${live.heardLabel}…`;
+      const steady = steadyPitch(samples, 0.6, 12);
+      if (steady != null) gotSung(steady);
+    });
+    clearTimeout(micTimer);
+    micTimer = setTimeout(() => {
+      if (micUnsub) {
+        stopMic();
+        $('sing-hint').textContent = 'Didn’t catch a steady note. Try again (hold it longer, closer to the mic), or use Reveal.';
+      }
+    }, 12000);
+  }
+
+  function stopMic() {
+    clearTimeout(micTimer);
+    micUnsub?.();
+    micUnsub = null;
+    if (d.listener.running) {
+      d.listener.stop();
+      d.restoreDetector?.();
+    }
+    $('sing-listen').hidden = true;
+  }
+
+  async function gotSung(midi) {
+    stopMic();
+    const r = judgeSung(midi, sq.tonic, sq.deg, S().labels);
+    recordAnswer(P(), { drill: 'sing', key: sq.key, degree: sq.deg, right: r.right });
+    save();
+    sq.revealed = true;
+    $('sing-mic').hidden = true;
+    $('sing-reveal').hidden = true;
+    const tune = Math.abs(r.cents) <= 15 ? 'in tune' : `${Math.abs(r.cents)} cents ${r.cents > 0 ? 'sharp' : 'flat'}`;
+    $('sing-hint').innerHTML = r.right
+      ? `<b class="good-text">✓ Yes, that's ${longName(sq.deg)}</b> (${tune}). Here it is to compare.`
+      : `<b class="bad-text">✗ You sang ${r.heardLabel}</b>, not ${longName(sq.deg)}. Here's ${longName(sq.deg)}; try the hint.`;
+    // Play the right note, after the singer stops.
+    const t = await audio.ready();
+    audio.note(degreeMidi(sq.tonic, sq.deg), t + 0.2, 1.2);
+    $('sing-finger').innerHTML = fingeringHtml(degreeMidi(sq.tonic, sq.deg));
+    $('sing-grade').hidden = true;
+    $('sing-start').textContent = 'Next ▸';
+    if (!r.right) showHint($('sing-hint-box'), sq.deg, sq.tonic);
+  }
+
+  $('sing-mic').addEventListener('click', startMic);
+  $('sing-mic-stop').addEventListener('click', stopMic);
+  $('sing-hint-btn').addEventListener('click', () => sq.deg && showHint($('sing-hint-box'), sq.deg, sq.tonic));
   $('sing-start').addEventListener('click', newSing);
   $('sing-home').addEventListener('click', async () => sq.tonic && (audio.stop(), playHome(sq.tonic)));
   $('sing-reveal').addEventListener('click', revealSing);
@@ -542,6 +651,7 @@ export function initEarView(d) {
     },
     leave() {
       active = false;
+      stopMic();
       clearTimeout(rq.timer);
       audio.stop();
       audio.clearTimers();

@@ -333,3 +333,81 @@ const FINGERINGS = [
 export function fingeringFor(recorder, midi) {
   return FINGERINGS[midi - recorder.lowest] || null;
 }
+
+// ------------------------------------------------------------ singing
+
+const HEARD = ['1', 'b2', '2', 'b3', '3', '4', '#4', '5', 'b6', '6', 'b7', '7'];
+const HEARD_SOLFEGE = ['do', 'ra', 're', 'me', 'mi', 'fa', 'fi', 'so', 'le', 'la', 'te', 'ti'];
+
+/**
+ * A steady pitch from recent readings ([{t, midi}], newest last): the median
+ * of the last `window` seconds, if there are enough readings and they agree
+ * (within about a third of a semitone). Otherwise null.
+ */
+export function steadyPitch(samples, window = 0.5, minCount = 8) {
+  if (!samples.length) return null;
+  const end = samples.at(-1).t;
+  const recent = samples.filter((s) => s.t >= end - window).map((s) => s.midi);
+  if (recent.length < minCount) return null;
+  const sorted = [...recent].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  const spread = recent.filter((m) => Math.abs(m - median) <= 0.35).length / recent.length;
+  return spread >= 0.8 ? median : null;
+}
+
+/**
+ * Judge a sung note against a degree, in any octave (voices are often an
+ * octave or two away from the instrument).
+ * @returns {{right, heard, heardLabel, cents}}
+ */
+export function judgeSung(midi, tonic, deg, style = 'solfege') {
+  const rel = (((midi - tonic) % 12) + 12) % 12;
+  let semis = Math.round(rel);
+  const cents = Math.round((rel - semis) * 100);
+  semis %= 12;
+  const want = ((DEGREES[deg] % 12) + 12) % 12;
+  const heard = HEARD[semis];
+  const heardLabel = style === 'solfege' ? HEARD_SOLFEGE[semis] : heard.replace('b', '♭').replace('#', '♯');
+  return { right: semis === want, heard, heardLabel, cents };
+}
+
+// --------------------------------------------------------------- hints
+
+const NO_SONG_HINTS = {
+  7: { text: 'is the note just below high do, and it pulls up into it. Sing up the scale and stop one short.', notes: ['1', '2', '3', '4', '5', '6', '7'] },
+  "1'": { text: 'is do again, an octave higher: the same note, just up high. (A big octave leap opens "Over the Rainbow".)', notes: ['1', "1'"] },
+  b3: { text: 'is mi lowered by a half step: the sad, minor sound. Sing do re, then the darker version of mi.', notes: ['1', '2', 'b3'] },
+  '#4': { text: 'sits between fa and so and leans up into so. Sing mi fa, then nudge up a little.', notes: ['3', '4', '#4'] },
+  b6: { text: 'is just above so and wants to fall back to it. Sing so, then a half step up.', notes: ['4', '5', 'b6'] },
+  b7: { text: 'is a whole step below high do: the bluesy, folky note. Sing so la, then a half step more.', notes: ['5', '6', 'b7'] },
+};
+
+/**
+ * A way to find a degree: a song you know where it comes early (sing up to
+ * that syllable), or for degrees no anchor song has, a short path to it.
+ * @returns {{song?: string, text: string, notes: [syllable, degree, beats][], target: number}}
+ */
+export function hintFor(deg, style = 'solfege') {
+  let best = null;
+  for (const song of SONGS) {
+    song.phrases.forEach((ph, pi) => {
+      const i = ph.findIndex((n) => n[1] === deg);
+      if (i < 0) return;
+      // Earliest in the song wins: fewer notes to sing before you get there.
+      const score = pi * 10 + i;
+      if (!best || score < best.score) best = { song, pi, i, score };
+    });
+  }
+  if (best) {
+    // Sing up to the note; if it's the very first note, take the next two as well.
+    const notes = best.song.phrases[best.pi].slice(0, Math.max(best.i + 1, 3));
+    const where = best.pi === 0 ? 'the start of' : `line ${best.pi + 1} of`;
+    const syl = notes[best.i][0].replace(/-$/, '');
+    const text = best.i === 0 && best.pi === 0 ? `It's the first note of ${best.song.title} ("${syl}").` : `Think of ${where} ${best.song.title}: it's on "${syl}".`;
+    return { song: best.song.title, text, notes, target: best.i };
+  }
+  const h = NO_SONG_HINTS[deg];
+  const notes = h.notes.map((d) => [degreeLabel(d, style), d, d === deg ? 2 : 1]);
+  const name = degreeLongName(deg, style);
+  return { text: `${name[0].toUpperCase()}${name.slice(1)} ${h.text}`, notes, target: notes.length - 1, generic: true };
+}

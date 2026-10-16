@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1f6f5c">
   <title>Recorder Trainer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="css/styles.css?v=3.5">
+  <link rel="stylesheet" href="css/styles.css?v=3.6">
 </head>
 <body>
   <header class="topbar">
@@ -71,7 +71,7 @@
           <small>Turn it up if your playing isn't picked up, down if background noise is. The Mic bar shows the level: it turns green when it hears you, and the line marks the cut-off.</small>
         </div>
       </details>
-      <p class="hint version">Version 3.5</p>
+      <p class="hint version">Version 3.6</p>
     </section>
 
     <!-- Long tone: choose note -->
@@ -528,6 +528,7 @@
         </div>
         <div class="ear-answers" id="ear-answers"></div>
         <div class="ear-feedback" id="ear-feedback"></div>
+        <div class="ear-hint" id="ear-hint-box" hidden></div>
         <div id="ear-finger"></div>
         <p class="hint">Keys: 1–7 to answer (8 = high do, Shift + 5/6/7 = low), Space = replay, C = hear the key, Enter = next.</p>
       </div>
@@ -538,9 +539,18 @@
         <p class="ear-prompt" id="sing-hint">Press Start to hear the key.</p>
         <div class="ear-controls">
           <button class="btn primary" id="sing-start">▶ Start</button>
+          <button class="btn primary" id="sing-mic" hidden>🎤 Sing it</button>
           <button class="btn secondary" id="sing-reveal" hidden>Reveal</button>
+          <button class="btn secondary" id="sing-hint-btn" hidden>💡 Hint</button>
           <button class="btn secondary" id="sing-home">⌂ Key</button>
         </div>
+        <div class="ear-listen" id="sing-listen" hidden>
+          <div class="ear-meter"><span id="sing-level"></span></div>
+          <span id="sing-heard">Listening… sing or play the note and hold it.</span>
+          <button class="btn small secondary" id="sing-mic-stop">Stop</button>
+        </div>
+        <p class="error" id="sing-mic-error" hidden></p>
+        <div class="ear-hint" id="sing-hint-box" hidden></div>
         <div class="ear-controls" id="sing-grade" hidden>
           <button class="btn primary" id="sing-yes">✓ I got it (Y)</button>
           <button class="btn secondary" id="sing-no">✗ Not quite (N)</button>
@@ -666,7 +676,7 @@
     <button class="btn primary small" id="load-error-reload">Reload</button>
   </p>
   <script>
-    window.APP_VERSION = '3.5';
+    window.APP_VERSION = '3.6';
     // If the app hasn't started after a few seconds, offer a fresh reload.
     setTimeout(function () {
       if (window.appReady) return;
@@ -677,6 +687,6 @@
       };
     }, 4000);
   </script>
-  <script type="module" src="js/app.js?v=3.5"></script>
+  <script type="module" src="js/app.js?v=3.6"></script>
 </body>
 </html>

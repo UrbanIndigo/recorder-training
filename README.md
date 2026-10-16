@@ -135,7 +135,10 @@ Hear a key, then name notes by their **scale degree** (do re mi, or 1–7), not 
   - Eight levels: do so → do mi so → … → the full scale with high do → low so la ti → chromatic me fi le te.
   - It moves up a level automatically at 90% over the last 20 (you can turn that off or pick a level).
   - Half the questions come from your two weakest degrees.
-- **Sing:** a degree is shown. Sing or play it, then **Reveal** to hear the right note and mark yourself ✓ / ✗.
+- **Sing:** a degree is shown; sing or play it.
+  - **🎤 Sing it:** the microphone checks you. Any octave counts, since voices are usually an octave or two from the recorder. It says which degree you actually sang and how in tune you were, then plays the right note to compare.
+  - **Reveal:** check yourself instead (✓ / ✗).
+  - **💡 Hint:** a song you know that has the note, with the degree of every syllable and the note marked, e.g. so: "Think of the start of Twinkle Twinkle: it's on 'twin'" (do do **so**). **▶ Hear it** plays it in the current key, so you can sing up to the note. Degrees no anchor song has (ti, high do, the chromatic ones) get a short path instead ("sing up the scale and stop one short"). Hints also appear after a wrong answer in the Degrees drill.
 - **Melody:** hear 3–8 notes (sometimes a phrase from a song you know), then tap their degrees in order. Mistakes are shown with the right answer.
 - **Songs:** Twinkle Twinkle, Mary Had a Little Lamb, Frère Jacques, Happy Birthday, When the Saints and Amazing Grace, with the degree of every syllable. Play a whole song or tap a line; the current note lights up. They play in whichever key is set. There's also a list of interval anchor songs (titles only).
 - **Options:** fixed key or a random key each question (recorder keys C F G D B♭, or any). Labels as solfège or numbers. Recorder-like or piano sound. Notes kept in your recorder's range (or a middle range). Play home before each note (easier). Show the **recorder fingering** (baroque) for each answer.

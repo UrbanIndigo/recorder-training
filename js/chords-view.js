@@ -1,10 +1,10 @@
 // Piano Chords: asks for a chord ("G major, 1st inversion"). You play it,
 // reveal the answer, compare, and mark honestly whether you got it.
 
-import { CHORD_TYPES, GROUPS, INVERSION_NAMES, PRESETS, WHITE_ROOTS, ALL_ROOTS, nextChord, recordChord, voicing, newChordStats, statsTable } from './chords.js?v=3.5';
-import { keyboardSvg } from './keyboard.js?v=3.5';
-import { createPlaybackContext } from './audio.js?v=3.5';
-import { midiToFreq } from './music.js?v=3.5';
+import { CHORD_TYPES, GROUPS, INVERSION_NAMES, PRESETS, WHITE_ROOTS, ALL_ROOTS, nextChord, recordChord, voicing, newChordStats, statsTable } from './chords.js?v=3.6';
+import { keyboardSvg } from './keyboard.js?v=3.6';
+import { createPlaybackContext } from './audio.js?v=3.6';
+import { midiToFreq } from './music.js?v=3.6';
 
 export function initChordsView(d) {
   const { $, state } = d;
