@@ -144,6 +144,22 @@ Hear a key, then name notes by their **scale degree** (do re mi, or 1–7), not 
 - **Options:** fixed key or a random key each question (recorder keys C F G D B♭, or any). Labels as solfège or numbers. Recorder-like or piano sound. Notes kept in your recorder's range (or a middle range). Play home before each note (easier). Show the **recorder fingering** (baroque) for each answer.
 - **Stats:** accuracy and response time for each degree (all keys or one key), for naming, singing and melodies. Also your weakest degrees, today's answers and a day streak.
 
+### Dance Improv (forró, salsa)
+
+For partner-dance leaders who know moves but can't think of them in the moment. It trains pulling your next move out of memory on the beat, with variety.
+
+- **Flow:** a groove plays: forró baião (zabumba, triangle, bass) or salsa (2-3 son clave, cowbell, conga tumbao, bass), at a tempo you choose. Dance, or mark it. Four counts before each move ends, **NEXT?** counts down; choose your next move before the 1 by tapping it, typing it, or **saying it out loud** (speech recognition, in English, Portuguese or Spanish).
+  - **Speed:** deciding early scores more.
+  - **Variety:** repeating the last move scores nothing; a move you haven't used this session scores best; changing kind of move (turn, position change, styling…) adds a bit; going back to a basic now and then is fine.
+  - **Freezing:** if you haven't chosen two counts after the 1, you froze, and it's back to the basic.
+  - **Cues and twists:** cues like "a turn", "change position" or "something you haven't done yet" earn a bonus. Twists like "the other direction", "the other hand" or "half time" can be added to any move, so a small vocabulary gives lots of options.
+  - **Buttons:** move buttons shuffle each time, so you read rather than reach. You can hide the list entirely and pick from memory.
+  - **At the end:** a grade, speed and variety scores, your longest run without a repeat, tips, and the moves you didn't use.
+- **Recall:** 30–90 seconds to type every move you can remember, with no list to look at (free recall is what makes moves come to mind on the floor). It forgives typos and missing accents, shows what you forgot, and offers to add anything new.
+- **Moves:** your own move list for each dance, with the kind of move and how many counts it takes. There are starter lists for forró (base, frente e trás, caminhada, giro simples, giro do cavalheiro, pião, abertura, trava, sacada…) and salsa (cross-body lead, right and left turns, copa, hammerlock, dile que no, enchufla…). Rename them to what you were taught.
+- **Stats:** recent sessions, how often you use each move, and how early you decide on it. Moves you never use are highlighted.
+
+### Tuner
 Play anything and see the note, frequency and cents offset.
 
 ### Settings
@@ -178,6 +194,8 @@ Code layout (`js/`):
 - `notation.js`: draws rhythm exercises as sheet music (beams, ties, triplets, rests, counting)
 - `calibration.js`: measures the click-to-mic delay
 - `tap-input.js`: the tap button / Space bar input for rhythm reading
+- `dance.js`: dance improv: starter moves, cues, speed and variety scoring, forgiving move-name matching (no DOM code, unit tested)
+- `dance-audio.js`, `dance-view.js`: the forró and salsa grooves, and the Dance Improv screen
 - `ear.js`: ear training: degrees, levels, keys, question choice, progress, melodies, songs, fingerings (no DOM code, unit tested)
 - `ear-audio.js`, `ear-view.js`: ear-training sound (cadences, piano and recorder voices) and screen
 - `chords.js`: chord types, spelling, inversions, checking, and which chord to practise next (no DOM code, unit tested)
