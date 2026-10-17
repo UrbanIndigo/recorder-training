@@ -6,11 +6,11 @@ import {
   ORDER, LEVELS, levelSet, degreeLabel, degreeLongName, KEYS, keyByName, tonicFor, degreeMidi, pickKey,
   newProgress, recordAnswer, degreeStats, weakest, pickDegree, streak, makeMelody, melodyLength, compareMelody,
   SONGS, INTERVAL_SONGS, fingeringFor, hintFor, judgeSung, steadyPitch,
-} from './ear.js?v=3.6';
-import { freqToMidi } from './music.js?v=3.6';
-import { EarAudio } from './ear-audio.js?v=3.6';
-import { noteInfo } from './music.js?v=3.6';
-import { writtenMidi } from './recorders.js?v=3.6';
+} from './ear.js?v=3.7';
+import { freqToMidi } from './music.js?v=3.7';
+import { EarAudio } from './ear-audio.js?v=3.7';
+import { noteInfo } from './music.js?v=3.7';
+import { writtenMidi } from './recorders.js?v=3.7';
 
 const DEFAULT_SETTINGS = {
   tab: 'recognise',

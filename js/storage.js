@@ -19,6 +19,7 @@ const DEFAULTS = {
   rhythmInput: 'mic', // 'mic' or 'tap' (hold a button for each note)
   showPlayhead: false, // moving line and live note bars while playing rhythms
   endless: null, // endless-mode progress (see progression.js)
+  dance: null, // dance-improv moves, settings and stats (see dance-view.js)
   ear: null, // ear-training settings and progress (see ear-view.js)
   game: null, // Beat Ward progress (see game/game.js)
   chords: null, // piano chord settings and stats (see chords-view.js)

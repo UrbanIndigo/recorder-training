@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1f6f5c">
   <title>Recorder Trainer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="css/styles.css?v=3.6">
+  <link rel="stylesheet" href="css/styles.css?v=3.7">
 </head>
 <body>
   <header class="topbar">
@@ -48,6 +48,11 @@
           <span class="mode-title">Ear Training</span>
           <span class="mode-desc">Hear a key, then name notes by their scale degree (do re mi, or 1–7) and find them on your recorder. Also sing-back, melodies by ear, and anchor songs.</span>
         </button>
+        <button class="mode-card" data-goto="dance">
+          <span class="mode-icon" aria-hidden="true">💃</span>
+          <span class="mode-title">Dance Improv</span>
+          <span class="mode-desc">For leaders in forró or salsa: a groove plays and you have four counts to choose your next move, scored on speed and variety. Plus a memory sprint for your moves.</span>
+        </button>
         <button class="mode-card" data-goto="tuner">
           <span class="mode-icon" aria-hidden="true">🎯</span>
           <span class="mode-title">Tuner</span>
@@ -71,7 +76,7 @@
           <small>Turn it up if your playing isn't picked up, down if background noise is. The Mic bar shows the level: it turns green when it hears you, and the line marks the cut-off.</small>
         </div>
       </details>
-      <p class="hint version">Version 3.6</p>
+      <p class="hint version">Version 3.7</p>
     </section>
 
     <!-- Long tone: choose note -->
@@ -588,6 +593,100 @@
       </div>
     </section>
 
+    <!-- Dance improv -->
+    <section class="view" id="view-dance" hidden>
+      <h2>Dance Improv</h2>
+      <div class="dn-top">
+        <label class="rh-field">Dance
+          <select id="dn-style"></select>
+        </label>
+        <label class="rh-field dn-bpm-field">Tempo <span><b id="dn-bpm-num"></b> BPM</span>
+          <input type="range" id="dn-bpm" step="2">
+        </label>
+      </div>
+      <p class="hint" id="dn-style-note"></p>
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" id="dn-tab-flow">Flow</button>
+        <button class="tab" role="tab" id="dn-tab-recall">Recall</button>
+        <button class="tab" role="tab" id="dn-tab-moves">Moves</button>
+        <button class="tab" role="tab" id="dn-tab-stats">Stats</button>
+      </div>
+
+      <div id="dn-flow">
+        <div class="dn-stage">
+          <div class="dn-count" id="dn-count">–</div>
+          <div class="dn-stage-text">
+            <div class="dn-now" id="dn-now"></div>
+            <div class="dn-bar"><span id="dn-bar-fill"></span></div>
+            <div class="dn-next" id="dn-next"></div>
+            <div class="dn-cue" id="dn-cue"></div>
+          </div>
+        </div>
+        <div class="dn-toast" id="dn-toast"></div>
+        <div class="dn-controls">
+          <button class="btn primary" id="dn-start">▶ Start</button>
+          <button class="btn secondary" id="dn-stop" hidden>■ Stop</button>
+          <input type="text" id="dn-type" class="dn-type" placeholder="…or type a move + Enter" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <span class="dn-score" id="dn-score"></span>
+        </div>
+        <div class="dn-heard" id="dn-heard"></div>
+        <p class="hint" id="dn-hidden-note" hidden>The move list is hidden: say or type your move, from memory.</p>
+        <div class="dn-summary" id="dn-summary" hidden></div>
+        <div class="dn-tiles" id="dn-tiles"></div>
+        <details class="settings">
+          <summary>Flow settings</summary>
+          <div class="ear-checks">
+            <label class="rh-field">Session
+              <select id="dn-minutes"><option value="1">1 minute</option><option value="2">2 minutes</option><option value="3">3 minutes</option><option value="5">5 minutes</option><option value="0">Until I stop</option></select>
+            </label>
+            <label><input type="checkbox" id="dn-cues"> Cues and twists ("a turn", "the other direction"…)</label>
+            <label><input type="checkbox" id="dn-countdown"> Tick the 4 counts to choose in</label>
+            <label><input type="checkbox" id="dn-shuffle"> Shuffle the move buttons each time (so you read, not just reach)</label>
+            <label><input type="checkbox" id="dn-hide"> Hide the move list: pick from memory (say or type)</label>
+            <label id="dn-voice-label"><input type="checkbox" id="dn-voice"> 🎙 Say your moves out loud <small id="dn-voice-note"></small></label>
+            <label class="rh-field">Voice language
+              <select id="dn-voice-lang"><option value="en-US">English</option><option value="pt-BR">Português</option><option value="es-ES">Español</option></select>
+            </label>
+          </div>
+        </details>
+        <p class="hint">How it works: dance (or mark it) to the music. Four counts before each move ends, NEXT? counts down; choose your next move before the 1. Deciding early scores more; repeating the last move scores nothing, a move you haven't used yet scores best. Freeze, and you're back to the basic.</p>
+      </div>
+
+      <div id="dn-recall" hidden>
+        <p>How many of your moves can you name from memory? Type each one and press Enter: no list to look at. Pulling moves out of memory is exactly what makes them come to mind on the dance floor.</p>
+        <div class="dn-controls">
+          <select id="dn-recall-secs"><option value="30">30 seconds</option><option value="60" selected>60 seconds</option><option value="90">90 seconds</option></select>
+          <button class="btn primary" id="dn-recall-start">▶ Start</button>
+          <b class="dn-recall-timer" id="dn-recall-timer"></b>
+        </div>
+        <input type="text" id="dn-recall-input" class="dn-type wide" placeholder="Type a move, Enter" disabled autocomplete="off" autocapitalize="off" spellcheck="false">
+        <div class="dn-chips" id="dn-recall-chips"></div>
+        <div class="dn-summary" id="dn-recall-result" hidden></div>
+      </div>
+
+      <div id="dn-moves" hidden>
+        <h3 id="dn-moves-title"></h3>
+        <p class="hint">Starter lists are a guide: rename moves to what your teacher calls them, set what kind each is (for cues and variety) and how many counts it takes.</p>
+        <div id="dn-move-list"></div>
+        <form class="dn-add" id="dn-add">
+          <input type="text" id="dn-add-name" placeholder="New move name" autocomplete="off">
+          <select id="dn-add-cat"></select>
+          <select id="dn-add-counts"><option value="4">4 counts</option><option value="8" selected>8 counts</option><option value="16">16 counts</option></select>
+          <button class="btn primary small" type="submit">+ Add</button>
+        </form>
+        <button class="btn small secondary" id="dn-reset">Reset to starter list</button>
+      </div>
+
+      <div id="dn-stats" hidden>
+        <h3>Recent sessions</h3>
+        <table class="ear-table" id="dn-sessions"></table>
+        <h3>Your moves</h3>
+        <p id="dn-never"></p>
+        <table class="ear-table" id="dn-usage"></table>
+        <p class="hint" id="dn-recall-history"></p>
+      </div>
+    </section>
+
     <!-- Piano chords -->
     <section class="view" id="view-chords" hidden>
       <h2>Piano Chords</h2>
@@ -676,7 +775,7 @@
     <button class="btn primary small" id="load-error-reload">Reload</button>
   </p>
   <script>
-    window.APP_VERSION = '3.6';
+    window.APP_VERSION = '3.7';
     // If the app hasn't started after a few seconds, offer a fresh reload.
     setTimeout(function () {
       if (window.appReady) return;
@@ -687,6 +786,6 @@
       };
     }, 4000);
   </script>
-  <script type="module" src="js/app.js?v=3.6"></script>
+  <script type="module" src="js/app.js?v=3.7"></script>
 </body>
 </html>

@@ -5,13 +5,13 @@
 // fail comes back two bars later (the bar right below you never changes).
 // New patterns unlock and the tempo adapts as you go.
 
-import { CURRICULUM, newProgress, migrateProgress, chooseNext, recordResult, unlockProgress, topIssues } from './progression.js?v=3.6';
-import { OnsetTracker, scoreRhythm, generateFromCells, barVerdict, resultMarks, meterOf, cellFitsMeter, soundingNotes } from './rhythm.js?v=3.6';
-import { RhythmSheet } from './notation.js?v=3.6';
-import { playDemo, scheduleBarClicks, clicksPerBar, clickIndex } from './rhythm-play.js?v=3.6';
-import { writtenMidi, rhythmPitches, checksPitch } from './recorders.js?v=3.6';
-import { bindTapPad } from './tap-input.js?v=3.6';
-import { diatonicStep } from './music.js?v=3.6';
+import { CURRICULUM, newProgress, migrateProgress, chooseNext, recordResult, unlockProgress, topIssues } from './progression.js?v=3.7';
+import { OnsetTracker, scoreRhythm, generateFromCells, barVerdict, resultMarks, meterOf, cellFitsMeter, soundingNotes } from './rhythm.js?v=3.7';
+import { RhythmSheet } from './notation.js?v=3.7';
+import { playDemo, scheduleBarClicks, clicksPerBar, clickIndex } from './rhythm-play.js?v=3.7';
+import { writtenMidi, rhythmPitches, checksPitch } from './recorders.js?v=3.7';
+import { bindTapPad } from './tap-input.js?v=3.7';
+import { diatonicStep } from './music.js?v=3.7';
 
 const PASS = 70; // bars scoring below this come back
 const WINDOW = 6; // bars that must go well before the next unlock
