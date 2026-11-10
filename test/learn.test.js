@@ -91,3 +91,12 @@ test('decks: cards for every mode and direction, with sensible prompts', () => {
   const mine = customDeck({ id: 'x', title: 'Planets', cards: [{ q: 'Red planet', a: 'Mars' }], reverse: false });
   assert.deepEqual(deckCards(mine).map((c) => [c.q, c.a]), [['Red planet', 'Mars']]);
 });
+
+test('hints reveal more of the answer each time', async () => {
+  const { hintText } = await import('../js/learn.js');
+  assert.equal(hintText('Latissimus dorsi', 1), 'L_________ d____');
+  assert.equal(hintText('Latissimus dorsi', 2), 'Latis_____ dor__');
+  assert.equal(hintText('Latissimus dorsi', 3), 'Latissimu_ dors_');
+  assert.equal(hintText('Phalanges (fingers)', 1), 'P________ (f______)');
+  assert.equal(hintText('Brasília', 1), 'B_______');
+});

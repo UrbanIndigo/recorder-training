@@ -727,3 +727,5 @@ body { overflow-anchor: none; } /* rows updating shouldn't make the page jump */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .an-skin { fill: #4a3d36; stroke: #7a6555; }
 }
+.ln-hint-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-height: 2rem; }
+.ln-hint-text { font-size: 1.15rem; letter-spacing: 0.12em; color: var(--text); }

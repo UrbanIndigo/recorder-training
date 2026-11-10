@@ -139,3 +139,15 @@ export function parseDeck(text) {
   }
   return cards;
 }
+
+/**
+ * A hint for a typed answer, revealing more each time: level 1 shows the
+ * first letter of each word, level 2 about half of each word, level 3 all
+ * but the last letter. Spaces, hyphens and brackets always show.
+ */
+export function hintText(answer, level) {
+  return String(answer).replace(/[\p{L}\p{N}]+/gu, (word) => {
+    const show = level <= 1 ? 1 : level === 2 ? Math.ceil(word.length / 2) : Math.max(1, word.length - 1);
+    return word.slice(0, show) + '_'.repeat(Math.max(0, word.length - show));
+  });
+}

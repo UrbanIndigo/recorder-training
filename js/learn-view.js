@@ -3,9 +3,9 @@
 // spaced repetition. Anatomy decks also have an Explore mode: tap any part
 // of the body to read what it is.
 
-import { nextCard, answer, mastery, deckCounts, typedMatches, choices, parseDeck } from './learn.js?v=3.8';
-import { DECKS, customDeck, deckCards, promptFor } from './decks.js?v=3.8';
-import { bodySvg, itemsInView, viewsOf } from './anatomy.js?v=3.8';
+import { nextCard, answer, mastery, deckCounts, typedMatches, choices, parseDeck, hintText } from './learn.js?v=3.9';
+import { DECKS, customDeck, deckCards, promptFor } from './decks.js?v=3.9';
+import { bodySvg, itemsInView, viewsOf } from './anatomy.js?v=3.9';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -16,7 +16,12 @@ export function initLearnView(d) {
   L.records ||= {};
   L.custom ||= [];
   L.days ||= {};
-  L.answerBy ||= 'choices';
+  // Typing the answer is the default (it's real recall, not recognition);
+  // earlier saves switch over once.
+  if (!L.typingDefault) {
+    L.answerBy = 'typing';
+    L.typingDefault = true;
+  }
   const save = () => d.save();
   const allDecks = () => [...DECKS, ...L.custom.map(customDeck)];
   let study = null; // the deck being studied
@@ -174,6 +179,9 @@ export function initLearnView(d) {
   function offerAnswers(right, pool, accepted) {
     study.accepted = accepted;
     study.rightText = right;
+    study.hint = 0;
+    $('ln-hint-text').textContent = '';
+    $('ln-hint').disabled = false;
     if (L.answerBy === 'typing') {
       $('ln-type-row').hidden = false;
       $('ln-type').value = '';
@@ -221,7 +229,9 @@ export function initLearnView(d) {
 
   function finish(right, given) {
     const s = study;
-    answer((L.records[s.deck.id] ||= {}), s.card.id, right, Date.now(), s.turn);
+    // Right with a hint isn't known yet: it comes back soon, like a miss.
+    const hinted = right && s.hint > 0;
+    answer((L.records[s.deck.id] ||= {}), s.card.id, right && !hinted, Date.now(), s.turn);
     s.turn++;
     if (right) s.right++;
     else s.wrong++;
@@ -233,7 +243,9 @@ export function initLearnView(d) {
     const fb = $('ln-feedback');
     fb.className = `ln-feedback ${right ? 'good' : 'bad'}`;
     fb.innerHTML = `<div class="ln-verdict"></div>${fact ? '<div class="ln-fact"></div>' : ''}`;
-    fb.querySelector('.ln-verdict').textContent = right ? `✓ ${name}` : `✗ It's ${name}${given ? ` (not ${given})` : ''}`;
+    fb.querySelector('.ln-verdict').textContent = right
+      ? `✓ ${name}${hinted ? ' (with a hint, so it’ll come back soon)' : ''}`
+      : `✗ It's ${name}${given ? ` (not ${given})` : ''}`;
     if (fact) fb.querySelector('.ln-fact').textContent = card.mode === 'job' ? `${name}: ${fact}` : fact;
     $('ln-type-row').hidden = true;
     $('ln-dont-know').hidden = true;
@@ -246,6 +258,14 @@ export function initLearnView(d) {
     const t = $('ln-type').value;
     if (!t.trim()) return;
     checkAnswer(typedMatches(t, study.accepted), t.trim());
+  });
+  // Hints: more of the answer each time (first letters, half, nearly all).
+  $('ln-hint').addEventListener('click', () => {
+    if (!study || study.done) return;
+    study.hint = Math.min(3, study.hint + 1);
+    $('ln-hint-text').textContent = hintText(study.rightText, study.hint);
+    if (study.hint >= 3) $('ln-hint').disabled = true;
+    $('ln-type').focus({ preventScroll: true });
   });
   $('ln-next').addEventListener('click', ask);
   $('ln-back').addEventListener('click', renderDecks);

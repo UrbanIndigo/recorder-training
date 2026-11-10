@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1f6f5c">
   <title>Recorder Trainer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="css/styles.css?v=3.8">
+  <link rel="stylesheet" href="css/styles.css?v=3.9">
 </head>
 <body>
   <header class="topbar">
@@ -81,7 +81,7 @@
           <small>Turn it up if your playing isn't picked up, down if background noise is. The Mic bar shows the level: it turns green when it hears you, and the line marks the cut-off.</small>
         </div>
       </details>
-      <p class="hint version">Version 3.8</p>
+      <p class="hint version">Version 3.9</p>
     </section>
 
     <!-- Long tone: choose note -->
@@ -701,7 +701,7 @@
         <div class="ln-bottom">
           <button class="btn secondary" id="ln-make-open">+ Make your own deck</button>
           <label class="rh-field">Answer by
-            <select id="ln-answer-by"><option value="choices">Choosing (4 options)</option><option value="typing">Typing it (harder)</option></select>
+            <select id="ln-answer-by"><option value="typing">Typing it</option><option value="choices">Choosing from 4 (easier)</option></select>
           </label>
         </div>
         <p class="hint">Spaced repetition: cards you get right come back after longer and longer gaps (10 minutes, a day, 3 days, a week, 3 weeks); ones you miss come back a few cards later.</p>
@@ -720,9 +720,13 @@
         <div class="ln-choices" id="ln-choices"></div>
         <div id="ln-type-row" hidden>
           <form class="ln-type-form" id="ln-type-form">
-            <input type="text" id="ln-type" placeholder="Type your answer" autocomplete="off" autocapitalize="off" spellcheck="false">
+            <input type="text" id="ln-type" placeholder="Type your answer" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done">
             <button class="btn primary" type="submit">Check</button>
           </form>
+          <div class="ln-hint-row">
+            <button class="btn small secondary" id="ln-hint" type="button">💡 Hint</button>
+            <code class="ln-hint-text" id="ln-hint-text"></code>
+          </div>
         </div>
         <div class="ln-feedback" id="ln-feedback"></div>
         <div class="ln-actions">
@@ -845,7 +849,7 @@
     <button class="btn primary small" id="load-error-reload">Reload</button>
   </p>
   <script>
-    window.APP_VERSION = '3.8';
+    window.APP_VERSION = '3.9';
     // If the app hasn't started after a few seconds, offer a fresh reload.
     setTimeout(function () {
       if (window.appReady) return;
@@ -856,6 +860,6 @@
       };
     }, 4000);
   </script>
-  <script type="module" src="js/app.js?v=3.8"></script>
+  <script type="module" src="js/app.js?v=3.9"></script>
 </body>
 </html>

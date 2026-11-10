@@ -171,7 +171,7 @@ Flashcards with spaced repetition, for learning lots of random things.
 - **Random knowledge:** world capitals and chemical elements (both ways round), and the Greek alphabet.
 - **Your own decks:** paste one card per line ("Largest planet = Jupiter"), optionally asked both ways round.
 - **Spaced repetition:** a few new cards at a time. Missed cards come back a few cards later; ones you know come back after longer and longer gaps (10 minutes, a day, 3 days, a week, 3 weeks). Each deck shows how much is learnt, what's due and what's new; there's a daily count and streak.
-- **Answering:** choose from four options, or type the answer (forgiving of capitals, accents and small typos, and nicknames like "lats" or "quads"). Keys 1–4 choose, Enter moves on.
+- **Answering:** type the answer: real recall, not just recognising it. Capitals, accents, small typos and nicknames ("lats", "quads") are forgiven. Stuck? **💡 Hint** reveals more each time (first letters, then half, then nearly all), but a hinted answer counts as not yet known, so it comes back soon. You can switch to choosing from four options if you'd rather.
 
 ### Tuner
 Play anything and see the note, frequency and cents offset.
