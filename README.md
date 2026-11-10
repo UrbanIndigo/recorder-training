@@ -159,6 +159,20 @@ For partner-dance leaders who know moves but can't think of them in the moment. 
 - **Moves:** your own move list for each dance, with the kind of move and how many counts it takes. There are starter lists for forró (base, frente e trás, caminhada, giro simples, giro do cavalheiro, pião, abertura, trava, sacada…) and salsa (cross-body lead, right and left turns, copa, hammerlock, dile que no, enchufla…). Rename them to what you were taught.
 - **Stats:** recent sessions, how often you use each move, and how early you decide on it. Moves you never use are highlighted.
 
+### Learn
+
+Flashcards with spaced repetition, for learning lots of random things.
+
+- **Anatomy, on a body diagram:**
+  - **Muscles:** about 30 main surface muscles, front and back. A muscle lights up and you name it, or you're given a name and tap it on the body.
+  - **Bones:** about 20 main bones on a skeleton, the same way.
+  - **What does it do?:** which muscle does a job ("bends the elbow and turns the palm up" → biceps brachii).
+  - **Explore:** tap any part to read what it is and does, before quizzing yourself.
+- **Random knowledge:** world capitals and chemical elements (both ways round), and the Greek alphabet.
+- **Your own decks:** paste one card per line ("Largest planet = Jupiter"), optionally asked both ways round.
+- **Spaced repetition:** a few new cards at a time. Missed cards come back a few cards later; ones you know come back after longer and longer gaps (10 minutes, a day, 3 days, a week, 3 weeks). Each deck shows how much is learnt, what's due and what's new; there's a daily count and streak.
+- **Answering:** choose from four options, or type the answer (forgiving of capitals, accents and small typos, and nicknames like "lats" or "quads"). Keys 1–4 choose, Enter moves on.
+
 ### Tuner
 Play anything and see the note, frequency and cents offset.
 
@@ -194,6 +208,9 @@ Code layout (`js/`):
 - `notation.js`: draws rhythm exercises as sheet music (beams, ties, triplets, rests, counting)
 - `calibration.js`: measures the click-to-mic delay
 - `tap-input.js`: the tap button / Space bar input for rhythm reading
+- `learn.js`: the flashcard engine: spaced repetition, typed-answer matching, multiple choice, pasted decks (unit tested)
+- `anatomy.js`, `decks.js`: the body diagrams (muscles, skeleton) with what each part does, and the ready-made decks
+- `learn-view.js`: the Learn screen
 - `dance.js`: dance improv: starter moves, cues, speed and variety scoring, forgiving move-name matching (no DOM code, unit tested)
 - `dance-audio.js`, `dance-view.js`: the forró and salsa grooves, and the Dance Improv screen
 - `ear.js`: ear training: degrees, levels, keys, question choice, progress, melodies, songs, fingerings (no DOM code, unit tested)

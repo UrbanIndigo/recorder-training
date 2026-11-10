@@ -3,8 +3,8 @@
 // scored on how early you decided and how varied you are. Recall: name as
 // many of your moves as you can from memory. Moves: your own library.
 
-import { STYLES, STARTERS, CATEGORIES, pickCue, speedScore, varietyScore, meetsCue, pickPoints, summarise, matchMove, recallResult } from './dance.js?v=3.7';
-import { Groove } from './dance-audio.js?v=3.7';
+import { STYLES, STARTERS, CATEGORIES, pickCue, speedScore, varietyScore, meetsCue, pickPoints, summarise, matchMove, recallResult } from './dance.js?v=3.8';
+import { Groove } from './dance-audio.js?v=3.8';
 
 const WINDOW = 4; // counts to choose the next move
 const GRACE = 2; // counts after the "1" before you freeze
