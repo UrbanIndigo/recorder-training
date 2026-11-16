@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1f6f5c">
   <title>Recorder Trainer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="css/styles.css?v=3.9">
+  <link rel="stylesheet" href="css/styles.css?v=4.0">
 </head>
 <body>
   <header class="topbar">
@@ -81,7 +81,7 @@
           <small>Turn it up if your playing isn't picked up, down if background noise is. The Mic bar shows the level: it turns green when it hears you, and the line marks the cut-off.</small>
         </div>
       </details>
-      <p class="hint version">Version 3.9</p>
+      <p class="hint version">Version 4.0</p>
     </section>
 
     <!-- Long tone: choose note -->
@@ -203,6 +203,7 @@
       <div class="tabs" role="tablist">
         <button class="tab" role="tab" id="tab-endless" aria-controls="rh-endless">Endless</button>
         <button class="tab" role="tab" id="tab-practice" aria-controls="rh-practice">Practice</button>
+        <button class="tab" role="tab" id="tab-memory" aria-controls="rh-memory">Memory</button>
       </div>
 
       <div id="rh-endless" role="tabpanel">
@@ -299,6 +300,78 @@
             <button class="btn secondary small" id="en-reset">Start over from stage 1</button>
           </div>
         </details>
+      </div>
+
+      <div id="rh-memory" role="tabpanel" hidden>
+        <p class="mm-intro">Read the music, then it disappears: play it from memory after the count-in. Pass twice in a row and you remember another bar; after four bars, the rhythms get harder.</p>
+        <div class="mm-stage"><b id="mm-stage"></b> <span class="mm-dots" id="mm-dots"></span></div>
+        <div class="rh-controls">
+          <label class="rh-field">Rhythms
+            <select id="mm-level"></select>
+          </label>
+          <label class="rh-field">Remember
+            <select id="mm-bars"></select>
+          </label>
+          <label class="rh-field">Reading time
+            <select id="mm-time">
+              <option value="free">As long as I like</option>
+              <option value="6">6 seconds a bar</option>
+              <option value="4">4 seconds a bar</option>
+              <option value="2">2 seconds a bar</option>
+            </select>
+          </label>
+          <label class="rh-field">Notes
+            <select id="mm-notes">
+              <option value="1">One note (just the rhythm)</option>
+              <option value="3">3 notes (G A B)</option>
+              <option value="5">5 notes (G A B C D)</option>
+              <option value="octave">One octave</option>
+            </select>
+          </label>
+          <div class="rh-field">Tempo
+            <div class="stepper">
+              <button class="icon-btn" id="mm-slower" aria-label="Slower">−</button>
+              <span><span id="mm-bpm">70</span> bpm</span>
+              <button class="icon-btn" id="mm-faster" aria-label="Faster">+</button>
+            </div>
+          </div>
+          <label class="rh-field">Play with
+            <select id="mm-input">
+              <option value="mic">Microphone</option>
+              <option value="tap">Tap button</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="sheet-card">
+          <div id="mm-sheet"></div>
+          <div class="mm-hidden" id="mm-hidden" hidden></div>
+        </div>
+        <div class="beat-row" id="mm-beats" aria-hidden="true"></div>
+        <p class="rh-status" id="mm-status" aria-live="polite"></p>
+        <button class="tap-pad" id="mm-tap" hidden aria-label="Hold for each note">Hold for each note<small>or hold the Space bar</small></button>
+        <div class="level-row" id="mm-mic-row"><span>Mic</span><div class="level" id="mm-mic" title="Microphone level"><div class="level-fill"></div><div class="level-gate"></div></div></div>
+        <div class="actions">
+          <button class="btn primary" id="mm-ready">🧠 I've got it: hide it and play</button>
+          <button class="btn secondary" id="mm-stop" hidden>Stop</button>
+        </div>
+        <p class="error" id="mm-error" hidden></p>
+
+        <div id="mm-results" hidden>
+          <div class="score-hero">
+            <div class="score-ring" id="mm-score-ring"><span id="mm-score-value">0</span></div>
+            <div>
+              <div class="score-grade" id="mm-verdict"></div>
+              <div class="score-note" id="mm-detail"></div>
+            </div>
+          </div>
+          <p class="mm-change" id="mm-change"></p>
+          <ul class="tips" id="mm-tips"></ul>
+          <div class="actions">
+            <button class="btn primary" id="mm-next">Next ▸</button>
+            <button class="btn secondary" id="mm-again">Read it again and retry</button>
+          </div>
+        </div>
       </div>
 
       <div id="rh-practice" role="tabpanel" hidden>
@@ -849,7 +922,7 @@
     <button class="btn primary small" id="load-error-reload">Reload</button>
   </p>
   <script>
-    window.APP_VERSION = '3.9';
+    window.APP_VERSION = '4.0';
     // If the app hasn't started after a few seconds, offer a fresh reload.
     setTimeout(function () {
       if (window.appReady) return;
@@ -860,6 +933,6 @@
       };
     }, 4000);
   </script>
-  <script type="module" src="js/app.js?v=3.9"></script>
+  <script type="module" src="js/app.js?v=4.0"></script>
 </body>
 </html>

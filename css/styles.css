@@ -729,3 +729,12 @@ body { overflow-anchor: none; } /* rows updating shouldn't make the page jump */
 }
 .ln-hint-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-height: 2rem; }
 .ln-hint-text { font-size: 1.15rem; letter-spacing: 0.12em; color: var(--text); }
+
+/* Rhythm memory */
+.mm-intro { margin: 0 0 8px; }
+.mm-stage { margin: 4px 0 10px; }
+.mm-dots { color: var(--good); font-size: 0.85rem; }
+.mm-hidden { display: flex; gap: 8px; padding: 18px 4px; }
+.mm-hidden span { flex: 1; height: 70px; border-radius: 10px; border: 2px dashed var(--border); display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-weight: 600; }
+.mm-hidden span.now { border-style: solid; border-color: var(--accent); color: var(--text); }
+.mm-change { font-weight: 700; }

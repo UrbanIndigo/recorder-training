@@ -1,6 +1,6 @@
 // Microphone input and reference-tone playback.
 
-import { detectPitch, NoiseGate } from './pitch.js?v=3.9';
+import { detectPitch, NoiseGate } from './pitch.js?v=4.0';
 
 const AudioCtx = window.AudioContext || window.webkitAudioContext;
 

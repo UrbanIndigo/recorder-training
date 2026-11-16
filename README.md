@@ -82,7 +82,15 @@ With more than one note, wrong pitches are marked too. The music uses ledger lin
 
 **Timing calibration:** phones and Bluetooth headphones add a delay between the click and the mic. If you keep being told you're late, open *Timing calibration* and play 8 short notes on the clicks. The app measures the delay and allows for it.
 
-### Piano Chords
+### Rhythm Reading — Memory
+
+Read it, then play it from memory. You see a bar of rhythm (for as long as you like, or 6, 4 or 2 seconds a bar); then the music disappears and, after a count-in, you play it back on the recorder or by tapping. The music then comes back marked note by note (on time, a bit off, off the beat, missed) with a score.
+
+- **Moving up:** two passes in a row (80% or more) add a bar to remember, up to four bars at once. After four bars the rhythms get harder (the same 13 levels as Practice), back at one bar.
+- **Moving down:** two misses in a row (under 60%) take a bar away.
+- **Options:** pick the level and number of bars yourself. Rhythm only, or with a few notes too. Tempo is shared with Practice. **Read it again and retry** shows the same music again.
+
+
 Asks for a chord, like **G major, 1st inversion (G/B)**. You play it on the piano, tap **Show answer** to compare (keyboard picture with the bass note marked, note names, and **Hear it** to listen), then mark yourself honestly: **I got it** or **I didn't**. Then straight on to the next chord.
 
 - **Chord types:**
@@ -211,6 +219,7 @@ Code layout (`js/`):
 - `learn.js`: the flashcard engine: spaced repetition, typed-answer matching, multiple choice, pasted decks (unit tested)
 - `anatomy.js`, `decks.js`: the body diagrams (muscles, skeleton) with what each part does, and the ready-made decks
 - `learn-view.js`: the Learn screen
+- `memory.js`, `memory-view.js`: Rhythm Memory: moving up and down, and the screen
 - `dance.js`: dance improv: starter moves, cues, speed and variety scoring, forgiving move-name matching (no DOM code, unit tested)
 - `dance-audio.js`, `dance-view.js`: the forró and salsa grooves, and the Dance Improv screen
 - `ear.js`: ear training: degrees, levels, keys, question choice, progress, melodies, songs, fingerings (no DOM code, unit tested)

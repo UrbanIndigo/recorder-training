@@ -1,22 +1,23 @@
 // UI controller: navigation, the long-tone exercise, results, and the tuner.
 
-import { RECORDERS, recorderNotes, writtenMidi, detectionRange } from './recorders.js?v=3.9';
-import { noteInfo, midiToFreq, freqToMidi, describeInterval } from './music.js?v=3.9';
-import { PitchListener, playReferenceTone } from './audio.js?v=3.9';
-import { PitchSmoother } from './pitch.js?v=3.9';
-import { LongToneSession, IN_TUNE_CENTS } from './longtone.js?v=3.9';
-import { staffSvg } from './staff.js?v=3.9';
-import { drawPitchChart } from './chart.js?v=3.9';
-import { loadState, saveState, recordAttempt, noteHistory } from './storage.js?v=3.9';
-import { initRhythmView } from './rhythm-view.js?v=3.9';
-import { initEndlessView } from './endless-view.js?v=3.9';
-import { initCalibration } from './calibration.js?v=3.9';
-import { initChordsView } from './chords-view.js?v=3.9';
-import { TapListener } from './tap-input.js?v=3.9';
-import { initGameView } from './game/game.js?v=3.9';
-import { initEarView } from './ear-view.js?v=3.9';
-import { initDanceView } from './dance-view.js?v=3.9';
-import { initLearnView } from './learn-view.js?v=3.9';
+import { RECORDERS, recorderNotes, writtenMidi, detectionRange } from './recorders.js?v=4.0';
+import { noteInfo, midiToFreq, freqToMidi, describeInterval } from './music.js?v=4.0';
+import { PitchListener, playReferenceTone } from './audio.js?v=4.0';
+import { PitchSmoother } from './pitch.js?v=4.0';
+import { LongToneSession, IN_TUNE_CENTS } from './longtone.js?v=4.0';
+import { staffSvg } from './staff.js?v=4.0';
+import { drawPitchChart } from './chart.js?v=4.0';
+import { loadState, saveState, recordAttempt, noteHistory } from './storage.js?v=4.0';
+import { initRhythmView } from './rhythm-view.js?v=4.0';
+import { initEndlessView } from './endless-view.js?v=4.0';
+import { initCalibration } from './calibration.js?v=4.0';
+import { initChordsView } from './chords-view.js?v=4.0';
+import { TapListener } from './tap-input.js?v=4.0';
+import { initGameView } from './game/game.js?v=4.0';
+import { initEarView } from './ear-view.js?v=4.0';
+import { initDanceView } from './dance-view.js?v=4.0';
+import { initLearnView } from './learn-view.js?v=4.0';
+import { initMemoryView } from './memory-view.js?v=4.0';
 
 const $ = (id) => document.getElementById(id);
 const state = loadState();
@@ -46,6 +47,7 @@ function show(view) {
   if (currentView === 'rhythm') {
     rhythmView.leave();
     endlessView.leave();
+    memoryView.leave();
     calibration.stop();
   }
   for (const el of document.querySelectorAll('.view')) el.hidden = el.id !== `view-${view}`;
@@ -82,6 +84,7 @@ recorderSelect.addEventListener('change', () => {
   else if (currentView === 'pick') renderNoteGrid();
   rhythmView.recorderChanged();
   endlessView.recorderChanged();
+  memoryView.recorderChanged();
 });
 
 $('a4-select').value = String(state.a4);
@@ -252,6 +255,7 @@ document.addEventListener('visibilitychange', () => {
   }
   if (document.hidden && rhythmView.busy) rhythmView.stopIfRunning();
   if (document.hidden && endlessView.busy) endlessView.stopIfRunning();
+  if (document.hidden && memoryView.busy) memoryView.stopIfRunning();
   if (document.hidden && calibration.busy) calibration.stop();
   if (document.hidden && gameView.busy) gameView.stopIfRunning();
   if (document.hidden && danceView.busy) danceView.stopIfRunning();
@@ -525,6 +529,8 @@ const rhythmView = initRhythmView(rhythmDeps);
 
 const endlessView = initEndlessView(rhythmDeps);
 
+const memoryView = initMemoryView(rhythmDeps);
+
 const calibration = initCalibration({
   $,
   state,
@@ -537,6 +543,7 @@ const calibration = initCalibration({
   beforeCalibrate: () => {
     rhythmView.leave();
     endlessView.leave();
+    memoryView.leave();
   },
 });
 
@@ -548,23 +555,18 @@ const earView = initEarView({ $, state, save: () => saveState(state), recorder, 
 
 // Rhythm Reading has two tabs: Endless (adaptive) and Practice (pick a level).
 function showRhythmTab(tab) {
+  const tabs = { endless: endlessView, practice: rhythmView, memory: memoryView };
+  if (!tabs[tab]) tab = 'endless';
   state.rhythmTab = tab;
   saveState(state);
-  const endless = tab === 'endless';
-  $('rh-endless').hidden = !endless;
-  $('rh-practice').hidden = endless;
-  $('tab-endless').setAttribute('aria-selected', String(endless));
-  $('tab-practice').setAttribute('aria-selected', String(!endless));
-  if (endless) {
-    rhythmView.leave();
-    endlessView.enter();
-  } else {
-    endlessView.leave();
-    rhythmView.enter();
+  for (const [name, view] of Object.entries(tabs)) {
+    $(`rh-${name}`).hidden = name !== tab;
+    $(`tab-${name}`).setAttribute('aria-selected', String(name === tab));
+    if (name !== tab) view.leave();
   }
+  tabs[tab].enter();
 }
-$('tab-endless').addEventListener('click', () => showRhythmTab('endless'));
-$('tab-practice').addEventListener('click', () => showRhythmTab('practice'));
+for (const name of ['endless', 'practice', 'memory']) $(`tab-${name}`).addEventListener('click', () => showRhythmTab(name));
 
 show('home');
 window.appReady = true;
