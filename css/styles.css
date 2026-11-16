@@ -738,3 +738,17 @@ body { overflow-anchor: none; } /* rows updating shouldn't make the page jump */
 .mm-hidden span { flex: 1; height: 70px; border-radius: 10px; border: 2px dashed var(--border); display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-weight: 600; }
 .mm-hidden span.now { border-style: solid; border-color: var(--accent); color: var(--text); }
 .mm-change { font-weight: 700; }
+.mm-phase-row { display: flex; align-items: baseline; gap: 10px; min-height: 2.2rem; }
+.mm-phase { font-size: 1.5rem; font-weight: 900; letter-spacing: 0.04em; }
+.mm-phase.read { color: var(--accent); }
+.mm-phase.play { color: var(--good); }
+.mm-phase-sub { color: var(--text-muted); font-weight: 600; }
+.mm-history { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+.mm-chip { min-width: 2rem; text-align: center; padding: 2px 6px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; background: var(--surface-2); }
+.mm-chip.good, .mm-last-score.good { background: color-mix(in srgb, var(--good) 22%, var(--surface)); }
+.mm-chip.close, .mm-last-score.close { background: color-mix(in srgb, var(--warn, #c88a12) 22%, var(--surface)); }
+.mm-chip.far, .mm-last-score.far { background: color-mix(in srgb, var(--bad) 20%, var(--surface)); }
+.mm-last { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; margin: 10px 0; opacity: 0.92; }
+.mm-last-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 4px; }
+.mm-last-score { font-weight: 800; padding: 1px 8px; border-radius: 999px; }
+.mm-auto-summary { font-weight: 700; }

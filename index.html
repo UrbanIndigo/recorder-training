@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1f6f5c">
   <title>Recorder Trainer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="css/styles.css?v=4.0">
+  <link rel="stylesheet" href="css/styles.css?v=4.1">
 </head>
 <body>
   <header class="topbar">
@@ -81,7 +81,7 @@
           <small>Turn it up if your playing isn't picked up, down if background noise is. The Mic bar shows the level: it turns green when it hears you, and the line marks the cut-off.</small>
         </div>
       </details>
-      <p class="hint version">Version 4.0</p>
+      <p class="hint version">Version 4.1</p>
     </section>
 
     <!-- Long tone: choose note -->
@@ -303,7 +303,7 @@
       </div>
 
       <div id="rh-memory" role="tabpanel" hidden>
-        <p class="mm-intro">Read the music, then it disappears: play it from memory after the count-in. Pass twice in a row and you remember another bar; after four bars, the rhythms get harder.</p>
+        <p class="mm-intro">Read the music, then it disappears: play it from memory. Choose how many bars to remember; pass twice in a row and the rhythms get harder.</p>
         <div class="mm-stage"><b id="mm-stage"></b> <span class="mm-dots" id="mm-dots"></span></div>
         <div class="rh-controls">
           <label class="rh-field">Rhythms
@@ -312,7 +312,19 @@
           <label class="rh-field">Remember
             <select id="mm-bars"></select>
           </label>
-          <label class="rh-field">Reading time
+          <label class="rh-field">Mode
+            <select id="mm-mode">
+              <option value="auto">Auto: read, play, next…</option>
+              <option value="step">One at a time</option>
+            </select>
+          </label>
+          <label class="rh-field mm-auto-only">Read for
+            <select id="mm-readx">
+              <option value="1">As long as the music</option>
+              <option value="2">Twice as long</option>
+            </select>
+          </label>
+          <label class="rh-field mm-step-only">Reading time
             <select id="mm-time">
               <option value="free">As long as I like</option>
               <option value="6">6 seconds a bar</option>
@@ -343,6 +355,7 @@
           </label>
         </div>
 
+        <div class="mm-phase-row mm-auto-only"><span class="mm-phase" id="mm-phase"></span><span class="mm-phase-sub" id="mm-phase-sub"></span></div>
         <div class="sheet-card">
           <div id="mm-sheet"></div>
           <div class="mm-hidden" id="mm-hidden" hidden></div>
@@ -354,6 +367,14 @@
         <div class="actions">
           <button class="btn primary" id="mm-ready">🧠 I've got it: hide it and play</button>
           <button class="btn secondary" id="mm-stop" hidden>Stop</button>
+          <button class="btn primary" id="mm-auto-start" hidden>▶ Start</button>
+          <button class="btn secondary" id="mm-auto-stop" hidden>■ Stop</button>
+        </div>
+        <div class="mm-history mm-auto-only" id="mm-history"></div>
+        <p class="mm-auto-summary" id="mm-auto-summary" hidden></p>
+        <div class="mm-last" id="mm-last" hidden>
+          <div class="mm-last-head"><b>Last round</b> <span class="mm-last-score" id="mm-last-score"></span> <span id="mm-last-text"></span></div>
+          <div id="mm-last-sheet"></div>
         </div>
         <p class="error" id="mm-error" hidden></p>
 
@@ -922,7 +943,7 @@
     <button class="btn primary small" id="load-error-reload">Reload</button>
   </p>
   <script>
-    window.APP_VERSION = '4.0';
+    window.APP_VERSION = '4.1';
     // If the app hasn't started after a few seconds, offer a fresh reload.
     setTimeout(function () {
       if (window.appReady) return;
@@ -933,6 +954,6 @@
       };
     }, 4000);
   </script>
-  <script type="module" src="js/app.js?v=4.0"></script>
+  <script type="module" src="js/app.js?v=4.1"></script>
 </body>
 </html>

@@ -84,12 +84,15 @@ With more than one note, wrong pitches are marked too. The music uses ledger lin
 
 ### Rhythm Reading — Memory
 
-Read it, then play it from memory. You see a bar of rhythm (for as long as you like, or 6, 4 or 2 seconds a bar); then the music disappears and, after a count-in, you play it back on the recorder or by tapping. The music then comes back marked note by note (on time, a bit off, off the beat, missed) with a score.
+Read it, then play it from memory, on the recorder or by tapping. The music then comes back marked note by note (on time, a bit off, off the beat, missed) with a score.
 
-- **Moving up:** two passes in a row (80% or more) add a bar to remember, up to four bars at once. After four bars the rhythms get harder (the same 13 levels as Practice), back at one bar.
-- **Moving down:** two misses in a row (under 60%) take a bar away.
-- **Options:** pick the level and number of bars yourself. Rhythm only, or with a few notes too. Tempo is shared with Practice. **Read it again and retry** shows the same music again.
+- **Auto (the default):** one continuous loop on a steady click. 👀 READ: the music shows for as long as it lasts (or twice as long), and the last bar of reading counts you in. ▶ PLAY: it disappears and you play it straight away. Then the next one appears. Each round's marked result shows underneath while you read the next, with a strip of scores, and Stop gives a summary.
+- **One at a time:** read for as long as you like (or 6, 4 or 2 seconds a bar), press "I've got it", count-in, play.
+- **How many bars:** 1 to 4 bars to remember at once. This only changes when you change it.
+- **Getting harder:** two passes in a row (80% or more) move up a rhythm level (the same 13 levels as Practice); two misses in a row (under 60%) move down one.
+- **Options:** rhythm only, or with a few notes too. Tempo is shared with Practice.
 
+### Piano Chords
 
 Asks for a chord, like **G major, 1st inversion (G/B)**. You play it on the piano, tap **Show answer** to compare (keyboard picture with the bass note marked, note names, and **Hear it** to listen), then mark yourself honestly: **I got it** or **I didn't**. Then straight on to the next chord.
 
