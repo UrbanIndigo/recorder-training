@@ -4,12 +4,12 @@
 // the next. Step mode does one round at a time. You choose how many bars;
 // passing makes the rhythms harder, struggling makes them easier.
 
-import { LEVELS, generateExercise, OnsetTracker, meterOf, scoreRhythm, barVerdicts, resultMarks, playedBeats } from './rhythm.js?v=4.1';
-import { RhythmSheet } from './notation.js?v=4.1';
-import { scheduleBarClicks, clicksPerBar, clickIndex } from './rhythm-play.js?v=4.1';
-import { writtenMidi, rhythmPitches, checksPitch } from './recorders.js?v=4.1';
-import { bindTapPad } from './tap-input.js?v=4.1';
-import { newMemory, recordRound, readingTime, PASS, MAX_BARS } from './memory.js?v=4.1';
+import { LEVELS, OnsetTracker, meterOf, scoreRhythm, barVerdicts, resultMarks, playedBeats } from './rhythm.js?v=4.3';
+import { RhythmSheet } from './notation.js?v=4.3';
+import { scheduleBarClicks, clicksPerBar, clickIndex } from './rhythm-play.js?v=4.3';
+import { writtenMidi, rhythmPitches, checksPitch } from './recorders.js?v=4.3';
+import { bindTapPad } from './tap-input.js?v=4.3';
+import { newMemory, recordRound, readingTime, PASS, MAX_BARS, METER_CHOICES, memoryExercise, levelFits, stepLevel, VIEW_CHOICES, roundTimeline } from './memory.js?v=4.3';
 
 const CHANGE_TEXT = {
   harder: (m) => `🚀 Two in a row! Harder rhythms: ${LEVELS[m.level - 1].name}.`,
@@ -22,7 +22,9 @@ export function initMemoryView(d) {
   state.memory.readTime ||= 'free';
   state.memory.notes ||= '1';
   state.memory.mode ||= 'auto'; // 'auto' (continuous) or 'step' (one at a time)
-  state.memory.readX ||= '1'; // auto: read for 1× or 2× the music's length
+  // Auto: how long you see the music (older saves had 1× / 2×).
+  state.memory.view ||= state.memory.readX === '2' ? 'x2' : 'x1';
+  state.memory.meter ||= '4/4'; // stick to one time signature (or 'mixed')
   const M = () => state.memory;
   let exercise = null;
   let sheet = null;
@@ -57,8 +59,18 @@ export function initMemoryView(d) {
     if (M().mode === 'step') newRound();
     else autoIdle();
   });
+  for (const m of METER_CHOICES) $('mm-meter').add(new Option(m === 'mixed' ? 'Mixed (changes)' : m, m));
+  $('mm-meter').addEventListener('change', (e) => {
+    stop();
+    M().meter = e.target.value;
+    d.save();
+    if (M().mode === 'auto') autoIdle();
+    else newRound();
+    syncControls();
+  });
+  for (const [v, label] of VIEW_CHOICES) $('mm-readx').add(new Option(label, v));
   $('mm-readx').addEventListener('change', (e) => {
-    M().readX = e.target.value;
+    M().view = e.target.value;
     d.save();
   });
   $('mm-auto-start').addEventListener('click', () => startAuto());
@@ -81,7 +93,8 @@ export function initMemoryView(d) {
     $('mm-time').value = M().readTime;
     $('mm-notes').value = M().notes;
     $('mm-mode').value = M().mode;
-    $('mm-readx').value = M().readX;
+    $('mm-meter').value = M().meter;
+    $('mm-readx').value = M().view;
     $('mm-bpm').textContent = String(state.bpm);
     const auto = M().mode === 'auto';
     for (const el of document.querySelectorAll('#rh-memory .mm-step-only')) el.hidden = auto;
@@ -98,7 +111,8 @@ export function initMemoryView(d) {
     document.querySelector('#rh-memory .mm-intro').hidden = !!autoRun;
     syncInput();
     const lvl = LEVELS[M().level - 1];
-    $('mm-stage').textContent = `Level ${lvl.id}: ${lvl.name} · remember ${M().bars} bar${M().bars > 1 ? 's' : ''}`;
+    const fits = levelFits(lvl.id, M().meter);
+    $('mm-stage').textContent = `Level ${lvl.id}: ${lvl.name}${fits ? '' : ` (no ${M().meter} rhythms: using the nearest level that has some)`} · ${M().meter === 'mixed' ? 'mixed time' : M().meter} · remember ${M().bars} bar${M().bars > 1 ? 's' : ''}`;
     $('mm-dots').textContent = M().passes ? '● pass so far: one more to move up' : '';
   }
   function syncInput() {
@@ -129,13 +143,25 @@ export function initMemoryView(d) {
 
   // ------------------------------------------------------------- rounds
 
+  function makeExercise() {
+    return memoryExercise({ level: M().level, meter: M().meter, pitches: pitches(), bars: M().bars });
+  }
+
+  /** Record a score; moving up or down skips levels with nothing in the chosen time signature. */
+  function record(score) {
+    const before = M().level;
+    const change = recordRound(M(), score, LEVELS.length);
+    if (change && !levelFits(M().level, M().meter)) M().level = stepLevel(before, change === 'harder' ? 1 : -1, M().meter);
+    return M().level === before ? null : change;
+  }
+
   function pitches() {
     return rhythmPitches(d.recorder(), String(M().notes));
   }
 
   function newRound() {
     stop();
-    exercise = generateExercise({ level: M().level, pitches: pitches(), bars: M().bars });
+    exercise = makeExercise();
     syncControls();
     reread();
   }
@@ -255,7 +281,7 @@ export function initMemoryView(d) {
     sheet.setResults(statuses, offsets);
     sheet.setBarLabels(barVerdicts(exercise, result));
     sheet.setPlayed(playedBeats(result, played, run.beat));
-    const change = recordRound(M(), result.overall, LEVELS.length);
+    const change = record(result.overall);
     d.save();
 
     const ring = $('mm-score-ring');
@@ -298,7 +324,7 @@ export function initMemoryView(d) {
 
   function autoIdle() {
     phase = 'idle';
-    exercise = generateExercise({ level: M().level, pitches: pitches(), bars: M().bars });
+    exercise = makeExercise();
     sheet = new RhythmSheet($('mm-sheet'), exercise, (m) => writtenMidi(d.recorder(), m), d.recorder().clef);
     $('mm-sheet').hidden = false;
     $('mm-hidden').hidden = true;
@@ -329,24 +355,21 @@ export function initMemoryView(d) {
     $('mm-last').hidden = true;
     $('mm-auto-summary').hidden = true;
     syncInput();
-    scheduleRound(generateExercise({ level: M().level, pitches: pitches(), bars: M().bars }), ctx.currentTime + 0.4);
+    scheduleRound(makeExercise(), ctx.currentTime + 0.4);
     autoRun.unsub = d.listener.onPitch(onAutoFrame);
     syncControls();
     $('mm-stage').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  /** Put a round on the timeline: reading, then playing, with the click all the way through. */
+  /** Put a round on the timeline: see it, a one-bar count-in with it hidden, then play; the click never stops. */
   function scheduleRound(ex, t) {
     const r = autoRun;
     const m = meterOf(ex);
-    const barSec = m.bpb * r.beat;
-    const readBars = ex.bars * Number(M().readX);
-    const round = { ex, m, readStart: t, playStart: t + readBars * barSec, scored: false };
-    round.playEnd = round.playStart + ex.bars * barSec;
-    // Reading: soft clicks, with the last bar as a clear count-in.
-    if (readBars > 1) scheduleBarClicks(r.ctx, m, t, r.beat, readBars - 1, 0.6);
-    scheduleBarClicks(r.ctx, m, round.playStart - barSec, r.beat, 1, 1);
-    scheduleBarClicks(r.ctx, m, round.playStart, r.beat, ex.bars, state.clickWhilePlaying ? 0.7 : 0.25);
+    const tl = roundTimeline(M().view, ex.bars, m.bpb * r.beat, t);
+    const round = { ex, m, ...tl, scored: false };
+    if (tl.readBars) scheduleBarClicks(r.ctx, m, t, r.beat, tl.readBars, 0.6);
+    scheduleBarClicks(r.ctx, m, tl.countStart, r.beat, 1, 1);
+    scheduleBarClicks(r.ctx, m, tl.playStart, r.beat, ex.bars, state.clickWhilePlaying ? 0.7 : 0.25);
     r.rounds.push(round);
   }
 
@@ -361,23 +384,27 @@ export function initMemoryView(d) {
     const heard = now - (r.ctx.outputLatency || 0);
     const round = [...r.rounds].reverse().find((x) => heard >= x.readStart);
     if (round) {
-      const playing = heard >= round.playStart;
-      if (r.shown !== round || r.phase !== playing) showPhase(round, playing);
-      const from = playing ? round.playStart : round.readStart;
-      const pos = (heard - from) / r.beat;
-      renderBeats(clickIndex(pos % round.m.bpb, round.m), !playing && heard >= round.playStart - round.m.bpb * r.beat);
-      if (!playing) {
-        const toGo = Math.ceil((round.playStart - heard) / r.beat);
-        $('mm-phase-sub').textContent = toGo <= clicksPerBar(round.m) ? `play in ${toGo}…` : 'read it';
-      } else {
+      const stage = heard >= round.playStart ? 'play' : heard >= round.showEnd ? 'count' : 'read';
+      if (r.shown !== round || r.phase !== stage) showPhase(round, stage);
+      if (stage === 'play') {
+        const pos = (heard - round.playStart) / r.beat;
+        renderBeats(clickIndex(pos % round.m.bpb, round.m));
         const bar = Math.min(round.ex.bars, Math.floor(pos / round.m.bpb) + 1);
         $('mm-phase-sub').textContent = round.ex.bars > 1 ? `bar ${bar} of ${round.ex.bars}` : 'from memory';
         [...$('mm-hidden').children].forEach((c, i) => c.classList.toggle('now', i === bar - 1));
         // Line up the next round to start the moment this one ends.
         if (!round.next) {
           round.next = true;
-          scheduleRound(generateExercise({ level: M().level, pitches: pitches(), bars: M().bars }), round.playEnd);
+          scheduleRound(makeExercise(), round.playEnd);
         }
+      } else if (heard >= round.countStart) {
+        const pos = (heard - round.countStart) / r.beat;
+        renderBeats(clickIndex(pos, round.m), true);
+        $('mm-phase-sub').textContent = `play in ${Math.max(1, Math.ceil((round.playStart - heard) / r.beat))}…`;
+      } else {
+        const pos = (heard - round.readStart) / r.beat;
+        renderBeats(clickIndex(pos % round.m.bpb, round.m));
+        $('mm-phase-sub').textContent = 'read it';
       }
     }
     // Mark each round once its last note has had time to finish.
@@ -389,24 +416,28 @@ export function initMemoryView(d) {
     r.tracker.notes = r.tracker.notes.filter((n) => n.end > now - 20);
   }
 
-  function showPhase(round, playing) {
+  /** Show the music (read), or hide it (count-in and play). */
+  function showPhase(round, stage) {
     const r = autoRun;
+    const firstTime = r.shown !== round;
     r.shown = round;
-    r.phase = playing;
-    phase = playing ? 'playing' : 'reading';
-    $('mm-phase').textContent = playing ? '▶ PLAY' : '👀 READ';
-    $('mm-phase').className = `mm-phase ${playing ? 'play' : 'read'}`;
-    if (playing) {
-      $('mm-sheet').hidden = true;
-      $('mm-hidden').hidden = false;
-      $('mm-hidden').replaceChildren(...Array.from({ length: round.ex.bars }, (_, i) => Object.assign(document.createElement('span'), { textContent: `bar ${i + 1}` })));
-    } else {
+    r.phase = stage;
+    phase = stage === 'play' ? 'playing' : 'reading';
+    $('mm-phase').textContent = { read: '👀 READ', count: '🤫 HOLD IT', play: '▶ PLAY' }[stage];
+    $('mm-phase').className = `mm-phase ${stage}`;
+    if (stage === 'read') {
       exercise = round.ex;
       $('mm-hidden').hidden = true;
       $('mm-sheet').hidden = false;
-      sheet = new RhythmSheet($('mm-sheet'), round.ex, (m) => writtenMidi(d.recorder(), m), d.recorder().clef);
+      if (firstTime) sheet = new RhythmSheet($('mm-sheet'), round.ex, (m) => writtenMidi(d.recorder(), m), d.recorder().clef);
+    } else {
+      $('mm-sheet').hidden = true;
+      $('mm-hidden').hidden = false;
+      if (firstTime || stage === 'count' || !$('mm-hidden').childElementCount) {
+        $('mm-hidden').replaceChildren(...Array.from({ length: round.ex.bars }, (_, i) => Object.assign(document.createElement('span'), { textContent: `bar ${i + 1}` })));
+      }
     }
-    setStatus(playing ? 'Play it from memory!' : 'Read it: it disappears when the count-in ends.');
+    setStatus({ read: 'Read it…', count: 'Keep it in your head: play on the next 1.', play: 'Play it from memory!' }[stage]);
   }
 
   function scoreAutoRound(round, now) {
@@ -419,7 +450,7 @@ export function initMemoryView(d) {
       .filter((n) => n.start - lat >= round.playStart - 0.5 * r.beat && n.start - lat < round.playEnd - 0.1 * r.beat)
       .map((n) => ({ start: n.start - lat - round.playStart, end: Math.min(n.end - lat - round.playStart, endSec + 0.2), midi: n.midi }));
     const result = scoreRhythm(round.ex, played, r.bpm, { checkPitch: checksPitch(M().notes) && !d.tapMode() });
-    const change = recordRound(M(), result.overall, LEVELS.length);
+    const change = record(result.overall);
     d.save();
     r.scores.push(result.overall);
     // The round you just played, marked, under the one you're reading now.

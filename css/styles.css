@@ -742,6 +742,7 @@ body { overflow-anchor: none; } /* rows updating shouldn't make the page jump */
 .mm-phase { font-size: 1.5rem; font-weight: 900; letter-spacing: 0.04em; }
 .mm-phase.read { color: var(--accent); }
 .mm-phase.play { color: var(--good); }
+.mm-phase.count { color: var(--warn, #c88a12); }
 .mm-phase-sub { color: var(--text-muted); font-weight: 600; }
 .mm-history { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
 .mm-chip { min-width: 2rem; text-align: center; padding: 2px 6px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; background: var(--surface-2); }

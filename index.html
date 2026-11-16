@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1f6f5c">
   <title>Recorder Trainer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="css/styles.css?v=4.1">
+  <link rel="stylesheet" href="css/styles.css?v=4.3">
 </head>
 <body>
   <header class="topbar">
@@ -81,7 +81,7 @@
           <small>Turn it up if your playing isn't picked up, down if background noise is. The Mic bar shows the level: it turns green when it hears you, and the line marks the cut-off.</small>
         </div>
       </details>
-      <p class="hint version">Version 4.1</p>
+      <p class="hint version">Version 4.3</p>
     </section>
 
     <!-- Long tone: choose note -->
@@ -312,17 +312,17 @@
           <label class="rh-field">Remember
             <select id="mm-bars"></select>
           </label>
+          <label class="rh-field">Time
+            <select id="mm-meter"></select>
+          </label>
           <label class="rh-field">Mode
             <select id="mm-mode">
               <option value="auto">Auto: read, play, next…</option>
               <option value="step">One at a time</option>
             </select>
           </label>
-          <label class="rh-field mm-auto-only">Read for
-            <select id="mm-readx">
-              <option value="1">As long as the music</option>
-              <option value="2">Twice as long</option>
-            </select>
+          <label class="rh-field mm-auto-only">See it for
+            <select id="mm-readx"></select>
           </label>
           <label class="rh-field mm-step-only">Reading time
             <select id="mm-time">
@@ -943,7 +943,7 @@
     <button class="btn primary small" id="load-error-reload">Reload</button>
   </p>
   <script>
-    window.APP_VERSION = '4.1';
+    window.APP_VERSION = '4.3';
     // If the app hasn't started after a few seconds, offer a fresh reload.
     setTimeout(function () {
       if (window.appReady) return;
@@ -954,6 +954,6 @@
       };
     }, 4000);
   </script>
-  <script type="module" src="js/app.js?v=4.1"></script>
+  <script type="module" src="js/app.js?v=4.3"></script>
 </body>
 </html>

@@ -86,9 +86,10 @@ With more than one note, wrong pitches are marked too. The music uses ledger lin
 
 Read it, then play it from memory, on the recorder or by tapping. The music then comes back marked note by note (on time, a bit off, off the beat, missed) with a score.
 
-- **Auto (the default):** one continuous loop on a steady click. 👀 READ: the music shows for as long as it lasts (or twice as long), and the last bar of reading counts you in. ▶ PLAY: it disappears and you play it straight away. Then the next one appears. Each round's marked result shows underneath while you read the next, with a strip of scores, and Stop gives a summary.
+- **Auto (the default):** one continuous loop on a steady click. 👀 READ: you see the music, then 🤫 HOLD IT: it disappears for a one-bar (4-beat) count-in, then ▶ PLAY: you play it from memory. The next one appears straight away. **See it for:** a glance (½ second, 1 or 2 seconds, flashed at the start of the count-in), as long as the music, or twice as long. Each round's marked result shows underneath while you read the next, with a strip of scores, and Stop gives a summary.
 - **One at a time:** read for as long as you like (or 6, 4 or 2 seconds a bar), press "I've got it", count-in, play.
 - **How many bars:** 1 to 4 bars to remember at once. This only changes when you change it.
+- **Time signature:** stays in 4/4 unless you choose 3/4, 2/4, 6/8 or Mixed (changing each round, as in Practice). Moving up skips levels with nothing in your time signature.
 - **Getting harder:** two passes in a row (80% or more) move up a rhythm level (the same 13 levels as Practice); two misses in a row (under 60%) move down one.
 - **Options:** rhythm only, or with a few notes too. Tempo is shared with Practice.
 

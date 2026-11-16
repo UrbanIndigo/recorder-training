@@ -2,7 +2,7 @@
 // anatomy.js (with the body diagram); the rest are question → answer
 // cards. `reverse` decks are asked both ways round.
 
-import { MUSCLES, BONES, viewsOf } from './anatomy.js?v=4.1';
+import { MUSCLES, BONES, viewsOf } from './anatomy.js?v=4.3';
 
 const pairs = (list) => list.map(([q, a, note]) => ({ q, a, note }));
 

@@ -3,8 +3,8 @@
 // rising scale). Everything is synthesised, so there's nothing to load and
 // playback starts at once.
 
-import { midiToFreq } from './music.js?v=4.1';
-import { DEGREES } from './ear.js?v=4.1';
+import { midiToFreq } from './music.js?v=4.3';
+import { DEGREES } from './ear.js?v=4.3';
 
 const AudioCtx = typeof window !== 'undefined' ? window.AudioContext || window.webkitAudioContext : null;
 

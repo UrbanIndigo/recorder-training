@@ -1,23 +1,23 @@
 // UI controller: navigation, the long-tone exercise, results, and the tuner.
 
-import { RECORDERS, recorderNotes, writtenMidi, detectionRange } from './recorders.js?v=4.1';
-import { noteInfo, midiToFreq, freqToMidi, describeInterval } from './music.js?v=4.1';
-import { PitchListener, playReferenceTone } from './audio.js?v=4.1';
-import { PitchSmoother } from './pitch.js?v=4.1';
-import { LongToneSession, IN_TUNE_CENTS } from './longtone.js?v=4.1';
-import { staffSvg } from './staff.js?v=4.1';
-import { drawPitchChart } from './chart.js?v=4.1';
-import { loadState, saveState, recordAttempt, noteHistory } from './storage.js?v=4.1';
-import { initRhythmView } from './rhythm-view.js?v=4.1';
-import { initEndlessView } from './endless-view.js?v=4.1';
-import { initCalibration } from './calibration.js?v=4.1';
-import { initChordsView } from './chords-view.js?v=4.1';
-import { TapListener } from './tap-input.js?v=4.1';
-import { initGameView } from './game/game.js?v=4.1';
-import { initEarView } from './ear-view.js?v=4.1';
-import { initDanceView } from './dance-view.js?v=4.1';
-import { initLearnView } from './learn-view.js?v=4.1';
-import { initMemoryView } from './memory-view.js?v=4.1';
+import { RECORDERS, recorderNotes, writtenMidi, detectionRange } from './recorders.js?v=4.3';
+import { noteInfo, midiToFreq, freqToMidi, describeInterval } from './music.js?v=4.3';
+import { PitchListener, playReferenceTone } from './audio.js?v=4.3';
+import { PitchSmoother } from './pitch.js?v=4.3';
+import { LongToneSession, IN_TUNE_CENTS } from './longtone.js?v=4.3';
+import { staffSvg } from './staff.js?v=4.3';
+import { drawPitchChart } from './chart.js?v=4.3';
+import { loadState, saveState, recordAttempt, noteHistory } from './storage.js?v=4.3';
+import { initRhythmView } from './rhythm-view.js?v=4.3';
+import { initEndlessView } from './endless-view.js?v=4.3';
+import { initCalibration } from './calibration.js?v=4.3';
+import { initChordsView } from './chords-view.js?v=4.3';
+import { TapListener } from './tap-input.js?v=4.3';
+import { initGameView } from './game/game.js?v=4.3';
+import { initEarView } from './ear-view.js?v=4.3';
+import { initDanceView } from './dance-view.js?v=4.3';
+import { initLearnView } from './learn-view.js?v=4.3';
+import { initMemoryView } from './memory-view.js?v=4.3';
 
 const $ = (id) => document.getElementById(id);
 const state = loadState();

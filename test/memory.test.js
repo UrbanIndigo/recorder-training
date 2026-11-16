@@ -36,3 +36,36 @@ test('reading time', () => {
   assert.equal(readingTime('free', 3), null);
   assert.equal(readingTime('4', 3), 12);
 });
+
+test('time signature: sticks to the one chosen; levels without it are skipped', async () => {
+  const { memoryExercise, stepLevel, levelFits } = await import('../js/memory.js');
+  const { meterOf, LEVELS } = await import('../js/rhythm.js');
+  const { seededRandom } = await import('../js/game/song.js');
+  const r = seededRandom(5);
+  for (const lvl of LEVELS) {
+    for (let i = 0; i < 5; i++) {
+      const ex = memoryExercise({ level: lvl.id, meter: '4/4', pitches: [71], bars: 2, random: r });
+      assert.equal(meterOf(ex).id, '4/4', `level ${lvl.id}`);
+      assert.equal(ex.bars, 2);
+    }
+  }
+  assert.equal(meterOf(memoryExercise({ level: 3, meter: '6/8', pitches: [71], bars: 1, random: r })).id, '6/8');
+  assert.ok(!levelFits(10, '4/4') && levelFits(10, '6/8') && levelFits(10, 'mixed'));
+  assert.equal(stepLevel(9, 1, '4/4'), 11); // 10 is 6/8 only
+  assert.equal(stepLevel(11, -1, '4/4'), 9);
+  assert.equal(stepLevel(9, 1, 'mixed'), 10);
+  assert.equal(stepLevel(13, 1, '4/4'), 13);
+});
+
+test('auto round timeline: see it, a hidden one-bar count-in, then play', async () => {
+  const { roundTimeline } = await import('../js/memory.js');
+  // A glance: half a second at the start of the count-in bar (2 s at 120 bpm).
+  const g = roundTimeline('0.5', 1, 2, 10);
+  assert.deepEqual([g.showEnd, g.countStart, g.playStart, g.playEnd, g.readBars], [10.5, 10, 12, 14, 0]);
+  // As long as the music (2 bars): read 2 bars, count-in, play 2 bars.
+  const x1 = roundTimeline('x1', 2, 2, 0);
+  assert.deepEqual([x1.showEnd, x1.countStart, x1.playStart, x1.playEnd, x1.readBars], [4, 4, 6, 10, 2]);
+  assert.equal(roundTimeline('x2', 1, 2, 0).playStart, 6);
+  // A long "glance" still leaves part of the count-in with the music hidden.
+  assert.ok(roundTimeline('2', 1, 2, 0).showEnd < 2);
+});
