@@ -69,3 +69,11 @@ test('auto round timeline: see it, a hidden one-bar count-in, then play', async 
   // A long "glance" still leaves part of the count-in with the music hidden.
   assert.ok(roundTimeline('2', 1, 2, 0).showEnd < 2);
 });
+
+test('bar verdicts become one big word', async () => {
+  const { verdictWord } = await import('../js/memory.js');
+  assert.equal(verdictWord({ text: 'Great', level: 'good' }), 'PERFECT!');
+  assert.equal(verdictWord({ text: 'Good', level: 'good' }), 'NICE!');
+  assert.equal(verdictWord({ text: 'Late', level: 'close' }), 'OK');
+  assert.equal(verdictWord({ text: 'Missed', level: 'far' }), 'BAD');
+});

@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1f6f5c">
   <title>Recorder Trainer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="css/styles.css?v=4.3">
+  <link rel="stylesheet" href="css/styles.css?v=4.4">
 </head>
 <body>
   <header class="topbar">
@@ -81,7 +81,7 @@
           <small>Turn it up if your playing isn't picked up, down if background noise is. The Mic bar shows the level: it turns green when it hears you, and the line marks the cut-off.</small>
         </div>
       </details>
-      <p class="hint version">Version 4.3</p>
+      <p class="hint version">Version 4.4</p>
     </section>
 
     <!-- Long tone: choose note -->
@@ -355,7 +355,7 @@
           </label>
         </div>
 
-        <div class="mm-phase-row mm-auto-only"><span class="mm-phase" id="mm-phase"></span><span class="mm-phase-sub" id="mm-phase-sub"></span></div>
+        <div class="mm-phase-row mm-auto-only"><span class="mm-phase" id="mm-phase"></span><span class="mm-phase-sub" id="mm-phase-sub"></span><span class="mm-flash" id="mm-flash" aria-live="polite"></span></div>
         <div class="sheet-card">
           <div id="mm-sheet"></div>
           <div class="mm-hidden" id="mm-hidden" hidden></div>
@@ -943,7 +943,7 @@
     <button class="btn primary small" id="load-error-reload">Reload</button>
   </p>
   <script>
-    window.APP_VERSION = '4.3';
+    window.APP_VERSION = '4.4';
     // If the app hasn't started after a few seconds, offer a fresh reload.
     setTimeout(function () {
       if (window.appReady) return;
@@ -954,6 +954,6 @@
       };
     }, 4000);
   </script>
-  <script type="module" src="js/app.js?v=4.3"></script>
+  <script type="module" src="js/app.js?v=4.4"></script>
 </body>
 </html>

@@ -4,12 +4,12 @@
 // the next. Step mode does one round at a time. You choose how many bars;
 // passing makes the rhythms harder, struggling makes them easier.
 
-import { LEVELS, OnsetTracker, meterOf, scoreRhythm, barVerdicts, resultMarks, playedBeats } from './rhythm.js?v=4.3';
-import { RhythmSheet } from './notation.js?v=4.3';
-import { scheduleBarClicks, clicksPerBar, clickIndex } from './rhythm-play.js?v=4.3';
-import { writtenMidi, rhythmPitches, checksPitch } from './recorders.js?v=4.3';
-import { bindTapPad } from './tap-input.js?v=4.3';
-import { newMemory, recordRound, readingTime, PASS, MAX_BARS, METER_CHOICES, memoryExercise, levelFits, stepLevel, VIEW_CHOICES, roundTimeline } from './memory.js?v=4.3';
+import { LEVELS, OnsetTracker, meterOf, scoreRhythm, barVerdicts, barVerdict, resultMarks, playedBeats } from './rhythm.js?v=4.4';
+import { RhythmSheet } from './notation.js?v=4.4';
+import { scheduleBarClicks, clicksPerBar, clickIndex } from './rhythm-play.js?v=4.4';
+import { writtenMidi, rhythmPitches, checksPitch } from './recorders.js?v=4.4';
+import { bindTapPad } from './tap-input.js?v=4.4';
+import { newMemory, recordRound, readingTime, PASS, MAX_BARS, METER_CHOICES, memoryExercise, levelFits, stepLevel, VIEW_CHOICES, roundTimeline, verdictWord } from './memory.js?v=4.4';
 
 const CHANGE_TEXT = {
   harder: (m) => `🚀 Two in a row! Harder rhythms: ${LEVELS[m.level - 1].name}.`,
@@ -386,6 +386,7 @@ export function initMemoryView(d) {
     if (round) {
       const stage = heard >= round.playStart ? 'play' : heard >= round.showEnd ? 'count' : 'read';
       if (r.shown !== round || r.phase !== stage) showPhase(round, stage);
+      if (stage === 'play') checkBars(round, now);
       if (stage === 'play') {
         const pos = (heard - round.playStart) / r.beat;
         renderBeats(clickIndex(pos % round.m.bpb, round.m));
@@ -407,6 +408,7 @@ export function initMemoryView(d) {
         $('mm-phase-sub').textContent = 'read it';
       }
     }
+    for (const x of r.rounds) if (!x.scored) checkBars(x, now);
     // Mark each round once its last note has had time to finish.
     for (const x of r.rounds) {
       if (x.scored || now < x.playEnd + r.latency + 0.3) continue;
@@ -414,6 +416,55 @@ export function initMemoryView(d) {
     }
     r.rounds = r.rounds.filter((x) => !x.scored || x.playEnd > heard - 20);
     r.tracker.notes = r.tracker.notes.filter((n) => n.end > now - 20);
+  }
+
+  /** The notes played for a round, as times from its first beat (before `until`, an audio time). */
+  function playedFor(round, now, until) {
+    const r = autoRun;
+    const lat = r.latency;
+    const endSec = round.ex.totalBeats * r.beat;
+    return r.tracker
+      .snapshot(now)
+      .filter((n) => n.start - lat >= round.playStart - 0.5 * r.beat && n.start - lat < until)
+      .map((n) => ({ start: n.start - lat - round.playStart, end: Math.min(n.end - lat - round.playStart, endSec + 0.2), midi: n.midi }));
+  }
+
+  /** As each bar ends (and its last note has had time to sound), say how it went. */
+  function checkBars(round, now) {
+    const r = autoRun;
+    const barSec = round.m.bpb * r.beat;
+    round.barsDone ||= 0;
+    while (round.barsDone < round.ex.bars) {
+      const b = round.barsDone;
+      const barEnd = round.playStart + (b + 1) * barSec;
+      if (now < barEnd + r.latency + 0.25) return;
+      round.barsDone++;
+      // Score what's been played so far; only this bar's verdict counts.
+      const result = scoreRhythm(round.ex, playedFor(round, now, barEnd - 0.15 * r.beat), r.bpm, { checkPitch: checksPitch(M().notes) && !d.tapMode() });
+      const v = barVerdict(round.ex, result, b);
+      const word = verdictWord(v);
+      const lvl = word === 'PERFECT!' || word === 'NICE!' ? 'good' : word === 'OK' ? 'close' : 'far';
+      flash(word, v.text, lvl, round.ex.bars > 1 ? b + 1 : null);
+      // Mark the hidden bar's box too, while it's still showing.
+      if (r.shown === round) {
+        const box = $('mm-hidden').children[b];
+        if (box) {
+          box.textContent = word;
+          box.className = `done ${lvl}`;
+        }
+      }
+    }
+  }
+
+  let flashTimer = null;
+  function flash(word, why, lvl, bar) {
+    const el = $('mm-flash');
+    el.innerHTML = '<b></b><small></small>';
+    el.querySelector('b').textContent = word;
+    el.querySelector('small').textContent = `${bar ? `bar ${bar}: ` : ''}${why}`;
+    el.className = `mm-flash ${lvl} show`;
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => el.classList.remove('show'), 1600);
   }
 
   /** Show the music (read), or hide it (count-in and play). */
@@ -443,12 +494,7 @@ export function initMemoryView(d) {
   function scoreAutoRound(round, now) {
     const r = autoRun;
     round.scored = true;
-    const lat = r.latency;
-    const endSec = round.ex.totalBeats * r.beat;
-    const played = r.tracker
-      .snapshot(now)
-      .filter((n) => n.start - lat >= round.playStart - 0.5 * r.beat && n.start - lat < round.playEnd - 0.1 * r.beat)
-      .map((n) => ({ start: n.start - lat - round.playStart, end: Math.min(n.end - lat - round.playStart, endSec + 0.2), midi: n.midi }));
+    const played = playedFor(round, now, round.playEnd - 0.1 * r.beat);
     const result = scoreRhythm(round.ex, played, r.bpm, { checkPitch: checksPitch(M().notes) && !d.tapMode() });
     const change = record(result.overall);
     d.save();

@@ -753,3 +753,15 @@ body { overflow-anchor: none; } /* rows updating shouldn't make the page jump */
 .mm-last-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 4px; }
 .mm-last-score { font-weight: 800; padding: 1px 8px; border-radius: 999px; }
 .mm-auto-summary { font-weight: 700; }
+.mm-phase-row { position: relative; }
+.mm-flash { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; opacity: 0; transform: scale(0.8); transition: opacity 0.15s, transform 0.15s; pointer-events: none; }
+.mm-flash.show { opacity: 1; transform: scale(1); }
+.mm-flash b { font-size: 1.7rem; font-weight: 900; line-height: 1; letter-spacing: 0.02em; }
+.mm-flash small { font-size: 0.75rem; color: var(--text-muted); }
+.mm-flash.good b { color: var(--good); }
+.mm-flash.close b { color: var(--warn, #c88a12); }
+.mm-flash.far b { color: var(--bad); }
+.mm-hidden span.done { border-style: solid; font-weight: 900; font-size: 1.2rem; }
+.mm-hidden span.done.good { border-color: var(--good); color: var(--good); }
+.mm-hidden span.done.close { border-color: var(--warn, #c88a12); color: var(--warn, #c88a12); }
+.mm-hidden span.done.far { border-color: var(--bad); color: var(--bad); }

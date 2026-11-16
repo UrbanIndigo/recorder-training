@@ -3,9 +3,9 @@
 // spaced repetition. Anatomy decks also have an Explore mode: tap any part
 // of the body to read what it is.
 
-import { nextCard, answer, mastery, deckCounts, typedMatches, choices, parseDeck, hintText } from './learn.js?v=4.3';
-import { DECKS, customDeck, deckCards, promptFor } from './decks.js?v=4.3';
-import { bodySvg, itemsInView, viewsOf } from './anatomy.js?v=4.3';
+import { nextCard, answer, mastery, deckCounts, typedMatches, choices, parseDeck, hintText } from './learn.js?v=4.4';
+import { DECKS, customDeck, deckCards, promptFor } from './decks.js?v=4.4';
+import { bodySvg, itemsInView, viewsOf } from './anatomy.js?v=4.4';
 
 const today = () => new Date().toISOString().slice(0, 10);
 

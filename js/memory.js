@@ -2,7 +2,7 @@
 // you've got (rhythm level, and how many bars at once, which you choose)
 // and the rules for moving up and down. No DOM code, so it can be unit tested.
 
-import { LEVELS, generateFromCells, cellFitsMeter } from './rhythm.js?v=4.3';
+import { LEVELS, generateFromCells, cellFitsMeter } from './rhythm.js?v=4.4';
 
 export const MAX_BARS = 4;
 export const PASS = 80; // a score this good counts towards moving up
@@ -117,4 +117,10 @@ export function roundTimeline(view, bars, barSec, t) {
   }
   const playStart = countStart + barSec;
   return { readStart: t, showEnd, countStart, playStart, playEnd: playStart + bars * barSec, readBars: Math.round((countStart - t) / barSec) };
+}
+
+/** A bar's verdict (from rhythm.js barVerdict) as one big word: PERFECT! / NICE! / OK / BAD. */
+export function verdictWord(v) {
+  if (v.level === 'good') return v.text === 'Great' || v.text === 'Good rest' ? 'PERFECT!' : 'NICE!';
+  return v.level === 'close' ? 'OK' : 'BAD';
 }
